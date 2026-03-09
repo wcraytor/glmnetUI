@@ -1,0 +1,9 @@
+.DS_Store
+Output/*.xlsx
+Output/*.txt
+glmnetUI.Rcheck/
+glmnetUI_*.tar.gz
+*.Rhistory
+*.RData
+*.Rproj.user
+.Rproj.user/
