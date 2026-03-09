@@ -1,0 +1,17 @@
+linters: linters_with_defaults(
+    # camelCase is standard for Shiny module functions (e.g., modelingUI/Server)
+    object_name_linter = NULL,
+    # One-liner reactives are idiomatic in Shiny
+    brace_linter = NULL,
+    # Explicit return() is clearer for module return lists
+    return_linter = NULL,
+    # Single quotes needed for CSS/JS embedded in R strings
+    quotes_linter = NULL,
+    # 80-char limit is too strict for HTML/CSS/JS inline strings
+    line_length_linter = line_length_linter(120L)
+  )
+exclusions: list(
+    "inst/app/ui.R" = list(
+      line_length_linter = Inf
+    )
+  )

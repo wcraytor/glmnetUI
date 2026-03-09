@@ -1,0 +1,72 @@
+---
+title: "glmnetUI Model Report"
+output:
+  pdf_document:
+    latex_engine: xelatex
+mainfont: "Roboto Condensed"
+sansfont: "Roboto Condensed"
+params:
+  appraiser_name: ""
+  property_address: ""
+  report_date: ""
+  file_number: ""
+  lambda: 0
+  lambda_min: NA
+  lambda_1se: NA
+  coef_df: NULL
+  plot_dir: ""
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+## Report Information
+
+| Field | Value |
+|-------|-------|
+| Appraiser | `r params$appraiser_name` |
+| Property | `r params$property_address` |
+| Date | `r params$report_date` |
+| File Number | `r params$file_number` |
+
+## Model Summary
+
+- **Lambda selected:** `r signif(params$lambda, 4)`
+```{r lambda-details, results='asis'}
+if (!is.na(params$lambda_min)) {
+  cat(sprintf("- **lambda.min:** %s\n", signif(params$lambda_min, 4)))
+  cat(sprintf("- **lambda.1se:** %s\n", signif(params$lambda_1se, 4)))
+}
+```
+
+## Coefficient Table
+
+```{r coef-table}
+if (!is.null(params$coef_df)) {
+  knitr::kable(params$coef_df, row.names = FALSE,
+               col.names = c("Variable", "Coefficient", "Sign Warning"))
+}
+```
+
+## Diagnostic Plots
+
+```{r coef-path, fig.cap="Coefficient Path"}
+f <- file.path(params$plot_dir, "coef_path.png")
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+```{r cv-error, fig.cap="Cross-Validation Error"}
+f <- file.path(params$plot_dir, "cv_error.png")
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+```{r avp, fig.cap="Actual vs Predicted"}
+f <- file.path(params$plot_dir, "actual_vs_predicted.png")
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+```{r resid, fig.cap="Residuals vs Fitted"}
+f <- file.path(params$plot_dir, "residuals_vs_fitted.png")
+if (file.exists(f)) knitr::include_graphics(f)
+```

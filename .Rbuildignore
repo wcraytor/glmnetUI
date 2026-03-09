@@ -1,0 +1,8 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^LICENSE\.md$
+^title\.sh$
+^\.claude$
+^cran-comments\.md$
+^\.lintr$
+^cloc\.sh$

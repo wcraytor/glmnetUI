@@ -1,0 +1,39 @@
+Package: glmnetUI
+Title: Interactive Shiny Interface for Elastic Net Modeling with 'glmnet'
+Version: 0.1.0
+Authors@R:
+    person("William", "Craytor", , "bcraytor@proton.me", role = c("aut", "cre"))
+Description: A self-contained Shiny application for interactive elastic net
+    regression modeling using 'glmnet'. Provides point-and-click variable
+    selection, alpha/lambda tuning with cross-validation, coefficient sign
+    warnings for model defensibility, diagnostic plots, and formatted report
+    export. Designed for real estate appraisers and general regression users
+    who need an accessible interface for regularized regression.
+License: AGPL (>= 3)
+URL: https://github.com/wcraytor/glmnetUI
+BugReports: https://github.com/wcraytor/glmnetUI/issues
+Depends:
+    R (>= 4.1.0)
+Imports:
+    shiny,
+    glmnet,
+    readr,
+    readxl,
+    DT,
+    ggplot2,
+    officer,
+    rmarkdown,
+    jsonlite,
+    bslib
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    thematic,
+    sysfonts,
+    showtext,
+    writexl
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+VignetteBuilder: knitr

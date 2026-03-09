@@ -1,0 +1,740 @@
+#' Data Import Module UI
+#'
+#' UI component for the data import module. Provides file upload
+#' and variable role assignment controls with per-variable
+#' include checkboxes following the earthUI pattern.
+#'
+#' @param id Module namespace ID.
+#'
+#' @return A Shiny \code{tagList} containing the module UI elements.
+#'
+#' @export
+#' @examples
+#' if (interactive()) {
+#'   ui <- shiny::fluidPage(dataImportUI("data"))
+#' }
+dataImportUI <- function(id) {
+
+  ns <- shiny::NS(id)
+
+  shiny::tagList(
+    shiny::fileInput(ns("file_input"), "Choose CSV or Excel file",
+                     accept = c(".csv", ".xls", ".xlsx")),
+    shiny::conditionalPanel(
+      condition = paste0("output['", ns("has_sheets"), "']"),
+      shiny::selectInput(ns("sheet"), "Excel Sheet", choices = NULL)
+    )
+  )
+}
+
+#' Variable Configuration Module UI
+#'
+#' UI component for variable configuration: response, weight, and
+#' predictor settings table. Uses the same module namespace as
+#' [dataImportUI()] / [dataImportServer()].
+#'
+#' @param id Module namespace ID (must match the ID used in
+#'   \code{dataImportServer}).
+#'
+#' @return A Shiny \code{tagList} containing the variable configuration UI.
+#'
+#' @export
+#' @examples
+#' if (interactive()) {
+#'   ui <- shiny::fluidPage(variableConfigUI("data"))
+#' }
+variableConfigUI <- function(id) {
+
+  ns <- shiny::NS(id)
+
+  help_icon <- function(text) {
+    shiny::tags$span(
+      class = "glmnet-help-icon",
+      `data-bs-toggle` = "popover",
+      `data-bs-trigger` = "hover focus",
+      `data-bs-content` = text,
+      `data-bs-placement` = "left",
+      "?"
+    )
+  }
+
+  label_with_help <- function(label, help_text) {
+    shiny::tags$span(label, help_icon(help_text))
+  }
+
+  shiny::tagList(
+    shiny::selectInput(
+      ns("response"),
+      label_with_help(
+        "Response (Target) Variable",
+        paste(
+          "The variable you want to predict.",
+          "Must be numeric for gaussian family.",
+          "All other variables can be selected as predictors."
+        )
+      ),
+      choices = NULL
+    ),
+    shiny::uiOutput(ns("response_type")),
+    shiny::selectInput(
+      ns("weight_col"),
+      label_with_help(
+        "Weight Column (optional)",
+        paste(
+          "Assign observation weights to rows.",
+          "Rows with weight=0 are excluded from modeling entirely.",
+          "Higher weights give more influence to those observations.",
+          "Useful for downweighting outliers or skipping header rows."
+        )
+      ),
+      choices = c("(none)" = "")
+    ),
+    shiny::tags$h5("Predictor Settings"),
+    shiny::helpText(
+      shiny::tags$b("Inc"), " = include as predictor. ",
+      shiny::tags$b("Force"), " = guarantee variable stays in the model",
+      " (regularization cannot remove it). ",
+      shiny::tags$b("Sign"), " = expected coefficient direction;",
+      " used for warnings, and for hard constraints if",
+      " 'Enforce Sign Constraints' is enabled."
+    ),
+    shiny::tags$div(
+      class = "glmnet-var-table",
+      style = paste0("max-height: 400px; overflow-y: auto; ",
+                     "border: 1px solid #ddd; border-radius: 4px;"),
+      shiny::uiOutput(ns("variable_table"))
+    )
+  )
+}
+
+#' Data Import Module - Data Preview UI
+#'
+#' UI component for the data preview table, intended for the main panel.
+#'
+#' @param id Module namespace ID (must match the ID used in
+#'   \code{dataImportServer}).
+#'
+#' @return A Shiny \code{tagList} containing the data preview table.
+#'
+#' @export
+#' @examples
+#' if (interactive()) {
+#'   ui <- shiny::fluidPage(dataPreviewUI("data"))
+#' }
+dataPreviewUI <- function(id) {
+  ns <- shiny::NS(id)
+  shiny::tagList(
+    DT::DTOutput(ns("preview_table"))
+  )
+}
+
+#' Data Import Module Server
+#'
+#' Server logic for the data import module. Handles file reading,
+#' snake_case column name conversion, column type detection, variable
+#' role management via per-variable include checkboxes, and settings
+#' persistence via localStorage keyed by input filename.
+#'
+#' @param id Module namespace ID.
+#' @param purpose Reactive returning the current purpose mode
+#'   (\code{"general"}, \code{"appraisal"}, or \code{"market"}).
+#'
+#' @return A reactive list containing:
+#' \describe{
+#'   \item{data}{The imported data frame.}
+#'   \item{response}{Selected response variable name.}
+#'   \item{predictors}{Selected predictor variable names.}
+#'   \item{expected_signs}{Named vector of expected signs per predictor.}
+#'   \item{valid}{Logical, whether selections are valid for modeling.}
+#'   \item{col_specials}{Named character vector of special column roles.}
+#' }
+#'
+#' @export
+#' @examples
+#' if (interactive()) {
+#'   server <- function(input, output, session) {
+#'     data_out <- dataImportServer("data",
+#'                                  shiny::reactiveVal("general"))
+#'   }
+#' }
+dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
+  shiny::moduleServer(id, function(input, output, session) {
+    ns <- session$ns
+
+    rv <- shiny::reactiveValues(
+      data = NULL,
+      col_types = NULL,
+      sheets = NULL,
+      file_name = NULL
+    )
+
+    # --- File import ---
+    shiny::observeEvent(input$file_input, {
+      req_file <- input$file_input
+      ext <- tolower(tools::file_ext(req_file$name))
+      rv$file_name <- req_file$name
+
+      tryCatch({
+        if (ext == "csv") {
+          rv$data <- as.data.frame(
+            readr::read_csv(req_file$datapath, show_col_types = FALSE)
+          )
+          rv$sheets <- NULL
+        } else if (ext %in% c("xls", "xlsx")) {
+          rv$sheets <- readxl::excel_sheets(req_file$datapath)
+          rv$data <- as.data.frame(
+            readxl::read_excel(req_file$datapath, sheet = 1)
+          )
+          shiny::updateSelectInput(session, "sheet", choices = rv$sheets,
+                                   selected = rv$sheets[1])
+        } else {
+          shiny::showNotification("Unsupported file type.", type = "error")
+          return()
+        }
+
+        names(rv$data) <- to_snake_case(names(rv$data))
+        rv$col_types <- detect_column_types(rv$data)
+        all_cols <- names(rv$data)
+
+        default_response <- if (length(all_cols) > 0) all_cols[1] else NULL
+        shiny::updateSelectInput(session, "response",
+                                 choices = all_cols,
+                                 selected = default_response)
+
+        # Auto-detect weight column
+        weight_match <- grep("^weights?$", all_cols, ignore.case = FALSE)
+        weight_choices <- c("(none)" = "", stats::setNames(all_cols, all_cols))
+        weight_selected <- if (length(weight_match) > 0) all_cols[weight_match[1]] else ""
+        shiny::updateSelectInput(session, "weight_col",
+                                 choices = weight_choices,
+                                 selected = weight_selected)
+      }, error = function(e) {
+        shiny::showNotification(paste("Import error:", e$message),
+                                type = "error")
+      })
+    })
+
+    shiny::observeEvent(input$sheet, {
+      req_file <- input$file_input
+      if (is.null(req_file)) return()
+      tryCatch({
+        rv$data <- as.data.frame(
+          readxl::read_excel(req_file$datapath, sheet = input$sheet)
+        )
+        names(rv$data) <- to_snake_case(names(rv$data))
+        rv$col_types <- detect_column_types(rv$data)
+        all_cols <- names(rv$data)
+
+        default_response <- if (length(all_cols) > 0) all_cols[1] else NULL
+        shiny::updateSelectInput(session, "response",
+                                 choices = all_cols,
+                                 selected = default_response)
+
+        # Auto-detect weight column
+        weight_match <- grep("^weights?$", all_cols, ignore.case = FALSE)
+        weight_choices <- c("(none)" = "", stats::setNames(all_cols, all_cols))
+        weight_selected <- if (length(weight_match) > 0) all_cols[weight_match[1]] else ""
+        shiny::updateSelectInput(session, "weight_col",
+                                 choices = weight_choices,
+                                 selected = weight_selected)
+      }, error = function(e) {
+        shiny::showNotification(paste("Sheet error:", e$message),
+                                type = "error")
+      })
+    })
+
+    # --- Candidate columns: everything except response and weight ---
+    candidates <- shiny::reactive({
+      shiny::req(rv$data, input$response)
+      exclude <- input$response
+      wt <- input$weight_col
+      if (!is.null(wt) && nzchar(wt)) exclude <- c(exclude, wt)
+      setdiff(names(rv$data), exclude)
+    })
+
+    # --- Response type indicator ---
+    output$response_type <- shiny::renderUI({
+      shiny::req(rv$data, input$response, rv$col_types)
+      resp <- input$response
+      rtype <- rv$col_types[resp]
+      is_ok <- rtype %in% c("numeric", "integer")
+      color <- if (is_ok) "var(--bs-success)" else "var(--bs-danger)"
+      msg <- if (is_ok) {
+        paste0("Type: ", rtype)
+      } else {
+        paste0("Type: ", rtype, " \u2014 must be numeric for modeling")
+      }
+      shiny::tags$div(
+        style = paste0("font-size:12px; color:", color,
+                       "; margin-top:-8px; margin-bottom:8px;"),
+        msg
+      )
+    })
+
+    # --- Variable table with Inc? checkboxes, type, expected sign, NAs ---
+    output$variable_table <- shiny::renderUI({
+      cols <- candidates()
+      if (length(cols) == 0) return(shiny::helpText("No candidate predictors."))
+
+      types <- rv$col_types
+      df <- rv$data
+      file_key <- rv$file_name
+
+      # CSS for flexbox rows (colors handled via classes for dark mode)
+      row_css <- "display:flex; align-items:center; padding:3px 6px;"
+      hdr_css <- paste0(row_css, " font-weight:bold;")
+
+      all_types <- c("numeric", "integer", "character", "factor",
+                     "Date", "POSIXct")
+
+      appraiser <- purpose() %in% c("appraisal", "market")
+      special_options <- c("no", "contract_date", "latitude", "longitude")
+
+      hdr_cols <- list(
+        shiny::tags$div(style = "flex:1; min-width:100px;", "Variable"),
+        shiny::tags$div(style = "width:90px; text-align:center;", "Type"),
+        shiny::tags$div(style = "width:40px; text-align:center;", "Inc"),
+        shiny::tags$div(style = "width:40px; text-align:center;", "Force")
+      )
+      if (appraiser) {
+        hdr_cols <- c(hdr_cols, list(
+          shiny::tags$div(style = "width:95px; text-align:center;", "Special")
+        ))
+      }
+      hdr_cols <- c(hdr_cols, list(
+        shiny::tags$div(style = "width:80px; text-align:center;", "Sign"),
+        shiny::tags$div(style = "width:45px; text-align:center;", "NAs")
+      ))
+      header <- shiny::tags$div(
+        class = "glmnet-var-hdr",
+        style = hdr_css,
+        hdr_cols
+      )
+
+      rows <- lapply(seq_along(cols), function(i) {
+        col_name <- cols[i]
+        col_type <- types[col_name]
+        na_count <- sum(is.na(df[[col_name]]))
+        na_style <- if (na_count > nrow(df) * 0.3) "color:red;" else ""
+
+        type_options <- lapply(all_types, function(tp) {
+          if (tp == col_type) {
+            shiny::tags$option(value = tp, selected = "selected", tp)
+          } else {
+            shiny::tags$option(value = tp, tp)
+          }
+        })
+        type_el <- shiny::tags$select(
+          id = ns(paste0("type_", col_name)),
+          class = "form-control glmnet-type-sel",
+          style = "padding:2px; height:auto; font-size:11px;",
+          `data-col` = col_name,
+          type_options
+        )
+
+        sign_el <- shiny::tags$select(
+          id = ns(paste0("sign_", col_name)),
+          class = "form-control glmnet-sign-sel",
+          style = "padding:2px; height:auto; font-size:12px;",
+          `data-col` = col_name,
+          shiny::tags$option(value = "either", "either"),
+          shiny::tags$option(value = "positive", "positive"),
+          shiny::tags$option(value = "negative", "negative")
+        )
+
+        special_el <- NULL
+        if (appraiser) {
+          special_opts <- lapply(special_options, function(sp) {
+            shiny::tags$option(value = sp, sp)
+          })
+          special_el <- shiny::tags$div(
+            style = "width:95px; text-align:center;",
+            shiny::tags$select(
+              id = ns(paste0("special_", col_name)),
+              class = "form-control glmnet-special-sel",
+              style = "padding:2px; height:auto; font-size:11px;",
+              `data-col` = col_name,
+              special_opts
+            )
+          )
+        }
+
+        row_cells <- list(
+          shiny::tags$div(
+            style = "flex:1; min-width:100px; font-size:13px;",
+            col_name
+          ),
+          shiny::tags$div(
+            style = "width:90px; text-align:center;",
+            type_el
+          ),
+          shiny::tags$div(
+            style = "width:40px; text-align:center;",
+            shiny::tags$input(
+              type = "checkbox",
+              id = ns(paste0("inc_", col_name)),
+              class = "glmnet-var-cb",
+              `data-col` = col_name
+            )
+          ),
+          shiny::tags$div(
+            style = "width:40px; text-align:center;",
+            shiny::tags$input(
+              type = "checkbox",
+              id = ns(paste0("force_", col_name)),
+              class = "glmnet-force-cb",
+              `data-col` = col_name
+            )
+          )
+        )
+        if (!is.null(special_el)) {
+          row_cells <- c(row_cells, list(special_el))
+        }
+        row_cells <- c(row_cells, list(
+          shiny::tags$div(
+            style = "width:80px; text-align:center;",
+            sign_el
+          ),
+          shiny::tags$div(
+            style = paste0("width:45px; text-align:center; font-size:12px;",
+                           na_style),
+            as.character(na_count)
+          )
+        ))
+
+        shiny::tags$div(
+          class = "glmnet-var-row",
+          style = row_css,
+          row_cells
+        )
+      })
+
+      # JavaScript: sync state, save/restore from localStorage by filename
+      col_names_json <- jsonlite::toJSON(cols, auto_unbox = FALSE)
+      js_code <- sprintf('
+        (function() {
+          var cols = %s;
+          var nsPrefix = "%s";
+          var fileKey = %s;
+          var storageKey = "glmnetUI_vars_" + fileKey;
+
+          function gatherState() {
+            var preds = [];
+            var types = {};
+            var forceVars = [];
+            var specials = {};
+            for (var i = 0; i < cols.length; i++) {
+              var cb = document.getElementById(nsPrefix + "inc_" + cols[i]);
+              var tp = document.getElementById(nsPrefix + "type_" + cols[i]);
+              var fcb = document.getElementById(nsPrefix + "force_" + cols[i]);
+              var sp = document.getElementById(nsPrefix + "special_" + cols[i]);
+              if (cb && cb.checked) {
+                preds.push(cols[i]);
+              }
+              if (tp) {
+                types[cols[i]] = tp.value;
+              }
+              if (fcb && fcb.checked) forceVars.push(cols[i]);
+              if (sp) specials[cols[i]] = sp.value;
+            }
+            Shiny.setInputValue(nsPrefix + "predictors", preds,
+                                {priority: "event"});
+            Shiny.setInputValue(nsPrefix + "col_types_override", types,
+                                {priority: "event"});
+            Shiny.setInputValue(nsPrefix + "force_vars", forceVars,
+                                {priority: "event"});
+            Shiny.setInputValue(nsPrefix + "col_specials", specials,
+                                {priority: "event"});
+          }
+
+          function saveState() {
+            var state = {};
+            for (var i = 0; i < cols.length; i++) {
+              var cb = document.getElementById(nsPrefix + "inc_" + cols[i]);
+              var sel = document.getElementById(nsPrefix + "sign_" + cols[i]);
+              var tp = document.getElementById(nsPrefix + "type_" + cols[i]);
+              var fcb = document.getElementById(nsPrefix + "force_" + cols[i]);
+              var sp = document.getElementById(nsPrefix + "special_" + cols[i]);
+              state[cols[i]] = {
+                inc: cb ? cb.checked : false,
+                sign: sel ? sel.value : "either",
+                type: tp ? tp.value : "character",
+                force: fcb ? fcb.checked : false,
+                special: sp ? sp.value : "no"
+              };
+            }
+            try {
+              localStorage.setItem(storageKey, JSON.stringify(state));
+            } catch(e) {}
+          }
+
+          function restoreState() {
+            var saved = null;
+            try {
+              var raw = localStorage.getItem(storageKey);
+              if (raw) saved = JSON.parse(raw);
+            } catch(e) {}
+
+            for (var i = 0; i < cols.length; i++) {
+              var cb = document.getElementById(nsPrefix + "inc_" + cols[i]);
+              var sel = document.getElementById(nsPrefix + "sign_" + cols[i]);
+              var tp = document.getElementById(nsPrefix + "type_" + cols[i]);
+              var fcb = document.getElementById(nsPrefix + "force_" + cols[i]);
+              if (saved && saved[cols[i]]) {
+                if (cb) cb.checked = saved[cols[i]].inc;
+                if (sel) sel.value = saved[cols[i]].sign || "either";
+                if (tp && saved[cols[i]].type) tp.value = saved[cols[i]].type;
+                if (fcb && saved[cols[i]].force) fcb.checked = saved[cols[i]].force;
+                var sp = document.getElementById(nsPrefix + "special_" + cols[i]);
+                if (sp && saved[cols[i]].special) sp.value = saved[cols[i]].special;
+              }
+              // Sync sign selects to Shiny
+              if (sel) {
+                Shiny.setInputValue(nsPrefix + "sign_" + cols[i], sel.value);
+              }
+            }
+          }
+
+          // Event handlers
+          $(document).off("change.glmnetvar").on("change.glmnetvar",
+            ".glmnet-var-cb", function() {
+              gatherState();
+              saveState();
+            });
+
+          $(document).off("change.glmnetsign").on("change.glmnetsign",
+            ".glmnet-sign-sel", function() {
+              var col = $(this).data("col");
+              Shiny.setInputValue(nsPrefix + "sign_" + col, this.value);
+              saveState();
+            });
+
+          $(document).off("change.glmnettype").on("change.glmnettype",
+            ".glmnet-type-sel", function() {
+              gatherState();
+              saveState();
+            });
+
+          $(document).off("change.glmnetforce").on("change.glmnetforce",
+            ".glmnet-force-cb", function() {
+              gatherState();
+              saveState();
+            });
+
+          $(document).off("change.glmnetspecial").on("change.glmnetspecial",
+            ".glmnet-special-sel", function() {
+              gatherState();
+              saveState();
+            });
+
+          // --- Response variable save/restore (selectize API) ---
+          var respKey = "glmnetUI_response_" + fileKey;
+          var respId = nsPrefix + "response";
+
+          // Save response on change via selectize
+          var respAttempts = 0;
+          function getSelectize() {
+            var $el = $("#" + CSS.escape(respId));
+            if ($el.length && $el[0].selectize) return $el[0].selectize;
+            return null;
+          }
+
+          function bindRespSave() {
+            var sz = getSelectize();
+            if (sz) {
+              sz.on("change", function(value) {
+                try {
+                  localStorage.setItem(respKey, value);
+                } catch(e) {}
+              });
+              return true;
+            }
+            return false;
+          }
+
+          // Restore response with polling (earthUI pattern)
+          function tryRestoreResponse() {
+            var sz = getSelectize();
+            if (sz && sz.isSetup && Object.keys(sz.options).length > 0) {
+              bindRespSave();
+              var savedResp = null;
+              try { savedResp = localStorage.getItem(respKey); } catch(e) {}
+              if (savedResp && sz.options[savedResp] &&
+                  sz.getValue() !== savedResp) {
+                sz.setValue(savedResp, false);
+              }
+            } else if (respAttempts < 40) {
+              respAttempts++;
+              setTimeout(tryRestoreResponse, 250);
+            }
+          }
+          tryRestoreResponse();
+
+          // Restore saved predictor state, then sync
+          restoreState();
+          setTimeout(gatherState, 50);
+        })();
+      ', col_names_json, ns(""),
+                         jsonlite::toJSON(file_key, auto_unbox = TRUE))
+
+      shiny::tagList(
+        header,
+        rows,
+        shiny::tags$script(shiny::HTML(js_code))
+      )
+    })
+
+    # --- Reactive outputs for conditionalPanel ---
+    output$data_loaded <- shiny::reactive({ !is.null(rv$data) })
+    shiny::outputOptions(output, "data_loaded", suspendWhenHidden = FALSE)
+
+    output$has_sheets <- shiny::reactive({ !is.null(rv$sheets) })
+    shiny::outputOptions(output, "has_sheets", suspendWhenHidden = FALSE)
+
+    # --- Data preview (rendered in main panel via dataPreviewUI) ---
+    output$preview_table <- DT::renderDT({
+      shiny::req(rv$data)
+      DT::datatable(rv$data,
+                    options = list(scrollX = TRUE, pageLength = 15),
+                    rownames = FALSE)
+    })
+
+    # --- Effective column types (auto-detected, then user overrides) ---
+    effective_types <- shiny::reactive({
+      base <- rv$col_types
+      overrides <- input$col_types_override
+      if (!is.null(overrides) && is.list(overrides)) {
+        for (nm in names(overrides)) {
+          if (nm %in% names(base)) {
+            base[nm] <- overrides[[nm]]
+          }
+        }
+      }
+      base
+    })
+
+    # --- Derived reactives ---
+    expected_signs <- shiny::reactive({
+      preds <- input$predictors
+      etypes <- effective_types()
+      if (is.null(preds) || is.null(etypes)) {
+        return(stats::setNames(character(0), character(0)))
+      }
+      numeric_preds <- preds[
+        preds %in% names(etypes)[etypes %in% c("numeric", "integer")]
+      ]
+      if (length(numeric_preds) == 0) {
+        return(stats::setNames(character(0), character(0)))
+      }
+      signs <- vapply(numeric_preds, function(var) {
+        val <- input[[paste0("sign_", var)]]
+        if (is.null(val)) "either" else val
+      }, FUN.VALUE = character(1))
+      signs
+    })
+
+    is_valid <- shiny::reactive({
+      !is.null(rv$data) &&
+        !is.null(input$response) && nzchar(input$response) &&
+        !is.null(input$predictors) && length(input$predictors) > 0
+    })
+
+    force_in <- shiny::reactive({
+      fv <- input$force_vars
+      if (is.null(fv)) character(0) else fv
+    })
+
+    col_specials <- shiny::reactive({
+      sp <- input$col_specials
+      if (is.null(sp) || !is.list(sp)) {
+        return(stats::setNames(character(0), character(0)))
+      }
+      unlist(sp)
+    })
+
+    return(list(
+      data = shiny::reactive(rv$data),
+      response = shiny::reactive(input$response),
+      predictors = shiny::reactive(input$predictors),
+      expected_signs = expected_signs,
+      valid = is_valid,
+      col_types = effective_types,
+      weight_col = shiny::reactive({
+        wt <- input$weight_col
+        if (is.null(wt) || !nzchar(wt)) NULL else wt
+      }),
+      force_in = force_in,
+      col_specials = col_specials,
+      file_name = shiny::reactive(rv$file_name),
+      rv = rv
+    ))
+  })
+}
+
+#' Convert Column Names to snake_case
+#'
+#' Converts column names to snake_case by replacing spaces, dots,
+#' camelCase boundaries, and other non-alphanumeric characters with
+#' underscores, then lowercasing.
+#'
+#' @param nms Character vector of column names.
+#'
+#' @return Character vector of snake_case names. Duplicate names are
+#'   made unique with numeric suffixes.
+#'
+#' @export
+#' @examples
+#' to_snake_case(c("SalePrice", "Lot.Size", "Total Sq Ft", "AGE"))
+to_snake_case <- function(nms) {
+  out <- nms
+  # Insert underscore before uppercase preceded by lowercase (camelCase)
+  out <- gsub("([a-z0-9])([A-Z])", "\\1_\\2", out)
+  # Replace spaces, dots, dashes, and other separators with underscore
+  out <- gsub("[^A-Za-z0-9]+", "_", out)
+  # Lowercase
+  out <- tolower(out)
+  # Remove leading/trailing underscores
+  out <- gsub("^_+|_+$", "", out)
+  # Collapse multiple underscores
+  out <- gsub("_+", "_", out)
+  # Ensure unique
+  make.unique(out, sep = "_")
+}
+
+#' Detect Column Types
+#'
+#' Classifies columns using R type names: \code{"numeric"},
+#' \code{"integer"}, \code{"Date"}, \code{"POSIXct"},
+#' \code{"factor"}, or \code{"character"}.
+#'
+#' @param df A data frame.
+#'
+#' @return A named character vector of R type names, one per column.
+#'
+#' @export
+#' @examples
+#' df <- data.frame(x = 1:10, y = letters[1:10],
+#'                  d = Sys.Date() + 1:10, stringsAsFactors = FALSE)
+#' detect_column_types(df)
+detect_column_types <- function(df) {
+  vapply(df, function(col) {
+    if (inherits(col, "POSIXct") || inherits(col, "POSIXlt")) {
+      "POSIXct"
+    } else if (inherits(col, "Date")) {
+      "Date"
+    } else if (is.integer(col)) {
+      "integer"
+    } else if (is.numeric(col)) {
+      "numeric"
+    } else if (is.factor(col)) {
+      "factor"
+    } else {
+      n_unique <- length(unique(stats::na.omit(col)))
+      if (n_unique <= 10 && n_unique < length(col) / 2) {
+        "factor"
+      } else {
+        "character"
+      }
+    }
+  }, FUN.VALUE = character(1))
+}
