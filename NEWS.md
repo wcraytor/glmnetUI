@@ -1,3 +1,8 @@
+# glmnetUI 0.1.1
+
+* Improved title bar spacing to match earthUI layout (padding above and below).
+* Renamed "RCA Analysis" tab to "RCA Adjustments".
+
 # glmnetUI 0.1.0
 
 * Initial CRAN release.
