@@ -1,7 +1,35 @@
 # glmnetUI 0.1.1
 
+* **Sales Grid** (Step 8, appraisal mode): Generate a formatted Sales Comparison Grid Excel workbook from RCA output. Modal dialog for comp selection with recommended comps (gross adj < 25%, sorted by sale age) pre-checked. Up to 30 comps across 10 sheets (3 per sheet). Includes grouped rows (Location/Site/Age), residual feature input cells, Net/Gross adjustment percentages, and Adjusted Sale Price formulas. Sheet protection with unlocked residual value cells for appraiser input.
+* **Summary tab** with model fit statistics cards: R², Adj R², GR² (generalized), CV R², RMSE, MAE; appraisal metrics (Median Ratio, COD, PRD) shown in appraisal/market modes. Includes overfitting warning when training R² exceeds CV R² by >0.1. Coefficient table with sign warnings below stats cards.
+* **Correlation tab** with heatmap matrix of numeric predictors and response variable; works before model fitting. Adaptive text/axis sizing based on variable count.
+* **Variable Importance tab** with bar chart and table showing standardized coefficient magnitude (|β| × sd(x)), aggregated across dummy columns for factor variables.
+* **Contributions tab** with per-variable partial effect plots: scatter + line for numeric predictors, histogram for factor/interaction terms. Line segments labeled with slope (e.g., `+1,234.56/unit`) using adaptive units matching earthUI style. Variable selector dropdown.
+* **ANOVA tab** with variance decomposition table: per-variable sum of squares (SS), percentage of model SS, and coefficient. Includes intercept and total model SS rows.
+* **Equation tab** with LaTeX-rendered model equation via MathJax; non-zero coefficients formatted with proper signs and interaction terms shown as `x₁ × x₂`.
+* Variable Importance tab: interactive plotly bar chart with hover tooltips (exact importance, coefficient, relative %) when plotly is available; falls back to ggplot2.
+* Diagnostics tab: larger fonts (base_size 16), 15 axis tick marks, comma-formatted labels (no scientific notation), shared `glmnet_diag_theme_()` helper across all 4 plots.
+* Contributions and Variable Importance: larger fonts, 20 x-axis tick marks, comma-formatted labels.
+* White checkmark indicator on Download Output, Calculate RCA Adjustments, and Download Report buttons after successful completion.
+* Fixed ~15 rows out of 1500 getting no predictions due to unseen factor levels in export; unseen levels now get zero-valued dummy columns instead of NA.
+* Fixed Contributions plot showing wobbly loess curve; replaced with `geom_line` for exact linear β×x relationship.
 * Improved title bar spacing to match earthUI layout (padding above and below).
 * Renamed "RCA Analysis" tab to "RCA Adjustments".
+* Added "sale_age" as a Special column type, allowing any column to serve as the sale age rather than requiring the column be named "sale_age".
+* Added Settings dropdown on title bar with Country and Paper size selectors (matching earthUI).
+* Added Locale dropdown right-aligned next to file input for per-import locale control.
+* Locale-aware CSV import using country-specific field separator and decimal mark (31 countries supported).
+* Locale settings persist via localStorage with "Save as my default" option.
+* Switched CSV import from `readr::read_csv` to `utils::read.csv` with locale-aware `sep`/`dec` parameters; removed `readr` dependency.
+* Removed separate Weight Column dropdown; weight is now assigned via the "weight" Special type in Predictor Settings (only one weight column allowed).
+* Special column (with "weight" option) now always visible, not just in appraisal/market modes.
+* Additional Special column types: actual_age, area (market area/neighborhood identifier), effective_age, concessions, dom, listing_date, living_area, lot_size, site_dimensions, display_only.
+* Automatic date column detection: character columns matching common date formats are auto-parsed to POSIXct; 2-digit year formats prioritized when no 4-digit year is detected.
+* Data Preview split for appraisal/market modes: Subject Property (row 1) and Comparable Sales (rows 2+) in separate tables.
+* Sale_age recomputation when Effective Date changes (using contract_date Special type column).
+* Fixed dark mode toggle not working (onclick binding moved into `shiny:connected` handler).
+* Fixed DT "column name not found" error when loading data with changing column sets between re-renders.
+* Fixed `model_fitted` conditional panel flag to use `isTRUE()` instead of `!is.null()`.
 
 # glmnetUI 0.1.0
 

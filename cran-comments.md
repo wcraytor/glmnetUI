@@ -4,7 +4,7 @@
 
 ## Test environments
 
-* macOS Tahoe 26.3 (aarch64), R 4.5.2
+* macOS Tahoe 26.3.1 (aarch64), R 4.5.2
 
 ## Downstream dependencies
 

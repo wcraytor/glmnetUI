@@ -17,7 +17,6 @@ Depends:
 Imports:
     shiny,
     glmnet,
-    readr,
     readxl,
     DT,
     ggplot2,
@@ -28,10 +27,12 @@ Imports:
 Suggests:
     testthat (>= 3.0.0),
     knitr,
+    plotly,
     thematic,
     sysfonts,
     showtext,
-    writexl
+    writexl,
+    openxlsx
 Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

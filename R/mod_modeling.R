@@ -327,6 +327,82 @@ modelingServer <- function(id, data_module,
       n_excluded = 0L
     )
 
+    # --- Recompute sale_age when effective_date changes ---
+    shiny::observeEvent(effective_date(), {
+      if (!(purpose() %in% c("appraisal", "market"))) return()
+
+      rv_data <- data_module$rv
+      if (is.null(rv_data$data)) return()
+
+      specials <- data_module$col_specials()
+
+      # If a sale_age special column is designated, user manages it
+      if (!is.null(specials) && any(specials == "sale_age")) return()
+
+      # Find contract_date column from specials
+      contract_col <- NULL
+      if (!is.null(specials) && length(specials) > 0) {
+        for (nm in names(specials)) {
+          if (specials[[nm]] == "contract_date") {
+            contract_col <- nm
+            break
+          }
+        }
+      }
+
+      # If sale_age already exists (from a previous computation) but
+      # no contract_date special is set, look for the contract_date
+      # column that was used last time
+      if (is.null(contract_col) &&
+            !("sale_age" %in% names(rv_data$data))) return()
+
+      # If we have a computed sale_age but no contract_date designated,
+      # try common column names as fallback
+      if (is.null(contract_col)) {
+        for (candidate in c("contract_date", "coe_date",
+                            "sale_date", "close_date")) {
+          if (candidate %in% names(rv_data$data)) {
+            contract_col <- candidate
+            break
+          }
+        }
+      }
+      if (is.null(contract_col)) return()
+
+      eff_date <- as.POSIXct(as.character(effective_date()))
+      contract_vals <- rv_data$data[[contract_col]]
+
+      contract_posix <- if (inherits(contract_vals, "POSIXct")) {
+        contract_vals
+      } else if (inherits(contract_vals, "Date")) {
+        as.POSIXct(contract_vals)
+      } else if (is.character(contract_vals)) {
+        suppressWarnings(as.POSIXct(contract_vals))
+      } else if (is.numeric(contract_vals)) {
+        as.POSIXct(as.Date(contract_vals, origin = "1899-12-30"))
+      } else {
+        NULL
+      }
+
+      if (is.null(contract_posix) ||
+            all(is.na(contract_posix[!is.na(contract_vals)]))) return()
+
+      sale_age <- as.integer(
+        difftime(eff_date, contract_posix, units = "days")
+      )
+      rv_data$data[["sale_age"]] <- sale_age
+      rv_data$col_types[["sale_age"]] <- "integer"
+
+      session$sendCustomMessage("sale_age_added", list(
+        filename = data_module$file_name()
+      ))
+      shiny::showNotification(
+        paste0("Recomputed 'sale_age' for new effective date (",
+               sum(!is.na(sale_age)), " values)."),
+        type = "message", duration = 5
+      )
+    }, ignoreInit = TRUE)
+
     # --- Settings persistence JS ---
     output$settings_js <- shiny::renderUI({
       file_key <- data_module$file_name()
@@ -630,9 +706,17 @@ modelingServer <- function(id, data_module,
             }
           }
 
-          # Add sale_age if contract_date is designated
-          if (!("sale_age" %in% names(rv_data$data) &&
-                  is.numeric(rv_data$data[["sale_age"]]))) {
+          # Check for a column designated as sale_age special type
+          sale_age_col <- NULL
+          for (nm in names(specials)) {
+            if (specials[[nm]] == "sale_age") {
+              sale_age_col <- nm
+              break
+            }
+          }
+
+          # If no sale_age column designated, compute from contract_date
+          if (is.null(sale_age_col)) {
             contract_col <- NULL
             for (nm in names(specials)) {
               if (specials[[nm]] == "contract_date") {
@@ -643,7 +727,7 @@ modelingServer <- function(id, data_module,
 
             if (is.null(contract_col)) {
               shiny::showNotification(
-                paste0("No 'contract_date' column designated",
+                paste0("No 'sale_age' or 'contract_date' column designated",
                        " \u2014 skipping sale_age calculation."),
                 type = "message", duration = 6
               )
@@ -722,6 +806,8 @@ modelingServer <- function(id, data_module,
 
         # --- Weight column handling ---
         wt_col <- data_module$weight_col()
+        # Exclude weight column from predictors
+        if (!is.null(wt_col)) preds <- setdiff(preds, wt_col)
         use_cols <- c(resp, preds)
         if (!is.null(wt_col) && wt_col %in% names(df)) {
           use_cols <- c(use_cols, wt_col)

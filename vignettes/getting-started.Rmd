@@ -1,8 +1,8 @@
 ---
-title: "Getting Started with glmnetUI for Real Estate Appraisers"
+title: "Getting Started with glmnetUI"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Getting Started with glmnetUI for Real Estate Appraisers}
+  %\VignetteIndexEntry{Getting Started with glmnetUI}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -15,188 +15,133 @@ knitr::opts_chunk$set(
 )
 ```
 
-## What is glmnetUI?
+## Introduction
 
-glmnetUI is an interactive Shiny application that makes elastic net regression
-accessible through a point-and-click interface. It wraps the powerful `glmnet`
-R package in a user-friendly application designed for real estate appraisers
-and general regression users.
+`glmnetUI` provides an interactive Shiny interface for elastic net regression
+modeling using the `glmnet` package. It runs as a local Shiny application ---
+no login, no server, no accounts. You launch it from R, import a dataset
+(CSV or Excel), configure your model, and fit it interactively.
 
-**Elastic net regression** combines the strengths of two regularization
-techniques:
+**Elastic net regression** combines two regularization techniques:
 
 - **Ridge regression** (alpha = 0): Shrinks coefficients toward zero but keeps
-  all variables in the model.
-- **Lasso regression** (alpha = 1): Can shrink coefficients exactly to zero,
-  effectively performing variable selection.
+  all variables.
+- **Lasso regression** (alpha = 1): Sets some coefficients exactly to zero,
+  performing automatic variable selection.
 - **Elastic net** (0 < alpha < 1): A blend of both approaches.
 
-## Launching the Application
+### Three Purpose Modes
 
-```{r launch}
+A **Purpose** radio button at the top of the sidebar selects:
+
+- **General** --- Elastic net regression for any dataset. The default mode.
+- **For Appraisal** --- Tailored for real estate appraisal with subject
+  property handling, special column designations, RCA adjustments, and
+  formatted report export.
+- **Market Area Analysis** --- For analyzing groups of properties with optional
+  subject row exclusion.
+
+### Launching the Application
+
+```{r}
 library(glmnetUI)
 glmnetUI()
 ```
 
-This opens the application in your default web browser.
+This opens the application at `http://localhost:7878`.
 
-## Step 1: Import Your Data
+## Basic Workflow
 
-1. Click **"Upload CSV or Excel File"** in the sidebar.
-2. Select a CSV (`.csv`) or Excel (`.xls`, `.xlsx`) file from your computer.
-3. For Excel files, choose the appropriate sheet from the dropdown.
-4. A preview of your data appears in the table below.
+### 1. Import Data
 
-### Supported Formats
+Click **"Upload CSV or Excel File"** in the sidebar. Supported formats:
 
-| Format | Extension | Reader |
-|--------|-----------|--------|
-| CSV | .csv | readr |
-| Excel | .xls, .xlsx | readxl |
+| Format | Extension | Notes |
+|--------|-----------|-------|
+| CSV | .csv | Locale-aware separator and decimal mark |
+| Excel | .xls, .xlsx | Sheet selector for multi-sheet workbooks |
 
-## Step 2: Assign Variable Roles
+Column names are automatically converted to `snake_case` on import.
 
-After importing data, assign each column a role:
+### 2. Configure Variables
 
-- **Response Variable**: The value you want to predict (e.g., sale price).
-- **Predictor Variables**: The features used to make predictions
-  (e.g., square footage, lot size, age).
-- **Ignored Columns**: Columns not used in modeling (e.g., address, parcel ID).
+After importing, a predictor table shows each column with:
 
-### Expected Coefficient Signs
+- **Type** --- data type dropdown (numeric, integer, character, factor, etc.)
+- **Inc** --- checkbox to include as predictor
+- **Force** --- force into model (penalty factor = 0, never dropped by lasso)
+- **Special** --- special column designation (see User Guide)
+- **Sign** --- expected coefficient sign (positive, negative, or either)
+- **NAs** --- missing value count
 
-For numeric predictors, you can specify whether you expect the coefficient to
-be **positive**, **negative**, or **either**. This is critical for appraisers:
+Select your **response variable** from the dropdown, then check/uncheck
+predictors as needed.
 
-- **Square footage**: Expected **positive** (more space = higher value).
-- **Age**: Expected **negative** (older properties typically worth less).
-- **Lot size**: Expected **positive**.
+### 3. Set Model Parameters
 
-If the model produces a coefficient with an unexpected sign, it will be
-**flagged in red** in the coefficient table. This helps you identify and
-defend potentially problematic model results.
+Under **"4. glmnet Call Parameters"**:
 
-## Step 3: Configure the Model
+- **Alpha**: 0 = Ridge, 1 = Lasso (default), or use grid search
+- **Lambda**: Cross-validation (recommended) or manual entry
+- **Lambda choice**: `lambda.1se` (simpler model) or `lambda.min` (best fit)
+- **Family**: gaussian (continuous), binomial (binary), or poisson (counts)
+- **Standardize**: Recommended on (default)
+- **Enforce sign constraints**: Force coefficients to match expected signs
+- **Relaxed lasso**: Refit surviving variables with less shrinkage
+- **Interaction matrix**: Check pairs to allow interaction terms
 
-### Alpha (Mixing Parameter)
+### 4. Fit the Model
 
-The alpha slider controls the type of regularization:
+Click **"Fit Model"**. The application:
 
-- **0 (Ridge)**: Keeps all variables, shrinks coefficients proportionally.
-  Good when you believe all variables are relevant.
-- **1 (Lasso)**: Performs variable selection by setting some coefficients to
-  exactly zero. Good for identifying the most important predictors.
-- **Between 0 and 1**: A blend. Start with the default of 1 (Lasso) for
-  appraisal work, as it produces simpler, more defensible models.
+1. Prepares data (missing values, factor encoding, weights)
+2. Runs cross-validation to find optimal lambda
+3. Fits the final model
+4. Populates all result tabs
 
-### Lambda Selection
+### 5. Review Results
 
-Lambda controls the strength of regularization:
+Results appear in the main panel tabs:
 
-- **Cross-validation (automatic)**: Recommended. The application tests many
-  lambda values and selects the best one using 10-fold cross-validation.
-  - **lambda.1se**: More regularized (simpler model). Default and recommended
-    for appraisal.
-  - **lambda.min**: Least regularized that minimizes prediction error.
-- **Manual**: Enter a specific lambda value if you have a reason to.
+- **Data Preview** --- Raw data table
+- **Equation** --- LaTeX-rendered model equation
+- **Correlation** --- Heatmap of predictor correlations (no model needed)
+- **Summary** --- R², GR², CV R², RMSE, MAE; appraisal metrics (COD, PRD)
+- **Coefficients** --- Non-zero coefficients with sign warnings
+- **Variable Importance** --- Bar chart of |β| × sd(x) per predictor
+- **Contributions** --- Per-variable effect plots with slope labels
+- **ANOVA** --- Variance decomposition table
+- **Diagnostics** --- Coefficient path, CV error, actual vs predicted, residuals
+- **Report** --- Export to Word or PDF
 
-### Family
+### 6. Export
 
-Choose the distribution family for your response variable:
+- **Download Output** (appraisal/market modes): Excel with predictions,
+  residuals, CQA scores, and per-variable contributions
+- **Sales Grid** (appraisal mode): Generate a formatted Sales Comparison
+  Grid Excel workbook from RCA output. A modal dialog lets you select
+  comps (recommended comps with gross adjustment < 25% are pre-checked).
+  Up to 30 comps across 10 sheets (3 per sheet) with grouped rows,
+  formulas, and unlocked residual cells for appraiser input.
+- **Download Report**: Word (.docx) or PDF with all tables and plots
 
-- **gaussian**: For continuous responses (e.g., sale price). Most common.
-- **binomial**: For binary outcomes (e.g., sold/not sold).
-- **poisson**: For count data.
+## Tips
 
-### Standardize
-
-Keep this checked (default). Standardizing ensures all predictors are on the
-same scale before fitting, which is important for regularization to work
-correctly.
-
-## Step 4: Fit the Model
-
-Click **"Fit Model"** to run the analysis. The application will:
-
-1. Prepare the data (handle missing values, encode factors).
-2. Run cross-validation (if selected) to find the optimal lambda.
-3. Fit the final model.
-4. Display results in the main panel tabs.
-
-## Step 5: Review Results
-
-### Coefficients Tab
-
-Shows a table of all non-zero coefficients with:
-
-- **Variable name**: The predictor.
-- **Coefficient value**: The estimated effect.
-- **Sign Warning**: Flags coefficients with unexpected signs in red.
-
-Review sign warnings carefully. An unexpected sign may indicate:
-
-- Multicollinearity among predictors.
-- A variable that needs to be removed or transformed.
-- An unexpected but genuine market relationship.
-
-### Diagnostics Tab
-
-Four diagnostic plots help you evaluate model quality:
-
-1. **Coefficient Path**: Shows how coefficients change as lambda increases.
-   Helps visualize variable selection.
-2. **CV Error**: Shows cross-validation error across lambda values.
-   The dashed lines mark lambda.min and lambda.1se.
-3. **Actual vs Predicted**: Points should cluster around the 45-degree line.
-   Scatter indicates prediction error.
-4. **Residuals vs Fitted**: Should show random scatter around zero.
-   Patterns suggest model misspecification.
-
-Each plot has a **Download PNG** button for saving.
-
-## Step 6: Export a Report
-
-Fill in the report fields:
-
-- **Appraiser Name**: Your name for the report header.
-- **Property Address**: The subject property.
-- **Report Date**: Defaults to today.
-- **File Number**: Your internal reference.
-
-Then click:
-
-- **Export to Word (.docx)**: Creates a formatted Word document with all
-  tables and plots.
-- **Export to PDF**: Creates a PDF report via rmarkdown.
-
-Reports include the coefficient table with sign warnings highlighted and
-all four diagnostic plots.
-
-## Tips for Appraisers
-
-1. **Start with Lasso (alpha = 1)** to identify the most important variables.
+1. **Start with Lasso (alpha = 1)** to identify important variables.
 2. **Use lambda.1se** for simpler, more defensible models.
-3. **Set expected signs** for all numeric predictors before fitting.
-4. **Review sign warnings** carefully and be prepared to explain any
-   unexpected signs in your appraisal report.
-5. **Use the Actual vs Predicted plot** to assess overall model accuracy.
-6. **Export reports** to include in your work file for documentation.
+3. **Set expected signs** before fitting and review warnings after.
+4. **Use the interaction matrix** to control which variable pairs interact.
+5. **Try relaxed lasso** if coefficients appear over-shrunk.
 
-## Example Workflow
+## Demo Dataset
 
-```{r example, eval = FALSE}
-# Launch the application
-library(glmnetUI)
-glmnetUI()
+glmnetUI can use the same demo datasets as earthUI. Load one directly:
 
-# In the app:
-# 1. Upload your sales data CSV
-# 2. Set sale_price as response
-# 3. Select sqft, lot_size, age, bedrooms, bathrooms as predictors
-# 4. Set expected signs: sqft=positive, lot_size=positive,
-#    age=negative, bedrooms=positive, bathrooms=positive
-# 5. Keep alpha=1 (Lasso), CV with lambda.1se
-# 6. Click "Fit Model"
-# 7. Review coefficients and sign warnings
-# 8. Export Word report for your work file
+```{r}
+demo_file <- system.file("extdata", "Appraisal_1.csv", package = "earthUI")
 ```
+
+Or import through the app's file upload.
+
+See the **User Guide** vignette for complete documentation of all features,
+special column types, RCA calculations, and the demo dataset.

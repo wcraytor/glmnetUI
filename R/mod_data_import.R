@@ -18,7 +18,23 @@ dataImportUI <- function(id) {
   ns <- shiny::NS(id)
 
   shiny::tagList(
-    shiny::fileInput(ns("file_input"), "Choose CSV or Excel file",
+    shiny::tags$div(
+      class = "glmnet-locale-row",
+      style = "display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;",
+      shiny::tags$label(class = "control-label", "Choose CSV or Excel file"),
+      shiny::tags$div(
+        style = "display:flex; align-items:center; gap:6px;",
+        shiny::tags$label(class = "control-label",
+                          style = "margin-bottom:0;", "Locale"),
+        shiny::tags$div(
+          style = "width:150px; margin-bottom:0;",
+          shiny::selectInput(ns("locale_import"), NULL,
+                             choices = locale_country_choices_(),
+                             selected = "us", width = "100%")
+        )
+      )
+    ),
+    shiny::fileInput(ns("file_input"), NULL,
                      accept = c(".csv", ".xls", ".xlsx")),
     shiny::conditionalPanel(
       condition = paste0("output['", ns("has_sheets"), "']"),
@@ -76,19 +92,6 @@ variableConfigUI <- function(id) {
       choices = NULL
     ),
     shiny::uiOutput(ns("response_type")),
-    shiny::selectInput(
-      ns("weight_col"),
-      label_with_help(
-        "Weight Column (optional)",
-        paste(
-          "Assign observation weights to rows.",
-          "Rows with weight=0 are excluded from modeling entirely.",
-          "Higher weights give more influence to those observations.",
-          "Useful for downweighting outliers or skipping header rows."
-        )
-      ),
-      choices = c("(none)" = "")
-    ),
     shiny::tags$h5("Predictor Settings"),
     shiny::helpText(
       shiny::tags$b("Inc"), " = include as predictor. ",
@@ -124,7 +127,17 @@ variableConfigUI <- function(id) {
 dataPreviewUI <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    DT::DTOutput(ns("preview_table"))
+    shiny::conditionalPanel(
+      condition = "input.purpose === 'appraisal' || input.purpose === 'market'",
+      shiny::h5("Subject Property"),
+      DT::DTOutput(ns("preview_subjects")),
+      shiny::h5("Comparable Sales"),
+      DT::DTOutput(ns("preview_comps"))
+    ),
+    shiny::conditionalPanel(
+      condition = "input.purpose === 'general'",
+      DT::DTOutput(ns("preview_table"))
+    )
   )
 }
 
@@ -176,8 +189,10 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
 
       tryCatch({
         if (ext == "csv") {
-          rv$data <- as.data.frame(
-            readr::read_csv(req_file$datapath, show_col_types = FALSE)
+          rv$data <- utils::read.csv(
+            req_file$datapath, stringsAsFactors = FALSE,
+            check.names = FALSE,
+            sep = locale_csv_sep_(), dec = locale_csv_dec_()
           )
           rv$sheets <- NULL
         } else if (ext %in% c("xls", "xlsx")) {
@@ -193,6 +208,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         }
 
         names(rv$data) <- to_snake_case(names(rv$data))
+        rv$data <- auto_parse_dates_(rv$data)
         rv$col_types <- detect_column_types(rv$data)
         all_cols <- names(rv$data)
 
@@ -201,13 +217,6 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
                                  choices = all_cols,
                                  selected = default_response)
 
-        # Auto-detect weight column
-        weight_match <- grep("^weights?$", all_cols, ignore.case = FALSE)
-        weight_choices <- c("(none)" = "", stats::setNames(all_cols, all_cols))
-        weight_selected <- if (length(weight_match) > 0) all_cols[weight_match[1]] else ""
-        shiny::updateSelectInput(session, "weight_col",
-                                 choices = weight_choices,
-                                 selected = weight_selected)
       }, error = function(e) {
         shiny::showNotification(paste("Import error:", e$message),
                                 type = "error")
@@ -222,6 +231,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
           readxl::read_excel(req_file$datapath, sheet = input$sheet)
         )
         names(rv$data) <- to_snake_case(names(rv$data))
+        rv$data <- auto_parse_dates_(rv$data)
         rv$col_types <- detect_column_types(rv$data)
         all_cols <- names(rv$data)
 
@@ -230,26 +240,16 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
                                  choices = all_cols,
                                  selected = default_response)
 
-        # Auto-detect weight column
-        weight_match <- grep("^weights?$", all_cols, ignore.case = FALSE)
-        weight_choices <- c("(none)" = "", stats::setNames(all_cols, all_cols))
-        weight_selected <- if (length(weight_match) > 0) all_cols[weight_match[1]] else ""
-        shiny::updateSelectInput(session, "weight_col",
-                                 choices = weight_choices,
-                                 selected = weight_selected)
       }, error = function(e) {
         shiny::showNotification(paste("Sheet error:", e$message),
                                 type = "error")
       })
     })
 
-    # --- Candidate columns: everything except response and weight ---
+    # --- Candidate columns: everything except response ---
     candidates <- shiny::reactive({
       shiny::req(rv$data, input$response)
-      exclude <- input$response
-      wt <- input$weight_col
-      if (!is.null(wt) && nzchar(wt)) exclude <- c(exclude, wt)
-      setdiff(names(rv$data), exclude)
+      setdiff(names(rv$data), input$response)
     })
 
     # --- Response type indicator ---
@@ -288,19 +288,22 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
                      "Date", "POSIXct")
 
       appraiser <- purpose() %in% c("appraisal", "market")
-      special_options <- c("no", "contract_date", "latitude", "longitude")
+      special_options <- if (appraiser) {
+        c("no", "weight", "actual_age", "area", "concessions",
+          "contract_date", "display_only", "dom", "effective_age",
+          "latitude", "listing_date", "living_area", "longitude",
+          "lot_size", "sale_age", "site_dimensions")
+      } else {
+        c("no", "weight")
+      }
 
       hdr_cols <- list(
         shiny::tags$div(style = "flex:1; min-width:100px;", "Variable"),
         shiny::tags$div(style = "width:90px; text-align:center;", "Type"),
         shiny::tags$div(style = "width:40px; text-align:center;", "Inc"),
-        shiny::tags$div(style = "width:40px; text-align:center;", "Force")
+        shiny::tags$div(style = "width:40px; text-align:center;", "Force"),
+        shiny::tags$div(style = "width:120px; text-align:center;", "Special")
       )
-      if (appraiser) {
-        hdr_cols <- c(hdr_cols, list(
-          shiny::tags$div(style = "width:95px; text-align:center;", "Special")
-        ))
-      }
       hdr_cols <- c(hdr_cols, list(
         shiny::tags$div(style = "width:80px; text-align:center;", "Sign"),
         shiny::tags$div(style = "width:45px; text-align:center;", "NAs")
@@ -342,22 +345,19 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
           shiny::tags$option(value = "negative", "negative")
         )
 
-        special_el <- NULL
-        if (appraiser) {
-          special_opts <- lapply(special_options, function(sp) {
-            shiny::tags$option(value = sp, sp)
-          })
-          special_el <- shiny::tags$div(
-            style = "width:95px; text-align:center;",
-            shiny::tags$select(
-              id = ns(paste0("special_", col_name)),
-              class = "form-control glmnet-special-sel",
-              style = "padding:2px; height:auto; font-size:11px;",
-              `data-col` = col_name,
-              special_opts
-            )
+        special_opts <- lapply(special_options, function(sp) {
+          shiny::tags$option(value = sp, sp)
+        })
+        special_el <- shiny::tags$div(
+          style = "width:120px; text-align:center;",
+          shiny::tags$select(
+            id = ns(paste0("special_", col_name)),
+            class = "form-control glmnet-special-sel",
+            style = "padding:2px; height:auto; font-size:11px;",
+            `data-col` = col_name,
+            special_opts
           )
-        }
+        )
 
         row_cells <- list(
           shiny::tags$div(
@@ -387,9 +387,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
             )
           )
         )
-        if (!is.null(special_el)) {
-          row_cells <- c(row_cells, list(special_el))
-        }
+        row_cells <- c(row_cells, list(special_el))
         row_cells <- c(row_cells, list(
           shiny::tags$div(
             style = "width:80px; text-align:center;",
@@ -592,11 +590,39 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
     shiny::outputOptions(output, "has_sheets", suspendWhenHidden = FALSE)
 
     # --- Data preview (rendered in main panel via dataPreviewUI) ---
+    # General mode: single table
     output$preview_table <- DT::renderDT({
-      shiny::req(rv$data)
+      shiny::req(rv$data, purpose() == "general")
       DT::datatable(rv$data,
                     options = list(scrollX = TRUE, pageLength = 15),
-                    rownames = FALSE)
+                    rownames = FALSE, class = "compact stripe")
+    })
+
+    # Appraisal/Market mode: Subject Property (row 1)
+    output$preview_subjects <- DT::renderDT({
+      shiny::req(rv$data, purpose() %in% c("appraisal", "market"),
+                 nrow(rv$data) >= 1L)
+      resp <- input$response
+
+      subj <- rv$data[1L, , drop = FALSE]
+      # Set response to NA for subject
+      if (!is.null(resp) && resp %in% names(subj)) subj[[resp]] <- NA
+
+      DT::datatable(subj,
+                    options = list(scrollX = TRUE, dom = "t"),
+                    rownames = FALSE, class = "compact stripe")
+    })
+
+    # Appraisal/Market mode: Comparable Sales (rows 2+)
+    output$preview_comps <- DT::renderDT({
+      shiny::req(rv$data, purpose() %in% c("appraisal", "market"),
+                 nrow(rv$data) >= 2L)
+
+      comps <- rv$data[2:nrow(rv$data), , drop = FALSE]
+
+      DT::datatable(comps,
+                    options = list(scrollX = TRUE, pageLength = 15),
+                    rownames = FALSE, class = "compact stripe")
     })
 
     # --- Effective column types (auto-detected, then user overrides) ---
@@ -660,8 +686,11 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
       valid = is_valid,
       col_types = effective_types,
       weight_col = shiny::reactive({
-        wt <- input$weight_col
-        if (is.null(wt) || !nzchar(wt)) NULL else wt
+        sp <- col_specials()
+        if (is.null(sp) || length(sp) == 0) return(NULL)
+        wt_idx <- which(sp == "weight")
+        if (length(wt_idx) == 0) return(NULL)
+        names(sp)[wt_idx[1L]]
       }),
       force_in = force_in,
       col_specials = col_specials,
@@ -737,4 +766,45 @@ detect_column_types <- function(df) {
       }
     }
   }, FUN.VALUE = character(1))
+}
+
+# Try to parse character columns as POSIXct dates.
+# Modifies the data frame in place and returns it.
+#' @noRd
+auto_parse_dates_ <- function(df) {
+  date_fmts <- locale_date_formats_()
+  for (nm in names(df)) {
+    col <- df[[nm]]
+    if (!is.character(col)) next
+    vals <- stats::na.omit(col)
+    if (length(vals) == 0L) next
+    # Sample up to 20 non-NA values for detection
+    sample_vals <- if (length(vals) > 20L) vals[1:20] else vals
+
+    # Detect if years are 2-digit: check if any date-separator-delimited
+    # part is <= 2 digits where a year would be.
+    # If sample contains only short tokens (no 4-digit year), prefer %y.
+    has_4digit_year <- any(grepl("\\b\\d{4}\\b", sample_vals))
+
+    # Build format list: if no 4-digit year found, try 2-digit first
+    try_fmts <- if (has_4digit_year) {
+      date_fmts
+    } else {
+      # Put 2-digit year formats first
+      two_digit <- grep("%y(?!%)", date_fmts, perl = TRUE, value = TRUE)
+      four_digit <- setdiff(date_fmts, two_digit)
+      c(two_digit, four_digit)
+    }
+
+    # Try each format
+    for (fmt in try_fmts) {
+      parsed <- suppressWarnings(as.POSIXct(sample_vals, format = fmt))
+      if (all(!is.na(parsed))) {
+        # Format matches sample — parse the full column
+        df[[nm]] <- suppressWarnings(as.POSIXct(col, format = fmt))
+        break
+      }
+    }
+  }
+  df
 }

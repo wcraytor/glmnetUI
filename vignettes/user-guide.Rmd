@@ -1,0 +1,543 @@
+---
+title: "glmnetUI User Guide"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{glmnetUI User Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+
+`glmnetUI` is a graphical user interface for the R `glmnet` package, which
+implements elastic net regularized regression. It runs as a local Shiny
+application --- no login, no server, no accounts. You launch it from R,
+import a dataset (CSV or Excel), configure your model, and fit it
+interactively.
+
+### Three Purpose Modes
+
+When you launch glmnetUI, a **Purpose** radio button at the top of the sidebar
+lets you choose one of three modes:
+
+- **General** --- Elastic net regression for any dataset. The default mode.
+- **For Appraisal** --- Tailored for real estate appraisal with subject
+  property handling, special column designations, RCA adjustments, and
+  formatted report export.
+- **Market Area Analysis** --- For analyzing groups of properties with optional
+  subject row exclusion.
+
+### Getting Started
+
+```{r eval=FALSE}
+library(glmnetUI)
+glmnetUI()
+```
+
+This opens the Shiny app at `http://localhost:7878`.
+
+## Locale & Regional Settings
+
+glmnetUI supports international number, date, and CSV formatting conventions
+through a country-based locale system. The **Settings** dropdown in the title
+bar contains **Country** and **Paper** selectors for 31 supported countries.
+Each preset configures:
+
+- **CSV separator** --- comma (`,`) for US/UK/Japan or semicolon (`;`) for
+  most of Europe, where the comma is used as a decimal mark.
+- **Decimal mark** --- period (`.`) or comma (`,`).
+- **Thousands separator** --- comma (US/UK/Japan), period (Germany/Italy/Spain),
+  space (Finland/France/Poland/Baltics/Ukraine/Russia), or apostrophe
+  (Switzerland).
+- **Paper size** --- Letter (US/Canada/Mexico) or A4 (everywhere else).
+
+### Saving Defaults
+
+Click **Save as my default** to store your locale preferences globally. These
+defaults apply to all future sessions regardless of which data file you load.
+
+## MLS Input Data Requirements
+
+For real estate workflows, your input data typically comes from an MLS export.
+glmnetUI accepts CSV and Excel files. On import, column names are automatically
+converted to `snake_case`, e.g. "Area ID" gets converted to "area_id". The CSV
+separator and decimal mark used during import are determined by the locale
+settings.
+
+### Required Columns for Appraisal Mode
+
+The full appraisal workflow benefits from these columns:
+
+| Column | Special Type | Purpose |
+|:-------|:-------------|:--------|
+| Sale Price (or equivalent) | (target) | Response variable |
+| Contract Date | `contract_date` | Computes `sale_age` from effective date |
+| Listing Date | `listing_date` | Fallback DOM = contract date - listing date |
+| Days on Market | `dom` | Displayed in exports |
+| Concessions | `concessions` | Net SP = Sale Price - Concessions |
+| Living Area (SF) | `living_area` | Per-SF residuals (`residual_sf`, `cqa_sf`) |
+| Lot Size | `lot_size` | Grouped in "Site Size" row |
+| Site Dimensions | `site_dimensions` | Grouped with lot size |
+| Latitude | `latitude` | Rounded to 3 dp; Location group |
+| Longitude | `longitude` | Rounded to 3 dp; Location group |
+| Area ID | `area` | Market area/neighborhood identifier |
+| Actual Age | `actual_age` | Grouped in "Age" row |
+| Effective Age | `effective_age` | Grouped with actual age |
+| Address | `display_only` | Shown in exports; excluded from model |
+
+Spreadsheet column names can be in any language. The "special" names are
+in English so that the R program can give them special treatment. Otherwise,
+the given column names show up in the regression models, graphs and, if doing
+appraisals, the output reports.
+
+Not all columns are required. glmnetUI adapts --- if a column is missing, the
+corresponding feature is simply omitted.
+
+### Key Predictors for Real Estate Models
+
+For real estate pricing models, certain columns are highly recommended:
+
+1. **Sale Age** --- days between the contract sale date and the effective date
+   of the appraisal. If multi-year sales history is being used, sale_age often
+   plays a central role in estimating the sale price.
+
+2. **Living Area** --- also called "Living Sqft," "GLA" (gross living area),
+   etc. A leading determinant of sale price.
+
+3. **Total Bath Count** --- total number of full, quarter, half, and 3/4
+   bathrooms. For example, two full baths and one half-bath = 2.5.
+
+4. **Garage Bays** or **Garage Area** --- number of garage spaces or
+   garage square footage.
+
+5. **Lot Size** --- land area of the property, typically in square feet or
+   acres.
+
+6. **Longitude**, **Latitude**, and **Area ID** --- location variables.
+
+### Data Quality
+
+- **Missing values**: Rows with NAs in predictors or target are removed before
+  fitting.
+- **Date columns**: Character columns matching common date formats are
+  auto-parsed to Date/POSIXct on import.
+- **Numeric columns**: Sale price, living area, etc. must be numeric (no
+  dollar signs or commas).
+
+### Subject Row Placement
+
+In **Appraisal** mode, row 1 must be the subject property. In **Market**
+mode, placing the subject in row 1 is optional. In **General** mode, all
+rows are treated equally.
+
+## The Sidebar Workflow
+
+The sidebar is organized into numbered sections:
+
+1. **Import Data** --- CSV or Excel file upload
+2. **Project Output Folder** --- where downloads are saved
+3. **Variable Configuration** --- target, predictors, data types, special
+   columns, expected signs, effective date (appraisal/market only)
+4. **glmnet Call Parameters** --- alpha, lambda, family, standardize, sign
+   constraints, relaxed lasso, interaction matrix
+5. **Fit Glmnet Model** --- green button to run the model
+6. **Download Output** --- Excel file with predictions and diagnostics
+   (appraisal/market only)
+7. **Calculate RCA Adjustments & Download** (appraisal only)
+8. **Sales Comparison Grid** (appraisal only) --- generate formatted Excel
+   workbook with comp selection modal
+9. **Download Report** --- Word (.docx) or PDF
+
+## Variable Selection
+
+### The Predictor Table
+
+Each column is listed with:
+
+- **Type** --- data type dropdown (numeric, integer, character, factor,
+  Date, POSIXct)
+- **Inc** --- include as predictor checkbox
+- **Force** --- force into model (penalty factor = 0, never dropped by lasso)
+- **Special** --- special column designation (appraisal/market only)
+- **Sign** --- expected coefficient sign (positive, negative, or either)
+- **NAs** --- missing value count
+
+### Special Column Types
+
+In appraisal and market modes, each predictor can be assigned a special type:
+
+**Date & Time:**
+
+- `contract_date` --- triggers `sale_age` computation
+- `listing_date` --- fallback for DOM calculation
+- `dom` --- Days on Market column
+
+**Monetary:**
+
+- `concessions` --- used in Net SP formula (Sale Price - Concessions)
+
+**Size & Location:**
+
+- `latitude` / `longitude` --- rounded to 3 dp
+- `area` --- market area/neighborhood identifier (e.g., area_id, neighborhood)
+- `living_area` --- enables per-SF residuals
+- `lot_size` / `site_dimensions` --- site size columns
+
+**Age:**
+
+- `actual_age` / `effective_age` --- property age columns
+
+**Display:**
+
+- `display_only` --- in exports but excluded from model (multiple allowed)
+
+**Weighting:**
+
+- `weight` --- observation weight column (available in all modes; only one
+  allowed; rows with weight = 0 are excluded from fitting)
+
+### Expected Coefficient Signs
+
+For numeric predictors, specify whether you expect the coefficient to be
+**positive**, **negative**, or **either**:
+
+- **Square footage**: Expected **positive** (more space = higher value)
+- **Age**: Expected **negative** (older properties typically worth less)
+- **Lot size**: Expected **positive**
+
+If the model produces a coefficient with an unexpected sign, it is flagged
+in the coefficient table.
+
+### Enforce Sign Constraints
+
+When the **Enforce Sign Constraints** checkbox is enabled, the model is
+forced to produce coefficients matching the expected signs. A "positive"
+sign forces the coefficient >= 0; "negative" forces <= 0; "either" is
+unconstrained. This is implemented via `upper.limits` and `lower.limits`
+in `glmnet`.
+
+## Model Parameters
+
+### Alpha (Mixing Parameter)
+
+Controls the type of regularization:
+
+- **0 (Ridge)**: Keeps all variables, shrinks coefficients proportionally.
+- **1 (Lasso)**: Performs variable selection by setting some coefficients to
+  zero. Default and recommended for appraisal work.
+- **Between 0 and 1**: Elastic net blend.
+- **Grid search**: Test multiple alpha values and select the best.
+
+### Lambda Selection
+
+Controls the strength of regularization:
+
+- **Cross-validation (automatic)**: Recommended. Tests many lambda values
+  using k-fold CV.
+  - **lambda.1se**: More regularized (simpler model). Default.
+  - **lambda.min**: Minimum cross-validation error.
+- **Manual**: Enter a specific lambda value.
+
+### Family
+
+- **gaussian**: Continuous responses (e.g., sale price). Most common.
+- **binomial**: Binary outcomes (e.g., sold/not sold).
+- **poisson**: Count data.
+
+### Relaxed Lasso
+
+Regular lasso uses the same penalty for variable selection AND coefficient
+estimation, which can over-shrink important coefficients. Relaxed lasso
+separates these: first select variables via lasso, then refit with less or
+no penalty.
+
+- **Gamma = 0**: Fully relaxed (OLS refit, no shrinkage)
+- **Gamma = 1**: No relaxation (same as regular glmnet)
+- With cross-validation, gamma is chosen automatically
+
+### Interaction Matrix
+
+An interactive upper-triangular matrix lets you control which variable pairs
+are allowed to interact. Check a cell to allow the interaction term
+`x1:x2` in the model matrix.
+
+- **Allow All**: Check all interaction pairs
+- **Clear All**: Uncheck all pairs
+- **Click a variable name**: Toggle all interactions for that variable
+- Interaction selections persist via localStorage per input file
+
+With many predictors, lasso will zero out unneeded interaction terms
+automatically, so "Allow All" is a reasonable starting point.
+
+## Result Tabs
+
+### Data Preview
+
+Shows the imported data. In appraisal/market modes, split into Subject
+Property (row 1) and Comparable Sales (rows 2+).
+
+### Equation
+
+LaTeX-rendered model equation via MathJax showing all non-zero coefficients.
+Interaction terms are displayed as `x₁ × x₂`. Available after model fitting.
+
+### Correlation
+
+Heatmap matrix of Pearson correlations among numeric predictors and the
+response variable. Available immediately after data import (no model fitting
+required). Adaptive text and axis sizing based on variable count.
+
+Color gradient: blue (-1) → white (0) → red (+1).
+
+### Summary
+
+Model fit statistics displayed as cards:
+
+- **R²** --- proportion of variance explained
+- **Adj R²** --- adjusted for number of predictors
+- **GR²** --- generalized R² from glmnet's deviance ratio
+- **CV R²** --- cross-validation R² (when CV is used)
+- **RMSE** --- root mean squared error
+- **MAE** --- mean absolute error
+
+In appraisal/market modes, additional metrics:
+
+- **Median Ratio** --- median of (predicted / actual)
+- **COD** --- Coefficient of Dispersion (lower is better)
+- **PRD** --- Price-Related Differential
+
+An **overfitting warning** appears when training R² exceeds CV R² by >0.1.
+
+### Coefficients
+
+Table of all non-zero coefficients with sign violation warnings.
+
+### Variable Importance
+
+Bar chart showing standardized coefficient magnitude (|β| × sd(x)) per
+predictor, aggregated across dummy columns for factor variables. Uses
+interactive plotly (hover for exact values) when available, with ggplot2
+fallback.
+
+Importance table below shows: Variable, Importance, Coefficient, Relative %.
+
+### Contributions
+
+Per-variable partial effect plots:
+
+- **Numeric predictors**: Scatter plot with line segment, labeled with the
+  slope (e.g., `+1,234.56/unit`). The slope adapts units based on x-axis
+  range (e.g., `/0.001` for latitude/longitude).
+- **Factor/interaction predictors**: Histogram of contribution distribution.
+
+Select variables via dropdown.
+
+### ANOVA
+
+Variance decomposition table showing per-variable:
+
+- Sum of Squares (SS)
+- Percentage of model SS
+- Coefficient
+
+Includes intercept row and total model SS row.
+
+### Diagnostics
+
+Four diagnostic plots with large fonts, 15 axis tick marks, and
+comma-formatted labels (no scientific notation):
+
+1. **Coefficient Path**: Shows how coefficients change as lambda increases.
+2. **CV Error**: Cross-validation error across lambda values with
+   lambda.min and lambda.1se marked.
+3. **Actual vs Predicted**: Points should cluster around the 45-degree line.
+4. **Residuals vs Fitted**: Should show random scatter around zero.
+
+Each plot has a **Download PNG** button.
+
+### Report
+
+Configure report fields (appraiser name, property address, report date,
+file number) and export to Word (.docx) or PDF.
+
+## Downloading Data (Step 6)
+
+After fitting, download an Excel file with predictions and diagnostics.
+In appraisal/market modes, the output includes:
+
+| Column | Description |
+|:-------|:------------|
+| `est_<target>` | Model prediction (e.g., `est_sale_price`) |
+| `residual` | Actual - predicted |
+| `cqa` | Comparative Quality Analysis score (0-10 scale) |
+| `residual_sf` | Residual / living area (if designated) |
+| `cqa_sf` | CQA calculated from ranking via residual_sf |
+| `<var>_contribution` | Per-variable contribution |
+| `basis` | Intercept value (same for all rows) |
+
+### CQA Scores
+
+CQA ranks each row's residual against all others on a 0--10 scale:
+
+- **High CQA (~9-10)**: sold for much more than predicted
+- **Low CQA (~0-1)**: sold for much less than predicted
+- **CQA ~5**: near the median
+
+In appraisal/market modes, rows are sorted by `residual_sf` descending.
+
+## RCA Calculations (Step 7, Appraisal Only)
+
+### The RCA Dialog
+
+- Choose **CQA** or **CQA per SF** score type
+- Enter the subject's CQA score (0.00--9.99, default 5.00)
+- Click **Calculate** to compute adjustments
+
+### How It Works
+
+1. Comparables' CQA scores and residuals are sorted
+2. Linear interpolation maps your CQA value to a residual
+3. Subject value = model prediction + interpolated residual
+
+### Output Columns
+
+| Column | Description |
+|:-------|:------------|
+| `subject_value` | Model prediction + interpolated residual |
+| `<var>_adjustment` | Subject contribution - comp contribution |
+| `residual_adjustment` | Subject residual - comp residual |
+| `net_adjustments` | Sum of all adjustments |
+| `gross_adjustments` | Sum of absolute adjustments |
+| `adjusted_sale_price` | Comp sale price + net adjustments |
+
+## Sales Comparison Grid (Step 8, Appraisal Only)
+
+After computing RCA adjustments, a **Sales Grid** button appears. Clicking it
+opens a modal dialog for comp selection.
+
+### Comp Selection
+
+Comps are split into two groups:
+
+- **Recommended** (pre-checked): Gross adjustment < 25% of sale price, sorted
+  by sale age (most recent first).
+- **Other Comps**: Remaining comps, unchecked by default.
+
+Select up to 30 comps. Click **Generate Sales Grid** to create the workbook.
+
+### Workbook Layout
+
+The generated Excel workbook contains up to 10 sheets (3 comps per sheet):
+
+- **Header**: Subject and comp addresses, sale prices, and sale dates
+- **Grouped rows**: Location (latitude, longitude, area), Site (lot size, site
+  dimensions), and Age (actual age, effective age) rows with sub-items
+- **Model variables**: One row per non-zero coefficient showing contributions
+  and adjustment percentages
+- **Residual features**: Unlocked cells for appraiser input on features not
+  captured by the model
+- **Summary rows**: Net Adjustment %, Gross Adjustment %, and Adjusted Sale
+  Price with formulas
+
+Sheets are protected but residual value cells remain editable for appraiser
+input.
+
+## Settings Persistence
+
+glmnetUI saves settings to the browser's localStorage:
+
+- **Per-file**: Variable selections, model parameters, interaction matrix
+  (keyed by filename)
+- **Global defaults**: Saved via "Save current as default" button
+- **Locale**: Country and paper size preferences
+- **Theme**: Light/dark mode toggle
+
+When you re-import a previously used file, all settings are restored
+automatically.
+
+### Settings Options
+
+- **Use last settings for input file** --- restore saved settings for this
+  specific file
+- **Use default settings** --- apply your saved global defaults
+- **glmnet defaults** --- reset to factory defaults (alpha = 1, lambda = CV,
+  lambda.1se, 10 folds, gaussian, standardize on)
+
+## Differences from earthUI
+
+glmnetUI and earthUI are companion tools for regularized regression. Key
+differences:
+
+| Feature | glmnetUI | earthUI |
+|:--------|:---------|:--------|
+| Method | Elastic net (glmnet) | MARS/Earth (earth) |
+| Variable selection | Automatic via lasso penalty | Automatic via pruning |
+| Interactions | Pairwise via interaction matrix | Up to degree 3 |
+| Coefficient signs | Enforceable via constraints | Not directly enforceable |
+| Hinge functions | No (linear effects only) | Yes (piecewise linear) |
+| Relaxed fitting | Relaxed lasso | Not applicable |
+| Alpha tuning | Grid search available | Not applicable |
+| Sales Grid | Available (Step 8) | Available (Step 8) |
+| g-Functions | Not applicable | Grouped term visualization |
+
+Both tools share the same data format, special column types, RCA workflow,
+and demo datasets.
+
+## Demo Dataset: Appraisal_1.csv
+
+The demo dataset is shared with earthUI. If earthUI is installed, load it
+with:
+
+```{r eval=FALSE}
+demo_file <- system.file("extdata", "Appraisal_1.csv", package = "earthUI")
+```
+
+Or import it directly through the Shiny app file upload.
+
+### Description
+
+The file contains 1,502 residential sales (plus 1 subject property in row 1)
+from a simulated MLS export. The data represents single-family home sales
+in a multi-area market with a range of property sizes, ages, and locations.
+
+### Key Columns
+
+| Column | Type | Special Type | Description |
+|:-------|:-----|:-------------|:------------|
+| `weight` | numeric | weight | Observation weight (0 = exclude) |
+| `sale_price` | numeric | (target) | Sale price --- response variable |
+| `living_sqft` | numeric | `living_area` | Gross living area in square feet |
+| `baths_total` | numeric | --- | Total bath count (e.g., 2.5) |
+| `lot_size` | numeric | `lot_size` | Lot size in square feet |
+| `area_id` | integer | `area` | MLS area identifier |
+| `age` | numeric | `actual_age` | Property age in years |
+| `latitude` | numeric | `latitude` | Latitude (rounded to 3 dp) |
+| `longitude` | numeric | `longitude` | Longitude (rounded to 3 dp) |
+| `garage_spaces` | integer | --- | Number of garage bays |
+| `contract_date` | Date | `contract_date` | Sale contract date |
+| `days_on_market` | integer | `dom` | Days on market |
+| `sale_concessions` | numeric | `concessions` | Seller concessions |
+| `street_address` | character | `display_only` | Property address |
+
+### Suggested Quick Start
+
+1. Launch glmnetUI: `glmnetUI::glmnetUI()`
+2. Import `Appraisal_1.csv` via the file upload
+3. Set Purpose to **For Appraisal**
+4. Select `sale_price` as the target
+5. Assign special types as shown in the table above
+6. Include predictors: `sale_age`, `living_sqft`, `baths_total`, `lot_size`,
+   `area_id` (as factor), `age`, `latitude`, `longitude`, `garage_spaces`
+7. Keep alpha = 1 (Lasso), CV with lambda.1se
+8. Click **Fit Glmnet Model**
+9. Review Summary, Coefficients, and Diagnostics tabs
+10. Download output (Step 6), review the CQA ranking
+11. Compute RCA adjustments (Step 7) with a CQA score of ~5.00
+12. Generate a Sales Comparison Grid (Step 8) with recommended comps

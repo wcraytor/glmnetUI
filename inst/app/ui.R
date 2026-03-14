@@ -1,11 +1,11 @@
 bslib::page_fluid(
   theme = nord_light,
+  shiny::withMathJax(),
 
   # --- Adaptive CSS using Bootstrap CSS variables ---
   shiny::tags$style(shiny::HTML('
     /* Theme toggle button */
     #glmnet-theme-toggle {
-      position: fixed; top: 12px; right: 20px; z-index: 10000;
       width: 38px; height: 38px; border-radius: 50%;
       border: 2px solid var(--bs-border-color);
       background: var(--bs-body-bg);
@@ -104,6 +104,34 @@ bslib::page_fluid(
       border-color: var(--bs-success);
     }
 
+    /* Settings dropdown on title bar */
+    .glmnet-navbar {
+      display: flex; align-items: center; padding: 10px 15px; gap: 8px;
+      flex-wrap: wrap;
+    }
+    .glmnet-navbar .dropdown { position: relative; }
+    .glmnet-navbar .glmnet-menu-btn {
+      background: none; border: 1px solid var(--bs-border-color);
+      color: var(--bs-body-color); font-size: 0.9em;
+      padding: 6px 12px; cursor: pointer; border-radius: 4px;
+    }
+    .glmnet-navbar .glmnet-menu-btn:hover {
+      background: var(--bs-tertiary-bg);
+    }
+    .glmnet-navbar .glmnet-dropdown-menu {
+      display: none; position: absolute; top: 100%; left: 0;
+      background: var(--bs-body-bg);
+      border: 1px solid var(--bs-border-color);
+      border-radius: 6px; padding: 12px 16px;
+      min-width: 280px; z-index: 10001;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+    .glmnet-navbar .dropdown.open .glmnet-dropdown-menu { display: block; }
+    .glmnet-navbar .glmnet-spacer { flex: 1; }
+
+    /* Locale row in import section */
+    .glmnet-locale-row .form-group { margin-bottom: 0; }
+
     /* Help icon (?) with Bootstrap popover */
     .glmnet-param-help {
       position: absolute; top: 0; right: 0;
@@ -142,11 +170,7 @@ bslib::page_fluid(
     }
   ')),
 
-  # --- Theme toggle button ---
-  shiny::tags$button(
-    id = "glmnet-theme-toggle",
-    shiny::HTML("&#9790;")
-  ),
+  # --- Theme toggle button (repositioned into navbar below) ---
 
   # --- Bootstrap popover initializer for "?" help icons ---
   shiny::tags$script(shiny::HTML('
@@ -167,228 +191,41 @@ bslib::page_fluid(
     });
   ')),
 
-  # --- Theme toggle JS + settings message handlers ---
-  shiny::tags$script(shiny::HTML('
-    var glmnetCurrentMode = "light";
-
-    function glmnetToggleTheme() {
-      glmnetCurrentMode = (glmnetCurrentMode === "dark") ? "light" : "dark";
-      Shiny.setInputValue("dark_mode", glmnetCurrentMode, {priority: "event"});
-      glmnetUpdateIcon(glmnetCurrentMode);
-      try { localStorage.setItem("glmnetUI_theme", glmnetCurrentMode); } catch(e) {}
-    }
-
-    function glmnetUpdateIcon(mode) {
-      var btn = document.getElementById("glmnet-theme-toggle");
-      if (btn) btn.innerHTML = (mode === "dark") ? "\\u2600" : "\\u263E";
-    }
-
-    document.getElementById("glmnet-theme-toggle").onclick = glmnetToggleTheme;
-
-    $(document).on("shiny:connected", function() {
-      var saved = null;
-      try { saved = localStorage.getItem("glmnetUI_theme"); } catch(e) {}
-      if (saved === "dark") {
-        glmnetCurrentMode = "dark";
-        glmnetUpdateIcon("dark");
-        Shiny.setInputValue("dark_mode", "dark", {priority: "event"});
-      } else {
-        Shiny.setInputValue("dark_mode", "light", {priority: "event"});
-      }
-    });
-
-    // Pre-seed sale_age as included in localStorage when computed
-    Shiny.addCustomMessageHandler("sale_age_added", function(msg) {
-      if (!msg.filename) return;
-      var storageKey = "glmnetUI_vars_" + msg.filename;
-      var saved = {};
-      try { saved = JSON.parse(localStorage.getItem(storageKey)) || {}; } catch(e) {}
-      saved["sale_age"] = { inc: true, fac: false, type: "integer", force: false, sign: "either", special: "no" };
-      try { localStorage.setItem(storageKey, JSON.stringify(saved)); } catch(e) {}
-    });
-
-    // --- Global settings apply function ---
-    window.glmnetApplySettings = function(s) {
-      // Radio buttons (namespaced and global)
-      ["model-alpha_method", "model-lambda_method", "model-lambda_choice",
-       "purpose"].forEach(function(id) {
-        if (s[id] !== undefined) {
-          $("input[name=\\"" + id + "\\"][value=\\"" + s[id] + "\\"]")
-            .prop("checked", true).trigger("change");
-        }
-      });
-      // Sliders (ionRangeSlider)
-      ["model-alpha", "model-gamma"].forEach(function(id) {
-        if (s[id] !== undefined) {
-          var irs = $(document.getElementById(id)).data("ionRangeSlider");
-          if (irs) irs.update({from: s[id]});
-        }
-      });
-      // Range slider
-      if (s["model-alpha_range"] !== undefined) {
-        var irs = $(document.getElementById("model-alpha_range"))
-          .data("ionRangeSlider");
-        if (irs) {
-          var v = s["model-alpha_range"];
-          irs.update({from: v[0], to: v[1]});
-        }
-      }
-      // Numeric inputs
-      ["model-n_alphas", "model-lambda_manual", "model-nfolds"]
-        .forEach(function(id) {
-          if (s[id] !== undefined) {
-            $(document.getElementById(id)).val(s[id]).trigger("change");
-          }
-        });
-      // Select (selectize)
-      if (s["model-family"] !== undefined) {
-        var el = document.getElementById("model-family");
-        if (el && el.selectize) el.selectize.setValue(s["model-family"], true);
-        else if (el) $(el).val(s["model-family"]).trigger("change");
-      }
-      // Checkboxes
-      ["model-standardize", "model-enforce_signs", "model-relaxed"]
-        .forEach(function(id) {
-          if (s[id] !== undefined) {
-            $(document.getElementById(id)).prop("checked", s[id])
-              .trigger("change");
-          }
-        });
-      // Text inputs
-      if (s["output_folder"] !== undefined) {
-        $(document.getElementById("output_folder"))
-          .val(s["output_folder"]).trigger("change");
-      }
-      // Date inputs
-      if (s["effective_date"] !== undefined && s["effective_date"] !== null) {
-        var $inp = $("#effective_date input");
-        if ($inp.length) $inp.val(s["effective_date"]).trigger("change");
-      }
-    };
-
-    // Apply variables from saved state to DOM
-    window.glmnetApplyVariables = function(saved) {
-      for (var colName in saved) {
-        var sv = saved[colName];
-        var $inc = $(document.getElementById("data-inc_" + colName));
-        var $force = $(document.getElementById("data-force_" + colName));
-        var $sign = $(document.getElementById("data-sign_" + colName));
-        var $type = $(document.getElementById("data-type_" + colName));
-        var $special = $(document.getElementById("data-special_" + colName));
-
-        if ($inc.length && sv.inc !== undefined) $inc.prop("checked", sv.inc);
-        if ($force.length && sv.force !== undefined) $force.prop("checked", sv.force);
-        if ($sign.length && sv.sign) $sign.val(sv.sign);
-        if ($type.length && sv.type) $type.val(sv.type);
-        if ($special.length && sv.special) $special.val(sv.special);
-      }
-      if ($(".glmnet-var-cb").length) $(".glmnet-var-cb").first().trigger("change");
-    };
-
-    // Apply interactions from saved state to DOM
-    window.glmnetApplyInteractions = function(saved) {
-      for (var key in saved) {
-        var $cb = $(document.getElementById("model-int_" + key));
-        if ($cb.length) $cb.prop("checked", saved[key]);
-      }
-      if ($(".glmnet-interaction-cb").length) {
-        $(".glmnet-interaction-cb").first().trigger("change");
-      }
-    };
-
-    // --- Apply saved defaults from localStorage ---
-    Shiny.addCustomMessageHandler("apply_saved_defaults", function(msg) {
-      var fn = msg.filename || "default";
-      var defSettings = null;
-      var defVars = null;
-      var defInts = null;
-      try { defSettings = JSON.parse(localStorage.getItem("glmnetUI_settings___defaults__")); } catch(e) {}
-      try { defVars = JSON.parse(localStorage.getItem("glmnetUI_vars___defaults__")); } catch(e) {}
-      try { defInts = JSON.parse(localStorage.getItem("glmnetUI_interactions___defaults__")); } catch(e) {}
-
-      if (!defSettings) {
-        Shiny.setInputValue("glmnet_no_defaults", Math.random(),
-          {priority: "event"});
-        return;
-      }
-
-      window.glmnetApplySettings(defSettings);
-      // Save to current file localStorage too
-      try { localStorage.setItem("glmnetUI_settings_" + fn, JSON.stringify(defSettings)); } catch(e) {}
-
-      if (defVars) {
-        try { localStorage.setItem("glmnetUI_vars_" + fn, JSON.stringify(defVars)); } catch(e) {}
-        setTimeout(function() { window.glmnetApplyVariables(defVars); }, 200);
-      }
-      if (defInts) {
-        try { localStorage.setItem("glmnetUI_interactions_" + fn, JSON.stringify(defInts)); } catch(e) {}
-        setTimeout(function() { window.glmnetApplyInteractions(defInts); }, 200);
-      }
-    });
-
-    // --- Apply glmnet factory defaults ---
-    Shiny.addCustomMessageHandler("apply_glmnet_defaults", function(msg) {
-      var defaults = {
-        "model-alpha_method": "fixed",
-        "model-alpha": 1,
-        "model-alpha_range": [0, 1],
-        "model-n_alphas": 11,
-        "model-lambda_method": "cv",
-        "model-lambda_manual": 0.01,
-        "model-lambda_choice": "1se",
-        "model-nfolds": 10,
-        "model-family": "gaussian",
-        "model-standardize": true,
-        "model-enforce_signs": false,
-        "model-relaxed": false,
-        "model-gamma": 0,
-        "purpose": "general"
-      };
-      window.glmnetApplySettings(defaults);
-      // Reset variable table: check all inc, uncheck force, set sign=either
-      $(".glmnet-var-cb").prop("checked", true);
-      $(".glmnet-force-cb").prop("checked", false);
-      $(".glmnet-sign-sel").val("either");
-      $(".glmnet-special-sel").val("no");
-      if ($(".glmnet-var-cb").length) $(".glmnet-var-cb").first().trigger("change");
-      // Check all interactions
-      $(".glmnet-interaction-cb").prop("checked", true);
-      if ($(".glmnet-interaction-cb").length) {
-        $(".glmnet-interaction-cb").first().trigger("change");
-      }
-    });
-
-    // --- Collect and save current settings as defaults ---
-    Shiny.addCustomMessageHandler("collect_and_save_defaults", function(msg) {
-      var fn = msg.filename || "default";
-      try {
-        var s = localStorage.getItem("glmnetUI_settings_" + fn);
-        if (s) localStorage.setItem("glmnetUI_settings___defaults__", s);
-      } catch(e) {}
-      try {
-        var v = localStorage.getItem("glmnetUI_vars_" + fn);
-        if (v) localStorage.setItem("glmnetUI_vars___defaults__", v);
-      } catch(e) {}
-      try {
-        var i = localStorage.getItem("glmnetUI_interactions_" + fn);
-        if (i) localStorage.setItem("glmnetUI_interactions___defaults__", i);
-      } catch(e) {}
-    });
-  ')),
+  # --- Settings dropdown + Theme toggle JS + settings message handlers ---
+  shiny::tags$script(src = "glmnetui.js"),
 
   shiny::tags$head(
     shiny::tags$link(rel = "icon", type = "image/png", href = "favicon.png")
   ),
 
-  shiny::tags$div(
-    style = "padding: 10px 15px;",
+  shiny::tags$nav(class = "glmnet-navbar",
     shiny::tags$h2(
       shiny::tags$img(src = "logo.png", height = "32px",
                       style = "margin-right: 8px; vertical-align: middle;"),
       "glmnetUI",
       shiny::tags$small(" - Interactive Elastic Net Modeling",
-                        style = "font-size: 0.6em; color: var(--bs-secondary-color);")
-    )
+                        style = "font-size: 0.6em; color: var(--bs-secondary-color);"),
+      style = "margin: 0;"
+    ),
+    shiny::tags$div(class = "dropdown", id = "glmnet-settings-dropdown",
+      shiny::tags$button(
+        class = "glmnet-menu-btn",
+        onclick = "glmnetToggleDropdown('glmnet-settings-dropdown')",
+        shiny::HTML("&#9881; Settings")
+      ),
+      shiny::tags$div(class = "glmnet-dropdown-menu",
+        shiny::selectInput("locale_country", "Country",
+                           choices = glmnetUI:::locale_country_choices_(),
+                           selected = "us", width = "100%"),
+        shiny::selectInput("locale_paper", "Paper",
+                           choices = c("Letter" = "letter", "A4" = "a4"),
+                           selected = "letter", width = "100%"),
+        shiny::actionLink("locale_save_default", "Save as my default",
+                          style = "font-size: 0.85em; color: #5e81ac; display: block; margin-top: 4px;")
+      )
+    ),
+    shiny::tags$div(class = "glmnet-spacer"),
+    shiny::tags$button(id = "glmnet-theme-toggle", shiny::HTML("&#9790;"))
   ),
   shiny::sidebarLayout(
     shiny::sidebarPanel(
@@ -516,7 +353,32 @@ bslib::page_fluid(
           )
         ),
 
-        # --- 8. Download Report ---
+        # --- 8. Generate Sales Grid (Appraisal only) ---
+        shiny::conditionalPanel(
+          condition = "output.rca_computed",
+          shiny::hr(),
+          shiny::tags$details(class = "glmnet-section",
+            shiny::tags$summary(shiny::h4(
+              "8. Generate Sales Grid & Download",
+              style = "display:inline;")),
+            shiny::conditionalPanel(
+              condition = "input.purpose === 'appraisal'",
+              shiny::actionButton("sales_grid_btn",
+                                  "Generate Sales Grid & Download",
+                                  class = "btn-success",
+                                  style = "width: 100%;")
+            ),
+            shiny::conditionalPanel(
+              condition = "input.purpose !== 'appraisal'",
+              shiny::tags$p(
+                shiny::tags$em("Skip"),
+                style = "color: var(--bs-secondary-color); margin: 4px 0;"
+              )
+            )
+          )
+        ),
+
+        # --- 9. Download Report ---
         shiny::conditionalPanel(
           condition = "output.model_fitted",
           shiny::hr(),
@@ -556,7 +418,78 @@ bslib::page_fluid(
         shiny::tabsetPanel(
           id = "main_tabs",
           shiny::tabPanel("Data Preview", dataPreviewUI("data")),
+          shiny::tabPanel("Equation",
+            shiny::conditionalPanel(
+              condition = "output.model_fitted",
+              equationUI("eq")
+            ),
+            shiny::conditionalPanel(
+              condition = "!output.model_fitted",
+              shiny::tags$div(
+                style = "text-align:center; padding:40px 20px;",
+                shiny::tags$p("Fit a model to see the equation.",
+                              style = "color: var(--bs-secondary-color);")
+              )
+            )
+          ),
+          shiny::tabPanel("Correlation", correlationUI("corr")),
+          shiny::tabPanel("Summary",
+            shiny::conditionalPanel(
+              condition = "output.model_fitted",
+              summaryUI("summ")
+            ),
+            shiny::conditionalPanel(
+              condition = "!output.model_fitted",
+              shiny::tags$div(
+                style = "text-align:center; padding:40px 20px;",
+                shiny::tags$p("Fit a model to see summary statistics.",
+                              style = "color: var(--bs-secondary-color);")
+              )
+            )
+          ),
           shiny::tabPanel("Coefficients", coefficientsUI("coefs")),
+          shiny::tabPanel("Variable Importance",
+            shiny::conditionalPanel(
+              condition = "output.model_fitted",
+              importanceUI("imp")
+            ),
+            shiny::conditionalPanel(
+              condition = "!output.model_fitted",
+              shiny::tags$div(
+                style = "text-align:center; padding:40px 20px;",
+                shiny::tags$p("Fit a model to see variable importance.",
+                              style = "color: var(--bs-secondary-color);")
+              )
+            )
+          ),
+          shiny::tabPanel("Contributions",
+            shiny::conditionalPanel(
+              condition = "output.model_fitted",
+              contributionsUI("contrib")
+            ),
+            shiny::conditionalPanel(
+              condition = "!output.model_fitted",
+              shiny::tags$div(
+                style = "text-align:center; padding:40px 20px;",
+                shiny::tags$p("Fit a model to see variable contributions.",
+                              style = "color: var(--bs-secondary-color);")
+              )
+            )
+          ),
+          shiny::tabPanel("ANOVA",
+            shiny::conditionalPanel(
+              condition = "output.model_fitted",
+              anovaUI("anova")
+            ),
+            shiny::conditionalPanel(
+              condition = "!output.model_fitted",
+              shiny::tags$div(
+                style = "text-align:center; padding:40px 20px;",
+                shiny::tags$p("Fit a model to see ANOVA decomposition.",
+                              style = "color: var(--bs-secondary-color);")
+              )
+            )
+          ),
           shiny::tabPanel("Diagnostics", diagnosticsUI("diag")),
           shiny::tabPanel("Report", reportUI("report")),
           shiny::tabPanel("RCA Adjustments",

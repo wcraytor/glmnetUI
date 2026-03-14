@@ -17,7 +17,7 @@
 #'   glmnetUI()
 #' }
 glmnetUI <- function(port = 7879L, ...) {
-  required <- c("shiny", "glmnet", "readr", "readxl", "DT",
+  required <- c("shiny", "glmnet", "readxl", "DT",
                 "ggplot2", "officer", "rmarkdown", "jsonlite",
                 "bslib")
   missing <- required[!vapply(required, requireNamespace,

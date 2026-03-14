@@ -14,6 +14,57 @@ function(input, output, session) {
     )
   })
 
+  # --- Locale handling ---
+  # Restore saved locale defaults from localStorage
+  shiny::observeEvent(input$glmnet_locale_defaults, {
+    ld <- input$glmnet_locale_defaults
+    if (!is.null(ld$locale_country))
+      shiny::updateSelectInput(session, "locale_country", selected = ld$locale_country)
+    if (!is.null(ld$locale_paper))
+      shiny::updateSelectInput(session, "locale_paper", selected = ld$locale_paper)
+    if (!is.null(ld$locale_import))
+      shiny::updateSelectInput(session, "data-locale_import", selected = ld$locale_import)
+  })
+
+  # When Settings country changes, sync import locale and paper
+  shiny::observeEvent(input$locale_country, {
+    country <- input$locale_country %||% "us"
+    presets <- glmnetUI:::locale_country_presets_()
+    preset <- presets[[country]] %||% presets[["us"]]
+    shiny::updateSelectInput(session, "locale_paper", selected = preset$paper)
+    shiny::updateSelectInput(session, "data-locale_import", selected = country)
+    glmnetUI:::set_locale_(country)
+  })
+
+  # Sync import locale with settings locale
+  shiny::observe({
+    import_country <- input[["data-locale_import"]] %||%
+      input$locale_country %||% "us"
+    settings_country <- input$locale_country %||% "us"
+    paper <- input$locale_paper %||% "letter"
+    presets <- glmnetUI:::locale_country_presets_()
+    import_preset <- presets[[import_country]] %||% presets[["us"]]
+    settings_preset <- presets[[settings_country]] %||% presets[["us"]]
+    glmnetUI:::set_locale_(settings_country,
+                           csv_sep = import_preset$csv_sep,
+                           csv_dec = import_preset$csv_dec,
+                           big_mark = settings_preset$big_mark,
+                           dec_mark = settings_preset$dec_mark,
+                           date_fmt = import_preset$date_fmt,
+                           paper = paper)
+  })
+
+  # Save locale as default
+  shiny::observeEvent(input$locale_save_default, {
+    session$sendCustomMessage("save_locale_defaults", list(
+      locale_country = input$locale_country,
+      locale_paper   = input$locale_paper,
+      locale_import  = input[["data-locale_import"]]
+    ))
+    shiny::showNotification("Locale saved as default.",
+                            type = "message", duration = 4)
+  })
+
   # Wrap global inputs as reactives for module consumption
   purpose <- shiny::reactive(input$purpose)
   effective_date <- shiny::reactive(input$effective_date)
@@ -21,15 +72,21 @@ function(input, output, session) {
   data_out <- dataImportServer("data", purpose)
   model_out <- modelingServer("model", data_out, purpose, effective_date)
   coef_out <- coefficientsServer("coefs", model_out, data_out)
+  equationServer("eq", model_out, data_out)
+  summaryServer("summ", model_out, data_out, purpose)
+  correlationServer("corr", data_out)
+  importanceServer("imp", model_out, data_out)
+  contributionsServer("contrib", model_out, data_out)
+  anovaServer("anova", model_out, data_out)
   diagnosticsServer("diag", model_out)
   reportServer("report", model_out, coef_out, data_out)
 
   # --- Model fitted flag for conditionalPanel ---
-  output$model_fitted <- shiny::reactive(!is.null(model_out$fitted()))
+  output$model_fitted <- shiny::reactive(isTRUE(model_out$fitted()))
   shiny::outputOptions(output, "model_fitted", suspendWhenHidden = FALSE)
 
   # --- RCA percentage data (stored after RCA export) ---
-  rv_rca <- shiny::reactiveValues(pct_data = NULL)
+  rv_rca <- shiny::reactiveValues(pct_data = NULL, rca_df = NULL)
 
   output$rca_computed <- shiny::reactive(!is.null(rv_rca$pct_data))
   shiny::outputOptions(output, "rca_computed", suspendWhenHidden = FALSE)
@@ -45,7 +102,7 @@ function(input, output, session) {
   })
 
   output$report_heading <- shiny::renderUI({
-    n <- if (identical(input$purpose, "appraisal")) "8" else "7"
+    n <- if (identical(input$purpose, "appraisal")) "9" else "7"
     shiny::h4(paste0(n, ". Download Report"), style = "display:inline;")
   })
 
@@ -88,7 +145,11 @@ function(input, output, session) {
             matched <- matched[!grepl(paste0("^", op), matched)]
           }
           train_lvls <- sub(paste0("^", prefix), "", matched)
-          x_df[[p]] <- factor(x_df[[p]], levels = train_lvls)
+          # Include all levels (training + unseen) so unseen levels
+          # get zero coefficients rather than NA
+          all_lvls <- unique(c(train_lvls, as.character(x_df[[p]])))
+          all_lvls <- all_lvls[!is.na(all_lvls) & nzchar(all_lvls)]
+          x_df[[p]] <- factor(x_df[[p]], levels = all_lvls)
         } else if (col_types[p] == "numeric") {
           x_df[[p]] <- as.numeric(x_df[[p]])
         } else if (col_types[p] == "integer") {
@@ -321,6 +382,7 @@ function(input, output, session) {
       writexl::write_xlsx(export_df, out_path)
       shiny::showNotification(paste0("Output saved to: ", out_path),
                               type = "message", duration = 8)
+      session$sendCustomMessage("btn_done", list(id = "export_data"))
     }, error = function(e) {
       shiny::showNotification(paste("Export error:", e$message),
                               type = "error", duration = 10)
@@ -550,6 +612,9 @@ function(input, output, session) {
       }
       export_df[["adjusted_sale_price"]][1L] <- round(subject_est, 1)
 
+      # Store full RCA data frame for Sales Grid
+      rv_rca$rca_df <- export_df
+
       # Store pct data for RCA Analysis plots (comps only, exclude subject)
       rv_rca$pct_data <- data.frame(
         residual_adj_pct = export_df[["residual_adj_pct"]][-1L],
@@ -564,6 +629,7 @@ function(input, output, session) {
       writexl::write_xlsx(export_df, out_path)
       shiny::showNotification(paste0("RCA output saved to: ", out_path),
                               type = "message", duration = 8)
+      session$sendCustomMessage("btn_done", list(id = "rca_output_btn"))
     }, error = function(e) {
       shiny::showNotification(paste("RCA error:", e$message),
                               type = "error", duration = 15)
@@ -637,7 +703,255 @@ function(input, output, session) {
                        "Gross Adj. %", "#a3be8c")
   })
 
-  # --- 8. Download Report (to output folder) ---
+  # --- 8. Generate Sales Grid & Download (Appraisal only) ---
+  observeEvent(input$sales_grid_btn, {
+    shiny::req(rv_rca$rca_df)
+    rca <- rv_rca$rca_df
+    n_total <- nrow(rca)
+    if (n_total < 2L) {
+      shiny::showNotification("Need at least 2 rows (subject + 1 comp).",
+                              type = "error", duration = 8)
+      return()
+    }
+
+    # Build specials map from data module
+    sg_specials <- data_out$col_specials()
+
+    # Find sale_age column name
+    sa_col_name <- "sale_age"
+    if (!is.null(sg_specials)) {
+      for (nm in names(sg_specials)) {
+        if (sg_specials[[nm]] == "sale_age") { sa_col_name <- nm; break }
+      }
+    }
+
+    # Weight column
+    wt_col_name <- data_out$weight_col()
+    wt_vals <- if (!is.null(wt_col_name) && wt_col_name %in% colnames(rca)) {
+      rca[[wt_col_name]]
+    } else {
+      rep(1, n_total)
+    }
+
+    # Build comp info (rows 2..n)
+    comp_info <- data.frame(
+      row        = 2:n_total,
+      address    = if ("street_address" %in% colnames(rca)) {
+                     rca[["street_address"]][2:n_total]
+                   } else rep("", n_total - 1L),
+      sale_price = if ("sale_price" %in% colnames(rca)) {
+                     rca[["sale_price"]][2:n_total]
+                   } else rep(NA_real_, n_total - 1L),
+      sale_age   = if (sa_col_name %in% colnames(rca)) {
+                     rca[[sa_col_name]][2:n_total]
+                   } else rep(NA_real_, n_total - 1L),
+      weight     = wt_vals[2:n_total],
+      gross_adj  = if ("gross_adjustments" %in% colnames(rca)) {
+                     rca[["gross_adjustments"]][2:n_total]
+                   } else rep(0, n_total - 1L),
+      stringsAsFactors = FALSE
+    )
+    comp_info$gross_adj_pct <- ifelse(
+      !is.na(comp_info$sale_price) & comp_info$sale_price != 0,
+      abs(comp_info$gross_adj / comp_info$sale_price), NA_real_
+    )
+
+    eligible <- comp_info[!is.na(comp_info$weight) & comp_info$weight > 0, ]
+    eligible <- eligible[order(eligible$gross_adj_pct, na.last = TRUE), ]
+
+    recommended <- eligible[!is.na(eligible$gross_adj_pct) &
+                            eligible$gross_adj_pct < 0.25, ]
+    recommended <- recommended[order(recommended$sale_age, na.last = TRUE), ]
+    if (nrow(recommended) > 30L) recommended <- recommended[1:30, ]
+
+    others <- eligible[is.na(eligible$gross_adj_pct) |
+                       eligible$gross_adj_pct >= 0.25, ]
+    others <- others[order(others$gross_adj_pct, na.last = TRUE), ]
+
+    rv_rca$sg_recommended <- recommended
+    rv_rca$sg_others <- others
+
+    rec_checks <- if (nrow(recommended) > 0L) {
+      lapply(seq_len(nrow(recommended)), function(i) {
+        r <- recommended[i, ]
+        lbl <- sprintf("Row %d | %s | SP: $%s | Age: %s | Gross: %.1f%%",
+                       r$row,
+                       substr(as.character(r$address), 1, 30),
+                       formatC(r$sale_price, format = "f", digits = 0,
+                               big.mark = ","),
+                       as.character(r$sale_age),
+                       r$gross_adj_pct * 100)
+        shiny::tags$div(
+          shiny::checkboxInput(paste0("sg_rec_", r$row), lbl, value = TRUE),
+          style = "margin-bottom: 0px;"
+        )
+      })
+    } else {
+      shiny::tags$p("No comps with gross adjustment < 25% found.",
+                    style = "color: var(--bs-secondary-color);")
+    }
+
+    other_checks <- if (nrow(others) > 0L) {
+      lapply(seq_len(min(nrow(others), 50L)), function(i) {
+        r <- others[i, ]
+        pct_str <- if (!is.na(r$gross_adj_pct)) {
+          sprintf("%.1f%%", r$gross_adj_pct * 100)
+        } else "N/A"
+        lbl <- sprintf("Row %d | %s | SP: $%s | Age: %s | Gross: %s",
+                       r$row,
+                       substr(as.character(r$address), 1, 30),
+                       formatC(r$sale_price, format = "f", digits = 0,
+                               big.mark = ","),
+                       as.character(r$sale_age),
+                       pct_str)
+        shiny::tags$div(
+          shiny::checkboxInput(paste0("sg_rec_", r$row), lbl, value = FALSE),
+          style = "margin-bottom: 0px;"
+        )
+      })
+    } else NULL
+
+    shiny::showModal(shiny::modalDialog(
+      title = "Sales Grid \u2014 Select Comparables (max 30)",
+      size = "l",
+      shiny::tags$div(
+        style = "max-height: 500px; overflow-y: auto;",
+        shiny::tags$h5(paste0("Recommended Comps (gross adj < 25%, ",
+                              "sorted by sale age) \u2014 ",
+                              nrow(recommended), " found")),
+        rec_checks,
+        if (!is.null(other_checks)) {
+          shiny::tagList(
+            shiny::hr(),
+            shiny::tags$h5("Additional Comps (gross adj >= 25%)"),
+            other_checks
+          )
+        }
+      ),
+      footer = shiny::tagList(
+        shiny::modalButton("Cancel"),
+        shiny::actionButton("sg_confirm", "Generate Sales Grid",
+                            class = "btn-success")
+      )
+    ))
+  })
+
+  observeEvent(input$sg_confirm, {
+    shiny::req(rv_rca$rca_df)
+    shiny::removeModal()
+
+    all_candidate_rows <- c(
+      if (!is.null(rv_rca$sg_recommended) && nrow(rv_rca$sg_recommended) > 0L)
+        rv_rca$sg_recommended$row else integer(0),
+      if (!is.null(rv_rca$sg_others) && nrow(rv_rca$sg_others) > 0L)
+        rv_rca$sg_others$row[seq_len(min(nrow(rv_rca$sg_others), 50L))]
+      else integer(0)
+    )
+    comp_rows <- integer(0)
+    for (r in all_candidate_rows) {
+      cb_val <- input[[paste0("sg_rec_", r)]]
+      if (!is.null(cb_val) && isTRUE(cb_val)) {
+        comp_rows <- c(comp_rows, r)
+      }
+    }
+
+    if (length(comp_rows) == 0L) {
+      shiny::showNotification("No comps selected.",
+                              type = "warning", duration = 8)
+      return()
+    }
+    if (length(comp_rows) > 30L) {
+      comp_rows <- comp_rows[1:30]
+      shiny::showNotification("Capped at 30 comps.",
+                              type = "warning", duration = 5)
+    }
+
+    # Sort by gross_adj_pct ascending
+    rca <- rv_rca$rca_df
+    sp <- if ("sale_price" %in% colnames(rca)) {
+      rca[["sale_price"]][comp_rows]
+    } else rep(NA_real_, length(comp_rows))
+    gross <- if ("gross_adjustments" %in% colnames(rca)) {
+      rca[["gross_adjustments"]][comp_rows]
+    } else rep(0, length(comp_rows))
+    gap <- ifelse(!is.na(sp) & sp != 0, abs(gross / sp), NA_real_)
+    comp_rows <- comp_rows[order(gap, na.last = TRUE)]
+
+    folder <- input$output_folder
+    if (is.null(folder) || !nzchar(folder)) folder <- path.expand("~/Downloads")
+    if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
+
+    out_path <- file.path(folder, paste0("SalesGrid_",
+                          format(Sys.time(), "%Y%m%d_%H%M%S"), ".xlsx"))
+
+    tryCatch({
+      if (!requireNamespace("openxlsx", quietly = TRUE)) {
+        shiny::showNotification(
+          "Package 'openxlsx' required. Install with: install.packages('openxlsx')",
+          type = "error", duration = 10)
+        return()
+      }
+      if (!requireNamespace("writexl", quietly = TRUE)) {
+        shiny::showNotification(
+          "Package 'writexl' required. Install with: install.packages('writexl')",
+          type = "error", duration = 10)
+        return()
+      }
+
+      tmp_adj <- tempfile(fileext = ".xlsx")
+      writexl::write_xlsx(rv_rca$rca_df, tmp_adj)
+
+      grid_script <- system.file("app", "sales_grid.R", package = "glmnetUI")
+      if (!nzchar(grid_script)) {
+        shiny::showNotification("Sales grid script not found in package.",
+                                type = "error", duration = 10)
+        return()
+      }
+      source(grid_script, local = TRUE)
+
+      # Build specials map from data module designations
+      sg_specials_map <- list()
+      sg_input <- data_out$col_specials()
+      if (!is.null(sg_input)) {
+        for (nm in names(sg_input)) {
+          sp_type <- sg_input[[nm]]
+          if (sp_type != "no") sg_specials_map[[sp_type]] <- nm
+        }
+      }
+
+      n_comp <- length(comp_rows)
+      shiny::withProgress(
+        message = "Generating Sales Grid",
+        detail = sprintf("0 of %d comps processed", n_comp),
+        value = 0, {
+        generate_sales_grid(
+          adjusted_file = tmp_adj,
+          comp_rows     = comp_rows,
+          output_file   = out_path,
+          specials      = sg_specials_map,
+          progress_fn   = function(sheet, total_sheets, comps_done, total_comps) {
+            shiny::setProgress(
+              value = comps_done / total_comps,
+              detail = sprintf("Sheet %d of %d \u2014 %d of %d comps processed",
+                               sheet, total_sheets, comps_done, total_comps))
+          }
+        )
+      })
+      unlink(tmp_adj)
+
+      shiny::showNotification(
+        paste0("Sales grid saved to: ", out_path,
+               " (", length(comp_rows), " comps, ",
+               ceiling(length(comp_rows) / 3), " sheets)"),
+        type = "message", duration = 10)
+      session$sendCustomMessage("btn_done", list(id = "sales_grid_btn"))
+    }, error = function(e) {
+      shiny::showNotification(paste("Sales grid error:", e$message),
+                              type = "error", duration = 10)
+    })
+  })
+
+  # --- 9. Download Report (to output folder) ---
   observeEvent(input$export_report_btn, {
     shiny::req(model_out$fitted())
 
@@ -821,6 +1135,7 @@ function(input, output, session) {
 
       shiny::showNotification(paste0("Report saved to: ", out_path),
                               type = "message", duration = 8)
+      session$sendCustomMessage("btn_done", list(id = "export_report_btn"))
     }, error = function(e) {
       shiny::showNotification(paste("Report error:", e$message),
                               type = "error", duration = 10)

@@ -42,6 +42,24 @@ diagnosticsUI <- function(id) {
   )
 }
 
+# Axis label formatter: no scientific notation, with comma separators
+#' @noRd
+glmnet_axis_labels_ <- function(x) {
+  formatC(x, format = "f", digits = 0, big.mark = ",")
+}
+
+# Common theme for diagnostic plots
+#' @noRd
+glmnet_diag_theme_ <- function(font_fam) {
+  ggplot2::theme_minimal(base_size = 16, base_family = font_fam) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 18),
+      axis.text = ggplot2::element_text(size = 13),
+      axis.title = ggplot2::element_text(size = 14),
+      legend.text = ggplot2::element_text(size = 12)
+    )
+}
+
 #' Diagnostics and Plots Module Server
 #'
 #' Server logic for diagnostic plots using ggplot2.
@@ -67,6 +85,7 @@ diagnosticsServer <- function(id, model_module) {
       shiny::req(model_module$fitted())
       model_module$fit_count()
       model <- model_module$model()
+      font_fam <- glmnet_font_family_()
 
       fit_obj <- if (inherits(model, "cv.glmnet") ||
                        inherits(model, "cv.relaxed")) {
@@ -92,9 +111,12 @@ diagnosticsServer <- function(id, model_module) {
                                    y = .data$coefficient,
                                    color = .data$variable)) +
         ggplot2::geom_line() +
+        ggplot2::scale_y_continuous(labels = glmnet_axis_labels_,
+                                    n.breaks = 15) +
+        ggplot2::scale_x_continuous(n.breaks = 15) +
         ggplot2::labs(x = "Log(Lambda)", y = "Coefficient",
                       title = "Coefficient Path") +
-        ggplot2::theme_minimal() +
+        glmnet_diag_theme_(font_fam) +
         ggplot2::theme(legend.position = "right")
     })
 
@@ -102,6 +124,7 @@ diagnosticsServer <- function(id, model_module) {
       shiny::req(model_module$fitted())
       model_module$fit_count()
       model <- model_module$model()
+      font_fam <- glmnet_font_family_()
       shiny::req(inherits(model, "cv.glmnet") ||
                    inherits(model, "cv.relaxed"))
 
@@ -115,26 +138,31 @@ diagnosticsServer <- function(id, model_module) {
 
       ggplot2::ggplot(df_cv, ggplot2::aes(x = .data$log_lambda,
                                           y = .data$cvm)) +
-        ggplot2::geom_point(color = "red", size = 1.5) +
+        ggplot2::geom_point(color = "#bf616a", size = 1.5) +
         ggplot2::geom_errorbar(ggplot2::aes(ymin = .data$cvlo,
                                             ymax = .data$cvup),
                                alpha = 0.4) +
         ggplot2::geom_vline(xintercept = log(model$lambda.min),
-                            linetype = "dashed", color = "blue") +
+                            linetype = "dashed", color = "#5e81ac") +
         ggplot2::geom_vline(xintercept = log(model$lambda.1se),
-                            linetype = "dashed", color = "darkgreen") +
+                            linetype = "dashed", color = "#a3be8c") +
+        ggplot2::scale_y_continuous(labels = glmnet_axis_labels_,
+                                    n.breaks = 15) +
+        ggplot2::scale_x_continuous(n.breaks = 15) +
         ggplot2::labs(x = "Log(Lambda)",
                       y = "Cross-Validation Error",
                       title = "CV Error Plot") +
         ggplot2::annotate("text", x = log(model$lambda.min),
                           y = max(df_cv$cvup),
                           label = "lambda.min", hjust = -0.1,
-                          color = "blue", size = 3.5) +
+                          color = "#5e81ac", size = 4.5,
+                          family = font_fam) +
         ggplot2::annotate("text", x = log(model$lambda.1se),
                           y = max(df_cv$cvup),
                           label = "lambda.1se", hjust = -0.1,
-                          color = "darkgreen", size = 3.5) +
-        ggplot2::theme_minimal()
+                          color = "#a3be8c", size = 4.5,
+                          family = font_fam) +
+        glmnet_diag_theme_(font_fam)
     })
 
     avp_gg <- shiny::reactive({
@@ -145,6 +173,7 @@ diagnosticsServer <- function(id, model_module) {
       gamma <- model_module$gamma()
       x_mat <- model_module$x_matrix()
       y_vec <- model_module$y_vector()
+      font_fam <- glmnet_font_family_()
 
       pred_args <- list(model, newx = x_mat, s = lambda, type = "response")
       if (!is.null(gamma)) pred_args$gamma <- gamma
@@ -154,12 +183,16 @@ diagnosticsServer <- function(id, model_module) {
 
       ggplot2::ggplot(df_avp, ggplot2::aes(x = .data$actual,
                                            y = .data$predicted)) +
-        ggplot2::geom_point(alpha = 0.5) +
+        ggplot2::geom_point(alpha = 0.5, color = "#5e81ac") +
         ggplot2::geom_abline(slope = 1, intercept = 0,
-                             color = "red", linetype = "dashed") +
+                             color = "#bf616a", linetype = "dashed") +
+        ggplot2::scale_x_continuous(labels = glmnet_axis_labels_,
+                                    n.breaks = 15) +
+        ggplot2::scale_y_continuous(labels = glmnet_axis_labels_,
+                                    n.breaks = 15) +
         ggplot2::labs(x = "Actual", y = "Predicted",
                       title = "Actual vs Predicted") +
-        ggplot2::theme_minimal()
+        glmnet_diag_theme_(font_fam)
     })
 
     resid_gg <- shiny::reactive({
@@ -170,6 +203,7 @@ diagnosticsServer <- function(id, model_module) {
       gamma <- model_module$gamma()
       x_mat <- model_module$x_matrix()
       y_vec <- model_module$y_vector()
+      font_fam <- glmnet_font_family_()
 
       pred_args <- list(model, newx = x_mat, s = lambda, type = "response")
       if (!is.null(gamma)) pred_args$gamma <- gamma
@@ -180,12 +214,16 @@ diagnosticsServer <- function(id, model_module) {
 
       ggplot2::ggplot(df_resid, ggplot2::aes(x = .data$fitted,
                                              y = .data$residuals)) +
-        ggplot2::geom_point(alpha = 0.5) +
-        ggplot2::geom_hline(yintercept = 0, color = "red",
+        ggplot2::geom_point(alpha = 0.5, color = "#5e81ac") +
+        ggplot2::geom_hline(yintercept = 0, color = "#bf616a",
                             linetype = "dashed") +
+        ggplot2::scale_x_continuous(labels = glmnet_axis_labels_,
+                                    n.breaks = 15) +
+        ggplot2::scale_y_continuous(labels = glmnet_axis_labels_,
+                                    n.breaks = 15) +
         ggplot2::labs(x = "Fitted Values", y = "Residuals",
                       title = "Residuals vs Fitted") +
-        ggplot2::theme_minimal()
+        glmnet_diag_theme_(font_fam)
     })
 
     output$coef_path_plot <- shiny::renderPlot({ coef_path_gg() })
