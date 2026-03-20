@@ -1,0 +1,181 @@
+# NOTE: This module is currently INACTIVE in the UI. The earthUI import
+# feature has been removed from the interface but the code is retained
+# for potential future use with small datasets.
+
+#' Earth Import Module -- UI
+#'
+#' Compact widget for importing an earthUI result (.rds file) via
+#' file path. Reads directly from disk (no Shiny upload size limits).
+#'
+#' @param id Shiny module namespace ID.
+#' @return A [shiny::tagList].
+#' @export
+#' @examples
+#' if (interactive()) {
+#'   ui <- shiny::fluidPage(earthImportUI("earth1"))
+#'   server <- function(input, output, session) {
+#'     earthImportServer("earth1")
+#'   }
+#'   shinyApp(ui, server)
+#' }
+earthImportUI <- function(id) {
+  ns <- shiny::NS(id)
+  shiny::tagList(
+    shiny::tags$div(
+      style = "margin-bottom:8px;",
+      shiny::tags$label("earthUI Result (.rds)", class = "control-label"),
+      shinyFiles::shinyFilesButton(
+        ns("earth_browse"), "Browse",
+        title = "Select earthUI Result (.rds)",
+        multiple = FALSE,
+        class = "btn-sm btn-primary",
+        style = "width:100%; margin-top:4px;"
+      ),
+      shiny::textOutput(ns("loaded_path"),
+                        inline = TRUE)
+    ),
+    shiny::conditionalPanel(
+      condition = sprintf("output['%s']", ns("has_earth")),
+      shiny::verbatimTextOutput(ns("earth_summary")),
+      shiny::tags$div(
+        style = "display:flex; gap:6px; margin-top:4px;",
+        shiny::downloadButton(ns("download_knots"), "Export Knots CSV",
+                              class = "btn-sm btn-outline-secondary",
+                              style = "flex:1;"),
+        shiny::actionButton(ns("clear_earth"), "Clear",
+                            class = "btn-sm btn-outline-danger",
+                            style = "flex:0 0 auto;")
+      )
+    )
+  )
+}
+
+
+#' Earth Import Module -- Server
+#'
+#' @param id Shiny module namespace ID.
+#' @return A reactive containing a `glmnetUI_earth_knots` object, or
+#'   `NULL`.
+#' @export
+earthImportServer <- function(id) {
+  shiny::moduleServer(id, function(input, output, session) {
+    earth_knots <- shiny::reactiveVal(NULL)
+    loaded_file <- shiny::reactiveVal(NULL)
+
+    # Cache directory for persisting uploaded files across sessions
+    cache_dir <- file.path(tools::R_user_dir("glmnetUI", "data"), "cache")
+    if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
+
+    output$has_earth <- shiny::reactive(!is.null(earth_knots()))
+    shiny::outputOptions(output, "has_earth", suspendWhenHidden = FALSE)
+
+    output$loaded_path <- shiny::renderText({
+      f <- loaded_file()
+      if (is.null(f)) "" else paste0("Loaded: ", f)
+    })
+
+    # Load and cache helper
+    load_earth_ <- function(path, name) {
+      ek <- import_earth(path)
+      earth_knots(ek)
+      loaded_file(name)
+      # Save full path and directory for next session
+      tryCatch({
+        writeLines(name, file.path(cache_dir, ".last_earth"))
+        writeLines(dirname(path), file.path(cache_dir, ".last_earth_dir"))
+      }, error = function(e) NULL)
+      ek
+    }
+
+    # Restore last-used directory for file browser
+    last_dir <- path.expand("~")
+    last_dir_file <- file.path(cache_dir, ".last_earth_dir")
+    if (file.exists(last_dir_file)) {
+      saved_dir <- trimws(readLines(last_dir_file, n = 1L, warn = FALSE))
+      if (nzchar(saved_dir) && dir.exists(saved_dir)) {
+        last_dir <- saved_dir
+      }
+    }
+
+    # Show last-used filename
+    last_name_file <- file.path(cache_dir, ".last_earth")
+    if (file.exists(last_name_file)) {
+      last_name <- trimws(readLines(last_name_file, n = 1L, warn = FALSE))
+      if (nzchar(last_name)) {
+        loaded_file(paste0("Last: ", last_name, " (not loaded)"))
+      }
+    }
+
+    # File browser with last-used directory as default
+    volumes <- c(Home = path.expand("~"), Root = "/")
+    default_root <- "Home"
+    default_path <- ""
+    # If last_dir is under Home, use relative path; otherwise add as root
+    home <- path.expand("~")
+    if (startsWith(last_dir, home) && last_dir != home) {
+      default_path <- sub(paste0("^", home, "/?"), "", last_dir)
+    } else if (last_dir != home) {
+      volumes <- c("Last Folder" = last_dir, volumes)
+      default_root <- "Last Folder"
+    }
+    shinyFiles::shinyFileChoose(input, "earth_browse", roots = volumes,
+                                defaultRoot = default_root,
+                                defaultPath = default_path,
+                                filetypes = "rds", session = session)
+
+    shiny::observeEvent(input$earth_browse, {
+      file_info <- shinyFiles::parseFilePaths(volumes, input$earth_browse)
+      if (nrow(file_info) == 0) return()
+      path <- as.character(file_info$datapath)
+      tryCatch({
+        ek <- load_earth_(path, basename(path))
+        shiny::showNotification(
+          paste("Imported:", ek$earth_summary$n_terms, "terms,",
+                length(ek$predictors), "predictors"),
+          type = "message"
+        )
+      }, error = function(e) {
+        shiny::showNotification(paste("Import error:", e$message),
+                                type = "error")
+        earth_knots(NULL)
+      })
+    })
+
+    output$earth_summary <- shiny::renderPrint({
+      ek <- earth_knots()
+      shiny::req(ek)
+      cat("Target:", paste(ek$target, collapse = ", "), "\n")
+      cat("R-sq:", round(ek$earth_summary$r_squared, 4), "\n")
+      cat("Terms:", ek$earth_summary$n_terms, "\n")
+      cat("Degree:", ek$degree, "\n")
+      cat("Predictors:", paste(ek$predictors, collapse = ", "), "\n")
+      # Show basis column names
+      bx <- build_earth_basis(ek$data, ek)
+      if (!is.null(bx)) {
+        cat("Basis columns:", ncol(bx), "\n")
+      }
+    })
+
+    output$download_knots <- shiny::downloadHandler(
+      filename = function() {
+        paste0("earth_knots_", format(Sys.Date(), "%Y%m%d"), ".csv")
+      },
+      content = function(file) {
+        ek <- earth_knots()
+        shiny::req(ek)
+        export_knots_csv(ek, file)
+      }
+    )
+
+    shiny::observeEvent(input$clear_earth, {
+      earth_knots(NULL)
+      # Remove cached last-earth pointer so it won't auto-load next session
+      last_file <- file.path(cache_dir, ".last_earth")
+      tryCatch(unlink(last_file), error = function(e) NULL)
+      shiny::showNotification("earthUI import cleared.",
+                              type = "message", duration = 3)
+    })
+
+    shiny::reactive(earth_knots())
+  })
+}

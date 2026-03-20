@@ -146,14 +146,14 @@ The sidebar is organized into numbered sections:
 3. **Variable Configuration** --- target, predictors, data types, special
    columns, expected signs, effective date (appraisal/market only)
 4. **glmnet Call Parameters** --- alpha, lambda, family, standardize, sign
-   constraints, relaxed lasso, interaction matrix
+   constraints, relaxed lasso, interaction matrix, advanced parameters
 5. **Fit Glmnet Model** --- green button to run the model
 6. **Download Output** --- Excel file with predictions and diagnostics
    (appraisal/market only)
 7. **Calculate RCA Adjustments & Download** (appraisal only)
 8. **Sales Comparison Grid** (appraisal only) --- generate formatted Excel
    workbook with comp selection modal
-9. **Download Report** --- Word (.docx) or PDF
+9. **Download Report** --- Word (.docx), PDF, or HTML
 
 ## Variable Selection
 
@@ -275,6 +275,11 @@ are allowed to interact. Check a cell to allow the interaction term
 
 With many predictors, lasso will zero out unneeded interaction terms
 automatically, so "Allow All" is a reasonable starting point.
+
+> **Warning:** Enabling glmnet interactions will produce adjustments that
+> can be difficult to interpret and explain in court or audit settings.
+> Use interactions cautiously and verify that the resulting adjustments
+> are reasonable.
 
 ## Result Tabs
 
@@ -496,7 +501,7 @@ The demo dataset is shared with earthUI. If earthUI is installed, load it
 with:
 
 ```{r eval=FALSE}
-demo_file <- system.file("extdata", "Appraisal_1.csv", package = "earthUI")
+demo_file <- system.file("extdata", "Appraisal_1.csv", package = "glmnetUI")
 ```
 
 Or import it directly through the Shiny app file upload.

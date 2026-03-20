@@ -1,3 +1,17 @@
+# glmnetUI 0.1.2
+
+* **Enhanced reports**: Full-featured reports via Quarto (HTML, PDF, Word) including all tab content: Dataset Description, Model Specification, Results Summary, Equation, Coefficients, Variable Importance, Contributions plots, Correlation Matrix, ANOVA, and Diagnostics (Coefficient Path, CV Error, Actual vs Predicted, Residuals vs Fitted, Q-Q Plot).
+* **Advanced glmnet parameters** section in sidebar: lambda.min.ratio, nlambda, CV loss metric (MSE/MAE/Deviance), convergence threshold, max iterations, intercept toggle. Visible for documentation/audit purposes even at defaults.
+* **Improved Sales Grid formatting**: Fixed cell number formats using openxlsx; all value contribution, adjustment, percentage, and sale price cells render correctly.
+* **Sorting**: RCA adjusted spreadsheet sorts comps with weight > 0 by gross_adj_pct ascending, weight = 0 comps at end.
+* **Collapsible section arrow spacing**: Fixed CSS for consistent spacing between collapse arrow and section title.
+* **HTML report format**: Added HTML as a third report output option alongside Word and PDF.
+* **Percentage formatting**: residual_adj_pct, net_adj_pct, gross_adj_pct rounded to 1 decimal place.
+* **Date column handling**: Date/POSIXct columns converted to character before Excel export to prevent datetime formatting in Sales Grid.
+* **Upload size limit**: Increased to 3 GB for large files.
+* **Demo dataset**: Appraisal_1.csv included in inst/extdata.
+* Removed backslash escaping in equation display (MathJax handles underscores in `\text{}` natively).
+
 # glmnetUI 0.1.1
 
 * **Sales Grid** (Step 8, appraisal mode): Generate a formatted Sales Comparison Grid Excel workbook from RCA output. Modal dialog for comp selection with recommended comps (gross adj < 25%, sorted by sale age) pre-checked. Up to 30 comps across 10 sheets (3 per sheet). Includes grouped rows (Location/Site/Age), residual feature input cells, Net/Gross adjustment percentages, and Adjusted Sale Price formulas. Sheet protection with unlocked residual value cells for appraiser input.

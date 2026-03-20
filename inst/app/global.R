@@ -5,6 +5,9 @@ library(ggplot2)
 library(DT)
 library(bslib)
 
+# Allow uploads up to 3 GB (earthUI result files can be very large)
+options(shiny.maxRequestSize = 3 * 1024^3)
+
 # Load Roboto Condensed for R graphics (ggplot2 + base R)
 if (requireNamespace("sysfonts", quietly = TRUE) &&
     requireNamespace("showtext", quietly = TRUE)) {

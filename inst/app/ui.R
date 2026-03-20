@@ -160,10 +160,11 @@ bslib::page_fluid(
       display: none;
     }
     .glmnet-section > summary h4::before {
-      content: "\\25B6  ";
+      content: "\\25B6";
       font-size: 0.7em;
       transition: transform 0.2s;
       display: inline-block;
+      margin-right: 0.4em;
     }
     .glmnet-section[open] > summary h4::before {
       transform: rotate(90deg);
@@ -387,7 +388,8 @@ bslib::page_fluid(
                                                  inline = TRUE)),
             shiny::selectInput("export_format", "Format",
                                choices = c("Word" = "docx",
-                                           "PDF" = "pdf")),
+                                           "PDF" = "pdf",
+                                           "HTML" = "html")),
             shiny::actionButton("export_report_btn", "Download Report",
                                 class = "btn-success",
                                 style = "width: 100%;")

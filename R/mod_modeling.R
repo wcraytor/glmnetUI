@@ -4,6 +4,15 @@
 #' alpha, lambda, family, model fitting, sign constraints, relaxed lasso,
 #' penalty factors, weights, alpha grid search, and interaction terms.
 #'
+#' @section Interaction terms warning:
+#' Enabling glmnet interaction terms will produce adjustments that are
+#' difficult to interpret and explain to third parties. When an earthUI
+#' result is imported (Section 2), the interaction matrix is disabled
+#' and interactions are handled exclusively by the earth model's hinge
+#' basis functions. earth() interactions -- even higher-order terms --
+#' are interpretable because each hinge function has a clear geometric
+#' meaning.
+#'
 #' @param id Module namespace ID.
 #'
 #' @return A Shiny \code{tagList} containing the module UI elements.
@@ -204,63 +213,170 @@ modelingUI <- function(id) {
 
     # --- Interaction Matrix ---
     shiny::hr(),
-    shiny::tags$span(
-      shiny::h5("Interaction Matrix", style = "display:inline;"),
-      help_icon(paste(
-        "Check pairs of variables to allow interaction terms.",
-        "Unchecked pairs will not be combined.",
-        "Click a variable name to toggle all its interactions.",
-        "Only checked pairs are included in the model matrix.",
-        "With many predictors, lasso will zero out unneeded interactions."
-      ))
-    ),
-    shiny::tags$div(
-      style = "margin-bottom:6px; margin-top:4px;",
-      shiny::tags$label(
-        style = "font-size:0.85em; margin-right:12px; cursor:pointer;",
-        shiny::tags$input(
-          type = "checkbox", id = ns("allow_all"),
-          class = "glmnet-int-toggle", checked = "checked",
-          style = "margin-right:4px;"
-        ),
-        "Allow All"
-      ),
-      shiny::tags$label(
-        style = "font-size:0.85em; cursor:pointer;",
-        shiny::tags$input(
-          type = "checkbox", id = ns("clear_all"),
-          class = "glmnet-int-toggle",
-          style = "margin-right:4px;"
-        ),
-        "Clear All"
+    shiny::conditionalPanel(
+      condition = sprintf("output['%s']", "earth-has_earth"),
+      shiny::tags$div(
+        class = "alert alert-info",
+        style = "font-size:0.85em; padding:8px 12px; margin-bottom:8px;",
+        shiny::tags$strong("earthUI imported:"),
+        " Interactions are determined by the earth model.",
+        " The glmnet interaction matrix is disabled.",
+        " earth() interactions, including higher-order terms,",
+        " are interpretable and included via the hinge basis functions."
       )
     ),
-    shiny::tags$script(shiny::HTML(sprintf(
-      "
-      $(document).on('change', '#%s', function() {
-        if ($(this).is(':checked')) {
-          $('#%s').prop('checked', false);
-          $('.glmnet-interaction-cb').prop('checked', true).first().trigger('change');
-        }
-      });
-      $(document).on('change', '#%s', function() {
-        if ($(this).is(':checked')) {
-          $('#%s').prop('checked', false);
-          $('.glmnet-interaction-cb').prop('checked', false).first().trigger('change');
-        }
-      });
-      $(document).on('change', '.glmnet-interaction-cb', function() {
-        var all = $('.glmnet-interaction-cb').length;
-        var checked = $('.glmnet-interaction-cb:checked').length;
-        $('#%s').prop('checked', checked === all);
-        $('#%s').prop('checked', checked === 0);
-      });
-      ",
-      ns("allow_all"), ns("clear_all"),
-      ns("clear_all"), ns("allow_all"),
-      ns("allow_all"), ns("clear_all")
-    ))),
-    shiny::uiOutput(ns("interaction_matrix"))
+    shiny::conditionalPanel(
+      condition = sprintf("!output['%s']", "earth-has_earth"),
+      shiny::tags$span(
+        shiny::h5("Interaction Matrix", style = "display:inline;"),
+        help_icon(paste(
+          "Check pairs of variables to allow interaction terms.",
+          "Unchecked pairs will not be combined.",
+          "Click a variable name to toggle all its interactions.",
+          "Only checked pairs are included in the model matrix.",
+          "With many predictors, lasso will zero out unneeded interactions."
+        ))
+      ),
+      shiny::tags$div(
+        class = "alert alert-warning",
+        style = "font-size:0.85em; padding:8px 12px; margin-bottom:8px;",
+        shiny::tags$strong("Warning:"),
+        " Enabling glmnet interactions will produce adjustments that",
+        " are difficult to interpret and explain to third parties.",
+        " Consider using earthUI to identify interactions instead",
+        " -- earth() interactions are interpretable even with",
+        " higher-order terms."
+      ),
+      shiny::tags$div(
+        style = "margin-bottom:6px; margin-top:4px;",
+        shiny::tags$label(
+          style = "font-size:0.85em; margin-right:12px; cursor:pointer;",
+          shiny::tags$input(
+            type = "checkbox", id = ns("allow_all"),
+            class = "glmnet-int-toggle", checked = "checked",
+            style = "margin-right:4px;"
+          ),
+          "Allow All"
+        ),
+        shiny::tags$label(
+          style = "font-size:0.85em; cursor:pointer;",
+          shiny::tags$input(
+            type = "checkbox", id = ns("clear_all"),
+            class = "glmnet-int-toggle",
+            style = "margin-right:4px;"
+          ),
+          "Clear All"
+        )
+      ),
+      shiny::tags$script(shiny::HTML(sprintf(
+        "
+        $(document).on('change', '#%s', function() {
+          if ($(this).is(':checked')) {
+            $('#%s').prop('checked', false);
+            $('.glmnet-interaction-cb').prop('checked', true).first().trigger('change');
+          }
+        });
+        $(document).on('change', '#%s', function() {
+          if ($(this).is(':checked')) {
+            $('#%s').prop('checked', false);
+            $('.glmnet-interaction-cb').prop('checked', false).first().trigger('change');
+          }
+        });
+        $(document).on('change', '.glmnet-interaction-cb', function() {
+          var all = $('.glmnet-interaction-cb').length;
+          var checked = $('.glmnet-interaction-cb:checked').length;
+          $('#%s').prop('checked', checked === all);
+          $('#%s').prop('checked', checked === 0);
+        });
+        ",
+        ns("allow_all"), ns("clear_all"),
+        ns("clear_all"), ns("allow_all"),
+        ns("allow_all"), ns("clear_all")
+      ))),
+      shiny::uiOutput(ns("interaction_matrix"))
+    ),
+
+    # --- Advanced Parameters ---
+    shiny::hr(),
+    shiny::tags$details(
+      shiny::tags$summary(
+        shiny::h5("Advanced", style = "display:inline;")
+      ),
+      shiny::tags$p(
+        style = "font-size:0.8em; color:var(--bs-secondary-color); margin-top:6px;",
+        "These parameters use sensible defaults. They are shown here",
+        "so all model settings can be documented for court or audit."
+      ),
+      param_with_help(
+        shiny::numericInput(
+          ns("lambda_min_ratio"), "Lambda Min Ratio",
+          value = 1e-05, min = 1e-08, max = 1, step = 1e-05
+        ),
+        paste(
+          "Ratio of smallest to largest lambda in the regularization path.",
+          "Default: 0.00001.",
+          "For small datasets (< 50 observations), a larger value",
+          "(e.g. 0.01) may improve performance by keeping the path",
+          "in a more regularized range."
+        )
+      ),
+      param_with_help(
+        shiny::numericInput(
+          ns("nlambda"), "Number of Lambda Values",
+          value = 100L, min = 10L, max = 1000L, step = 10L
+        ),
+        paste(
+          "Number of lambda values in the regularization path.",
+          "Default: 100. More values give a finer-grained path",
+          "but increase computation time."
+        )
+      ),
+      param_with_help(
+        shiny::selectInput(
+          ns("type_measure"), "CV Loss Metric",
+          choices = c("Mean Squared Error" = "mse",
+                      "Mean Absolute Error" = "mae",
+                      "Deviance" = "deviance"),
+          selected = "mse"
+        ),
+        paste(
+          "Loss function used for cross-validation.",
+          "MSE: penalizes large errors more (default for gaussian).",
+          "MAE: more robust to outliers.",
+          "Deviance: log-likelihood based (default for non-gaussian)."
+        )
+      ),
+      param_with_help(
+        shiny::numericInput(
+          ns("thresh"), "Convergence Threshold",
+          value = 1e-07, min = 1e-12, max = 1e-03, step = 1e-07
+        ),
+        paste(
+          "Convergence threshold for coordinate descent.",
+          "Default: 1e-07. Smaller values give more precise coefficients",
+          "but may increase computation time."
+        )
+      ),
+      param_with_help(
+        shiny::numericInput(
+          ns("maxit"), "Max Iterations",
+          value = 100000L, min = 1000L, max = 1000000L, step = 10000L
+        ),
+        paste(
+          "Maximum iterations for the coordinate descent algorithm.",
+          "Default: 100,000. Increase if you see convergence warnings,",
+          "which can occur with highly correlated predictors."
+        )
+      ),
+      shiny::checkboxInput(
+        ns("intercept"), "Fit Intercept", value = TRUE
+      ),
+      shiny::tags$p(
+        style = "font-size:0.8em; color:var(--bs-secondary-color); margin-top:-8px;",
+        "Include an intercept (constant) term. Default: on.",
+        "The intercept is the 'basis value' in appraisal RCA."
+      )
+    )
   )
 }
 
@@ -297,17 +413,30 @@ fitModelUI <- function(id) {
 #' coefficient bounds, relaxed lasso, alpha grid search, and
 #' interaction terms.
 #'
+#' When an earthUI result is provided via \code{earth_knots_r}, the
+#' glmnet interaction matrix is disabled and earth hinge basis
+#' functions are appended to the model matrix instead. This ensures
+#' that interactions are determined solely by the earth model, whose
+#' hinge-based interactions are interpretable and explainable to third
+#' parties -- unlike glmnet cross-product interactions.
+#'
 #' @param id Module namespace ID.
 #' @param data_module Reactive list returned by [dataImportServer()].
 #' @param purpose Reactive returning the purpose mode string.
 #' @param effective_date Reactive returning the effective date.
+#' @param earth_knots_r Reactive returning a `glmnetUI_earth_import`
+#'   object from [earthImportServer()], or `NULL` if no earthUI result
+#'   is loaded. When non-NULL, the interaction matrix is disabled and
+#'   earth basis columns (from `earth::model.matrix()`) are appended
+#'   to the glmnet model matrix.
 #'
 #' @return A reactive list containing model results.
 #'
 #' @export
 modelingServer <- function(id, data_module,
                            purpose = shiny::reactiveVal("general"),
-                           effective_date = shiny::reactiveVal(Sys.Date())) {
+                           effective_date = shiny::reactiveVal(Sys.Date()),
+                           earth_knots_r = shiny::reactiveVal(NULL)) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -665,6 +794,11 @@ modelingServer <- function(id, data_module,
 
     # --- Get allowed interaction pairs from matrix checkboxes ---
     get_interaction_pairs <- shiny::reactive({
+      # When earthUI is imported, skip glmnet interactions --
+      # earth handles interactions via hinge basis functions
+      ek <- earth_knots_r()
+      if (!is.null(ek)) return(list())
+
       preds <- data_module$predictors()
       if (is.null(preds) || length(preds) < 2) return(list())
       n <- length(preds)
@@ -859,23 +993,72 @@ modelingServer <- function(id, data_module,
           }
         }
 
-        # --- Build model matrix with interactions ---
-        ints <- get_interaction_pairs()
-        formula_parts <- preds
-        if (length(ints) > 0) {
-          int_strs <- vapply(ints, function(pair) {
-            paste(pair, collapse = ":")
-          }, character(1))
-          formula_parts <- c(formula_parts, int_strs)
-        }
-        formula_str <- paste("~", paste(formula_parts, collapse = " + "),
-                             "- 1")
-        x_mat <- stats::model.matrix(stats::as.formula(formula_str),
-                                     data = x_df)
+        # --- Build model matrix ---
+        # Standard pattern: when earth is imported, use ONLY the earth
+        # basis as x_mat. Earth's model.matrix already includes all
+        # basis functions (hinges, interactions, factor dummies).
+        # Do NOT combine formula model.matrix + earth basis -- that
+        # creates duplicate columns for shared factor dummies.
+        ek <- earth_knots_r()
         y_vec <- df_clean[[resp]]
 
+        if (!is.null(ek)) {
+          # Earth-only basis (the standard earth-to-glmnet pattern)
+          full_basis <- build_earth_basis(NULL, ek)
+          if (is.null(full_basis)) {
+            shiny::showNotification("Earth basis generation failed.",
+                                    type = "error")
+            return()
+          }
+          n_earth <- nrow(full_basis)
+          n_glmnet <- nrow(df_clean)
+          if (n_earth == n_glmnet) {
+            x_mat <- full_basis
+          } else if (n_earth == nrow(df) && n_earth != n_glmnet) {
+            row_mask <- complete
+            if (!is.null(wt_col) && wt_col %in% names(df)) {
+              wt_all <- as.numeric(df[[wt_col]])
+              row_mask <- row_mask & (is.na(wt_all) | wt_all != 0)
+              row_mask[is.na(row_mask)] <- FALSE
+            }
+            x_mat <- full_basis[row_mask, , drop = FALSE]
+          } else if (n_earth == nrow(df) - 1L) {
+            dummy_row <- full_basis[1L, , drop = FALSE] * 0
+            full_with_subj <- rbind(dummy_row, full_basis)
+            row_mask <- complete
+            if (!is.null(wt_col) && wt_col %in% names(df)) {
+              wt_all <- as.numeric(df[[wt_col]])
+              row_mask <- row_mask & (is.na(wt_all) | wt_all != 0)
+              row_mask[is.na(row_mask)] <- FALSE
+            }
+            x_mat <- full_with_subj[row_mask, , drop = FALSE]
+          } else {
+            shiny::showNotification(
+              paste0("Earth basis rows (", n_earth,
+                     ") don't align with data (", nrow(df),
+                     "). Check weight column settings."),
+              type = "error")
+            return()
+          }
+          assign_attr <- seq_len(ncol(x_mat))
+        } else {
+          # No earth import: standard formula model matrix
+          ints <- get_interaction_pairs()
+          formula_parts <- preds
+          if (length(ints) > 0) {
+            int_strs <- vapply(ints, function(pair) {
+              paste(pair, collapse = ":")
+            }, character(1))
+            formula_parts <- c(formula_parts, int_strs)
+          }
+          formula_str <- paste("~", paste(formula_parts, collapse = " + "),
+                               "- 1")
+          x_mat <- stats::model.matrix(stats::as.formula(formula_str),
+                                       data = x_df)
+          assign_attr <- attr(x_mat, "assign")
+        }
+
         # --- Penalty factors from force-in variables ---
-        assign_attr <- attr(x_mat, "assign")
         n_main <- length(preds)
         penalty_fac <- rep(1, ncol(x_mat))
         force_vars <- data_module$force_in()
@@ -909,13 +1092,26 @@ modelingServer <- function(id, data_module,
         standardize_val <- input$standardize
         relax_val <- isTRUE(input$relaxed)
 
+        # Advanced parameters (with defaults if not yet rendered)
+        lmr <- input$lambda_min_ratio %||% 1e-05
+        nlam <- input$nlambda %||% 100L
+        thresh_val <- input$thresh %||% 1e-07
+        maxit_val <- input$maxit %||% 100000L
+        intercept_val <- input$intercept %||% TRUE
+        type_measure_val <- input$type_measure %||% "mse"
+
         fit_args <- list(
           x = x_mat, y = y_vec,
           family = family_val,
           standardize = standardize_val,
           penalty.factor = penalty_fac,
           lower.limits = lower_lim,
-          upper.limits = upper_lim
+          upper.limits = upper_lim,
+          lambda.min.ratio = lmr,
+          nlambda = as.integer(nlam),
+          thresh = thresh_val,
+          maxit = as.integer(maxit_val),
+          intercept = intercept_val
         )
         if (!is.null(wt_vec)) fit_args$weights <- wt_vec
         if (relax_val) fit_args$relax <- TRUE
@@ -939,6 +1135,7 @@ modelingServer <- function(id, data_module,
               nfolds_val <- 10L
             }
             fit_args$nfolds <- as.integer(nfolds_val)
+            fit_args$type.measure <- type_measure_val
 
             if (length(alphas) > 1) {
               # Alpha grid search: fit CV for each alpha, pick best
@@ -1153,7 +1350,8 @@ modelingServer <- function(id, data_module,
       y_vector = shiny::reactive(rv$y_vector),
       family = shiny::reactive(input$family),
       fitted = shiny::reactive(rv$fitted),
-      fit_count = shiny::reactive(rv$fit_count)
+      fit_count = shiny::reactive(rv$fit_count),
+      earth_import = earth_knots_r
     ))
   })
 }

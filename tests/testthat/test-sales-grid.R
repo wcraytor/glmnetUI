@@ -731,3 +731,218 @@ test_that("generate_sales_grid uses glmnetUI branding", {
   earth_rows <- which(grepl("earthUI", sheet_data[[1]], fixed = TRUE))
   expect_equal(length(earth_rows), 0)
 })
+
+# --- Cell formatting tests ---
+
+# Helper: extract numFmt for a specific cell from an openxlsx workbook.
+# sheet can be a number (index) or name.
+get_cell_numfmt <- function(wb, sheet, row, col) {
+  # Resolve sheet name
+  sheet_name <- if (is.numeric(sheet)) {
+    wb$sheet_names[sheet]
+  } else {
+    sheet
+  }
+  for (so in wb$styleObjects) {
+    if (identical(so$sheet, sheet_name) &&
+        row %in% so$rows &&
+        col %in% so$cols) {
+      nf <- so$style$numFmt
+      if (!is.null(nf)) {
+        if (!is.null(nf$formatCode)) return(nf$formatCode)
+        if (!is.null(nf$numFmtId)) return(paste0("builtin:", nf$numFmtId))
+      }
+    }
+  }
+  "GENERAL"
+}
+
+test_that("sales grid value contribution cells have number format", {
+  skip_if_no_grid()
+  df <- build_test_rca(3)
+  result <- run_grid(df, comp_rows = 2:4)
+  expect_true(result$exists)
+  on.exit(result$cleanup())
+
+  wb <- openxlsx::loadWorkbook(result$path)
+
+  # Read sheet data to find model variable rows
+  sheet_data <- openxlsx::read.xlsx(wb, sheet = 1, colNames = FALSE,
+                                     skipEmptyRows = FALSE)
+
+  # Find the BASE VALUE row
+  base_row <- which(sheet_data[[1]] == "BASE VALUE")
+  expect_true(length(base_row) == 1,
+              info = "Should find BASE VALUE row")
+
+  # Subject VC is in col 5 (E), comp 1 VC is col 9 (I)
+  # Check that these cells don't have date format
+  base_fmt <- get_cell_numfmt(wb, 1, base_row, 5)
+  expect_true(grepl("#|0", base_fmt),
+              info = paste("BASE VALUE VC should be number format, got:", base_fmt))
+
+  # Find the sqft model variable row (first after BASE VALUE)
+  sqft_label_rows <- which(grepl("sqft|Sqft|SF", sheet_data[[1]],
+                                  ignore.case = TRUE))
+  # Filter to rows after base_row
+  sqft_rows <- sqft_label_rows[sqft_label_rows > base_row]
+  if (length(sqft_rows) > 0) {
+    rw <- sqft_rows[1]
+    # Subject VC col 5
+    vc_fmt <- get_cell_numfmt(wb, 1, rw, 5)
+    expect_true(grepl("#|0", vc_fmt),
+                info = paste("sqft VC should be number format, got:", vc_fmt))
+
+    # Comp 1 VC col 9, Adjustment col 10
+    comp_vc_fmt <- get_cell_numfmt(wb, 1, rw, 9)
+    comp_adj_fmt <- get_cell_numfmt(wb, 1, rw, 10)
+    expect_true(grepl("#|0", comp_vc_fmt),
+                info = paste("comp VC should be number format, got:", comp_vc_fmt))
+    expect_true(grepl("#|0", comp_adj_fmt),
+                info = paste("comp adj should be number format, got:", comp_adj_fmt))
+  }
+})
+
+test_that("sales grid sale price cells have number format", {
+  skip_if_no_grid()
+  df <- build_test_rca(3)
+  result <- run_grid(df, comp_rows = 2:4)
+  expect_true(result$exists)
+  on.exit(result$cleanup())
+
+  wb <- openxlsx::loadWorkbook(result$path)
+  sheet_data <- openxlsx::read.xlsx(wb, sheet = 1, colNames = FALSE,
+                                     skipEmptyRows = FALSE)
+
+  # Find Sale Price row
+  sp_row <- which(grepl("Sales Price", sheet_data[[1]], fixed = TRUE))
+  expect_true(length(sp_row) == 1)
+
+  # Comp 1 sale price is in col 6
+  sp_fmt <- get_cell_numfmt(wb, 1, sp_row, 6)
+  expect_true(grepl("#|0", sp_fmt),
+              info = paste("Sale price should be number format, got:", sp_fmt))
+})
+
+test_that("sales grid grouped row cells have number format", {
+  skip_if_no_grid()
+  df <- build_test_rca(3, include_location = TRUE)
+  result <- run_grid(df, comp_rows = 2:4,
+                     specials = list(latitude = "latitude",
+                                     longitude = "longitude"))
+  expect_true(result$exists)
+  on.exit(result$cleanup())
+
+  wb <- openxlsx::loadWorkbook(result$path)
+  sheet_data <- openxlsx::read.xlsx(wb, sheet = 1, colNames = FALSE,
+                                     skipEmptyRows = FALSE)
+
+  # Find Loc row
+  loc_row <- which(grepl("Loc:", sheet_data[[1]], fixed = TRUE))
+  expect_true(length(loc_row) == 1,
+              info = "Should find Loc row")
+
+  # Subject combined VC col 5
+  loc_fmt <- get_cell_numfmt(wb, 1, loc_row, 5)
+  expect_true(grepl("#|0", loc_fmt),
+              info = paste("Loc VC should be number format, got:", loc_fmt))
+
+  # Comp 1 adjustment col 10
+  loc_adj_fmt <- get_cell_numfmt(wb, 1, loc_row, 10)
+  expect_true(grepl("#|0", loc_adj_fmt),
+              info = paste("Loc adj should be number format, got:", loc_adj_fmt))
+})
+
+test_that("sales grid percentage cells have percent format", {
+  skip_if_no_grid()
+  df <- build_test_rca(3)
+  result <- run_grid(df, comp_rows = 2:4)
+  expect_true(result$exists)
+  on.exit(result$cleanup())
+
+  wb <- openxlsx::loadWorkbook(result$path)
+  sheet_data <- openxlsx::read.xlsx(wb, sheet = 1, colNames = FALSE,
+                                     skipEmptyRows = FALSE)
+
+  # Find Net Adjustment % row
+  net_pct_row <- which(grepl("Net Adjustment %", sheet_data[[1]],
+                              fixed = TRUE))
+  expect_true(length(net_pct_row) == 1)
+
+  # Comp 1 net adj % col 10
+  pct_fmt <- get_cell_numfmt(wb, 1, net_pct_row, 10)
+  expect_true(grepl("%", pct_fmt),
+              info = paste("Net adj % should be percent format, got:", pct_fmt))
+
+  # Find Gross Adjustment % row
+  gross_pct_row <- which(grepl("Gross Adjustment %", sheet_data[[1]],
+                                fixed = TRUE))
+  expect_true(length(gross_pct_row) == 1)
+
+  gross_fmt <- get_cell_numfmt(wb, 1, gross_pct_row, 10)
+  expect_true(grepl("%", gross_fmt),
+              info = paste("Gross adj % should be percent format, got:", gross_fmt))
+})
+
+test_that("sales grid adjusted sale price has number format", {
+  skip_if_no_grid()
+  df <- build_test_rca(3)
+  result <- run_grid(df, comp_rows = 2:4)
+  expect_true(result$exists)
+  on.exit(result$cleanup())
+
+  wb <- openxlsx::loadWorkbook(result$path)
+  sheet_data <- openxlsx::read.xlsx(wb, sheet = 1, colNames = FALSE,
+                                     skipEmptyRows = FALSE)
+
+  asp_row <- which(grepl("Adjusted Sale Price", sheet_data[[1]],
+                          fixed = TRUE))
+  expect_true(length(asp_row) == 1)
+
+  # Comp 1 adjusted SP (merged cols 6-10, style on col 6)
+  asp_fmt <- get_cell_numfmt(wb, 1, asp_row, 6)
+  expect_true(grepl("#|0", asp_fmt),
+              info = paste("Adj SP should be number format, got:", asp_fmt))
+})
+
+test_that("sales grid formats correctly when input has Date/POSIXct columns", {
+  skip_if_no_grid()
+
+  # Build RCA data with Date columns (simulates auto_parse_dates_ output)
+  df <- build_test_rca(3)
+  df$contract_date <- as.POSIXct(c("2025-01-15", "2025-02-20",
+                                     "2025-03-10", "2025-04-05"))
+  df$listing_date <- as.Date(c("2024-11-01", "2024-12-15",
+                                 "2025-01-05", "2025-02-10"))
+
+  result <- run_grid(df, comp_rows = 2:4)
+  expect_true(result$exists)
+  on.exit(result$cleanup())
+
+  wb <- openxlsx::loadWorkbook(result$path)
+  sheet_data <- openxlsx::read.xlsx(wb, sheet = 1, colNames = FALSE,
+                                     skipEmptyRows = FALSE)
+
+  # BASE VALUE VC should still be number format, not date
+  base_row <- which(sheet_data[[1]] == "BASE VALUE")
+  expect_true(length(base_row) == 1)
+  base_fmt <- get_cell_numfmt(wb, 1, base_row, 5)
+  expect_true(grepl("#|0", base_fmt),
+              info = paste("BASE VALUE with date cols should be number, got:", base_fmt))
+
+  # Sale price should be number format
+  sp_row <- which(grepl("Sales Price", sheet_data[[1]], fixed = TRUE))
+  expect_true(length(sp_row) == 1)
+  sp_fmt <- get_cell_numfmt(wb, 1, sp_row, 6)
+  expect_true(grepl("#|0", sp_fmt),
+              info = paste("Sale price with date cols should be number, got:", sp_fmt))
+
+  # Sqft contribution should be number format
+  sqft_rows <- which(grepl("sqft|Sqft|SF", sheet_data[[1]], ignore.case = TRUE))
+  sqft_rows <- sqft_rows[sqft_rows > base_row]
+  if (length(sqft_rows) > 0) {
+    vc_fmt <- get_cell_numfmt(wb, 1, sqft_rows[1], 5)
+    expect_true(grepl("#|0", vc_fmt),
+                info = paste("sqft VC with date cols should be number, got:", vc_fmt))
+  }
+})

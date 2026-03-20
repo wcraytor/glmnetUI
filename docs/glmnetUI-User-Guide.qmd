@@ -5,9 +5,9 @@ format:
     documentclass: extarticle
     classoption:
       - 9pt
-    mainfont: "Roboto Condensed"
-    sansfont: "Roboto Condensed"
-    monofont: "DejaVu Sans Mono"
+    mainfont: "Helvetica Neue"
+    sansfont: "Helvetica Neue"
+    monofont: "Menlo"
     monofontoptions:
       - Scale=0.8
     fontsize: 9pt
@@ -232,11 +232,82 @@ format:
 
 \bigskip
 
+## History and Background
+
+### The Lasso
+
+The \textbf{Lasso} (\textbf{L}east \textbf{A}bsolute \textbf{S}hrinkage and \textbf{S}election \textbf{O}perator) was introduced by Robert Tibshirani in 1996. The name is a deliberate play on the cowboy's lasso --- a rope that constrains and selects. Tibshirani chose it because the method literally "lassos" the coefficients, constraining their absolute values and pulling some to exactly zero, thereby selecting which variables remain in the model.
+
+Tibshirani's insight was to add an $L_1$ penalty (sum of absolute values of coefficients) to the least squares objective. Unlike the $L_2$ penalty of ridge regression (Hoerl \& Kennard, 1970), which shrinks coefficients toward zero but never reaches it, the $L_1$ penalty produces \textit{sparse} solutions where many coefficients are exactly zero. This makes the Lasso both a regularization method and a variable selection method.
+
+### Ridge Regression and Elastic Net
+
+\textbf{Ridge regression} was proposed by Arthur Hoerl and Robert Kennard in 1970. It adds an $L_2$ penalty (sum of squared coefficients) which shrinks all coefficients proportionally but keeps all variables in the model. Ridge is effective when predictors are correlated (multicollinearity) but does not simplify the model.
+
+The \textbf{elastic net}, introduced by Hui Zou and Trevor Hastie in 2005, combines both penalties. The mixing parameter $\alpha$ controls the blend: $\alpha = 1$ is pure Lasso, $\alpha = 0$ is pure ridge, and values in between give a compromise. The elastic net overcomes a limitation of the Lasso: when predictors are highly correlated, the Lasso tends to select one and ignore the rest, whereas the elastic net groups correlated predictors together.
+
+### The glmnet Package
+
+The R package \texttt{glmnet} was developed by Jerome Friedman, Trevor Hastie, and Robert Tibshirani (2010) at Stanford University. It implements elastic net regularization for generalized linear models using an extremely efficient coordinate descent algorithm. The package handles gaussian (linear), binomial (logistic), poisson, and other GLM families.
+
+Key features of \texttt{glmnet} include:
+
+- \textbf{Regularization path}: Fits the model across a grid of lambda values in a single pass, much faster than fitting separately at each lambda.
+- \textbf{Cross-validation}: \texttt{cv.glmnet()} automatically selects the optimal regularization strength via $k$-fold cross-validation.
+- \textbf{Coefficient bounds}: Supports upper and lower limits on individual coefficients (sign constraints).
+- \textbf{Relaxed lasso}: Refits the model on the selected variables with reduced or no penalization, reducing bias.
+
+### Comparison with MARS (earth) and GAM (mgcv)
+
+glmnetUI, earthUI, and mgcvUI are companion applications that use different modeling engines. The following table summarizes the key differences:
+
+\begin{center}
+\arrayrulecolor{nordblue}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{2.8cm}|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+\hline
+\rowcolor{nordblue!15}
+\textbf{Feature} & \textbf{glmnet (Elastic Net)} & \textbf{earth (MARS)} & \textbf{mgcv (GAM)} \\
+\hline
+\textbf{Model type} & Linear (with regularization) & Piecewise linear (adaptive splines) & Smooth nonlinear (penalized splines) \\
+\hline
+\textbf{Nonlinearity} & Only through interactions or basis expansion & Automatic via hinge functions with data-driven knots & Automatic via smooth functions (thin plate, cubic, etc.) \\
+\hline
+\textbf{Variable selection} & Built-in via $L_1$ penalty (Lasso) & Built-in via forward/backward stepwise with GCV pruning & Optional via double-penalty shrinkage (\texttt{select=TRUE}) \\
+\hline
+\textbf{Interactions} & Pairwise cross-products (hard to interpret) & Hinge-based products (interpretable, up to degree 3) & Tensor product smooths (\texttt{te()}, \texttt{ti()}) \\
+\hline
+\textbf{Interpretability} & Coefficients are linear weights; easy to explain individually & g-functions show piecewise linear partial effects per variable & Smooth partial effect curves; very intuitive \\
+\hline
+\textbf{Best for} & High-dimensional data, variable selection, small samples & Automatic nonlinearity and interaction detection & Smooth nonlinear relationships, flexible modeling \\
+\hline
+\textbf{RCA adjustments} & Linear per-variable adjustments & Piecewise linear adjustments via g-functions & Smooth adjustments via partial effects \\
+\hline
+\textbf{Overfitting control} & Cross-validated lambda & GCV-based pruning & REML/GCV smoothing parameter estimation \\
+\hline
+\end{tabularx}
+\end{center}
+
+\medskip
+
+\textbf{MARS} (Multivariate Adaptive Regression Splines) was introduced by Jerome Friedman in 1991. It builds piecewise linear models by adaptively selecting hinge functions $\max(0, x - k)$ and their knot positions from the data. The R implementation is the \texttt{earth} package by Stephen Milborrow. MARS excels at automatically discovering nonlinear relationships and interactions without requiring the user to specify them. Its g-functions (grouped basis terms per variable) provide highly interpretable partial effect curves.
+
+\textbf{GAMs} (Generalized Additive Models) were formalized by Hastie and Tibshirani (1990). The R implementation \texttt{mgcv} by Simon Wood provides penalized regression splines with automatic smoothness selection via REML or GCV. GAMs produce smooth partial effect curves that are intuitive to visualize and explain. When earthUI exports knot locations to mgcvUI, the earth-derived knots serve as starting points for GAM smooth terms, combining MARS's adaptive knot placement with GAM's smooth estimation.
+
+### Recommended Workflow
+
+For real estate appraisal and similar applications requiring interpretable, defensible models:
+
+\begin{enumerate}
+\item \textbf{Start with earthUI} to discover the important variables, nonlinear relationships, and interactions in your data. Earth's automatic basis selection and g-functions provide excellent initial insights.
+\item \textbf{Refine with mgcvUI} if you want smoother partial effects. Import earthUI's knots into mgcvUI for a seamless transition from piecewise linear to smooth models.
+\item \textbf{Use glmnetUI} when you need aggressive variable selection (Lasso), when the number of predictors approaches or exceeds the number of observations, or when you want a purely linear model with regularization for defensibility.
+\end{enumerate}
+
 ## What Is glmnetUI?
 
-glmnetUI is a graphical user interface for the R `glmnet` package, which implements elastic net regularized regression. It runs as a local Shiny application --- there is no login, no server, and no accounts. You launch it from R, import a dataset (CSV or Excel), configure your model, and fit it interactively.
+glmnetUI is a graphical user interface for the R \texttt{glmnet} package. It runs as a local Shiny application --- there is no login, no server, and no accounts. You launch it from R, import a dataset (CSV or Excel), configure your model, and fit it interactively.
 
-The application provides a complete workflow: data import, variable configuration, model fitting, diagnostic plots, variable importance, model equations, and downloadable reports in Word or PDF format.
+The application provides a complete workflow: data import, variable configuration, model fitting, diagnostic plots, variable importance, model equations, and downloadable reports in Word, PDF, or HTML format.
 
 **Elastic net regression** combines two regularization techniques:
 
@@ -412,7 +483,7 @@ The sidebar is organized into numbered, collapsible sections that guide you from
 
 **3. Variable Configuration** --- Target variable selector, predictor table with checkboxes for Include, Force, Sign, and Special (in appraisal/market modes). See Chapter 6 for full details.
 
-**4. glmnet Call Parameters** --- All model configuration: alpha, lambda, family, standardize, sign constraints, relaxed lasso, and the interaction matrix. See Chapter 7 for the complete parameter reference.
+**4. glmnet Call Parameters** --- All model configuration: alpha, lambda, family, standardize, sign constraints, relaxed lasso, interaction matrix, and advanced parameters (lambda.min.ratio, nlambda, CV loss metric, convergence threshold, max iterations, intercept). See Chapter 7 for the complete parameter reference.
 
 **5. Fit Glmnet Model** --- A single green button that runs the model.
 
@@ -422,7 +493,7 @@ The sidebar is organized into numbered, collapsible sections that guide you from
 
 **8. Sales Comparison Grid** --- Appraisal mode only. Generates a formatted Excel workbook with comp selection. See Chapter 12.
 
-**9. Download Report** --- Generates a formatted report (Word or PDF) saved to the output folder. See Chapter 13.
+**9. Download Report** --- Generates a formatted report (Word, PDF, or HTML) saved to the output folder. See Chapter 13.
 
 ## Main Panel Tabs
 
@@ -747,6 +818,21 @@ Interaction selections are saved to browser localStorage per input file and rest
 \small\textit{\textbf{Tip:} With many predictors, lasso will automatically zero out unneeded interaction terms. Starting with "Allow All" and letting the model select is a reasonable approach.}
 \end{tcolorbox}
 
+\begin{tcolorbox}[colback=yellow!10, colframe=nordblue, title=Warning]
+Enabling glmnet interactions will produce adjustments that can be difficult to interpret and explain in court or audit settings. Use interactions cautiously and verify that the resulting adjustments are reasonable.
+\end{tcolorbox}
+
+## Advanced Parameters
+
+A collapsible "Advanced" section at the bottom of glmnet Call Parameters exposes additional settings. These use sensible defaults but are visible so all model settings can be documented for court or audit.
+
+- **Lambda Min Ratio** --- Ratio of smallest to largest lambda in the regularization path. Default: 0.00001. For small datasets (\textless 50 observations), a larger value (e.g.\ 0.01) may improve performance.
+- **Number of Lambda Values** --- Number of lambda values in the path. Default: 100.
+- **CV Loss Metric** --- Loss function for cross-validation: MSE (default for gaussian), MAE (robust to outliers), or Deviance.
+- **Convergence Threshold** --- Coordinate descent convergence threshold. Default: 1e-07.
+- **Max Iterations** --- Maximum coordinate descent iterations. Default: 100,000. Increase if convergence warnings appear.
+- **Fit Intercept** --- Include an intercept (constant) term. Default: on. The intercept is the "basis value" in appraisal RCA.
+
 ## Settings Defaults
 
 Three options control how parameters are initialized when a file is loaded:
@@ -1049,21 +1135,34 @@ Each sheet is protected with a password to prevent accidental edits, but the res
 
 ## Report Formats
 
-Two formats are available:
+Three formats are available:
 
-- **Word (.docx)** --- Formatted document via the `officer` package. Suitable for editing and distribution.
-- **PDF** --- Generated via `rmarkdown`. Paper size follows the locale setting (Letter or A4).
+- **Word (.docx)** --- Formatted document. Suitable for editing and distribution.
+- **PDF** --- Generated via Quarto with LaTeX. Paper size follows the locale setting (Letter or A4).
+- **HTML** --- Self-contained HTML document. Ideal for sharing electronically.
+
+Reports are generated using Quarto when available, with a fallback to rmarkdown.
 
 ## Report Contents
 
-Reports include:
+Reports include all tab content:
 
-- Dataset description and model specification
-- Model summary metrics (R\textsuperscript{2}, GR\textsuperscript{2}, CV R\textsuperscript{2}, RMSE, MAE)
-- Coefficient table with sign warnings
-- Diagnostic plots (Coefficient Path, CV Error, Actual vs Predicted, Residuals vs Fitted)
-- Variable importance chart
-- Model equation
+- Dataset description (file name, observations, response, predictors, purpose)
+- Model specification (alpha, lambda, family, standardize, relaxed, non-zero coefficients)
+- Results summary (R\textsuperscript{2}, Adjusted R\textsuperscript{2}, Generalized R\textsuperscript{2}, CV R\textsuperscript{2}, RMSE, MAE)
+- Model equation (LaTeX-rendered)
+- Coefficient table
+- Variable importance (bar chart and table)
+- Per-variable contribution plots
+- Correlation matrix heatmap
+- ANOVA decomposition table
+- Diagnostic plots:
+  - Coefficient Path
+  - Cross-Validation Error
+  - Actual vs Predicted
+  - Residuals vs Fitted
+  - Normal Q-Q Plot
+- Raw model output
 
 A white checkmark appears on the Download Report button after successful generation.
 

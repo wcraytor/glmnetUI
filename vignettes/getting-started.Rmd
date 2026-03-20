@@ -89,6 +89,8 @@ Under **"4. glmnet Call Parameters"**:
 - **Enforce sign constraints**: Force coefficients to match expected signs
 - **Relaxed lasso**: Refit surviving variables with less shrinkage
 - **Interaction matrix**: Check pairs to allow interaction terms
+  (Warning: glmnet interactions produce adjustments that can be hard to
+  interpret in court or audit settings.)
 
 ### 4. Fit the Model
 
@@ -130,15 +132,16 @@ Results appear in the main panel tabs:
 1. **Start with Lasso (alpha = 1)** to identify important variables.
 2. **Use lambda.1se** for simpler, more defensible models.
 3. **Set expected signs** before fitting and review warnings after.
-4. **Use the interaction matrix** to control which variable pairs interact.
+4. **Use interactions cautiously** -- glmnet interactions can produce adjustments
+   that are hard to interpret for court or audit purposes.
 5. **Try relaxed lasso** if coefficients appear over-shrunk.
 
 ## Demo Dataset
 
-glmnetUI can use the same demo datasets as earthUI. Load one directly:
+glmnetUI includes the `Appraisal_1.csv` demo dataset:
 
 ```{r}
-demo_file <- system.file("extdata", "Appraisal_1.csv", package = "earthUI")
+demo_file <- system.file("extdata", "Appraisal_1.csv", package = "glmnetUI")
 ```
 
 Or import through the app's file upload.

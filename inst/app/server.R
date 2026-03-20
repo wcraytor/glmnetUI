@@ -69,6 +69,8 @@ function(input, output, session) {
   purpose <- shiny::reactive(input$purpose)
   effective_date <- shiny::reactive(input$effective_date)
 
+  # earthUI import is inactive (code retained for future use)
+  # earth_knots_r <- earthImportServer("earth")
   data_out <- dataImportServer("data", purpose)
   model_out <- modelingServer("model", data_out, purpose, effective_date)
   coef_out <- coefficientsServer("coefs", model_out, data_out)
@@ -183,28 +185,44 @@ function(input, output, session) {
     complete <- stats::complete.cases(x_df)
     x_full <- NULL
     assign_attr <- NULL
+    # earthUI import is inactive
+    ek <- NULL
 
     if (any(complete)) {
-      x_full <- stats::model.matrix(stats::as.formula(formula_str),
-                                    data = x_df[complete, , drop = FALSE])
-      assign_attr <- attr(x_full, "assign")
+      if (!is.null(ek)) {
+        # Earth-only basis (same as fitting: no formula + earth combo)
+        full_basis <- build_earth_basis(NULL, ek)
+        if (!is.null(full_basis)) {
+          n_earth_rows <- nrow(full_basis)
+          n_export <- nrow(export_df)
+          if (n_earth_rows == n_export) {
+            x_full <- full_basis[complete, , drop = FALSE]
+          } else if (n_earth_rows == n_export - 1L) {
+            dummy_row <- full_basis[1L, , drop = FALSE] * 0
+            full_with_subj <- rbind(dummy_row, full_basis)
+            x_full <- full_with_subj[complete, , drop = FALSE]
+          }
+        }
+      } else {
+        # Standard formula model matrix
+        x_full <- stats::model.matrix(stats::as.formula(formula_str),
+                                      data = x_df[complete, , drop = FALSE])
+        assign_attr <- attr(x_full, "assign")
 
-      # Align columns with training matrix
-      missing_cols <- setdiff(train_colnames, colnames(x_full))
-      if (length(missing_cols) > 0) {
-        zero_mat <- matrix(0, nrow = nrow(x_full),
-                           ncol = length(missing_cols),
-                           dimnames = list(NULL, missing_cols))
-        x_full <- cbind(x_full, zero_mat)
+        # Align columns with training matrix
+        missing_cols <- setdiff(train_colnames, colnames(x_full))
+        if (length(missing_cols) > 0) {
+          zero_mat <- matrix(0, nrow = nrow(x_full),
+                             ncol = length(missing_cols),
+                             dimnames = list(NULL, missing_cols))
+          x_full <- cbind(x_full, zero_mat)
+        }
+        x_full <- x_full[, train_colnames, drop = FALSE]
+
+        assign_attr <- match(train_colnames, colnames(
+          stats::model.matrix(stats::as.formula(formula_str),
+                              data = x_df[complete, , drop = FALSE])))
       }
-      # Reorder and keep only training columns
-      x_full <- x_full[, train_colnames, drop = FALSE]
-
-      # Rebuild assign for reordered columns
-      assign_attr <- match(train_colnames, colnames(
-        stats::model.matrix(stats::as.formula(formula_str),
-                            data = x_df[complete, , drop = FALSE])))
-      # Safer: use the term labels from formula
     }
 
     # Term labels from the formula
@@ -219,33 +237,70 @@ function(input, output, session) {
 
   # ── Compute per-term contributions ───────────────────────────────
   # Returns a named list: term_label -> numeric vector (length = nrow(x_full))
+  # Helper: extract parent variable from an earth column name
+  hinge_var_ <- function(h) {
+    inner <- sub("^h\\(", "", sub("\\)$", "", h))
+    parts <- strsplit(inner, "-", fixed = TRUE)[[1]]
+    if (length(parts) >= 2) {
+      first <- parts[1]
+      rest  <- paste(parts[-1], collapse = "-")
+      if (suppressWarnings(!is.na(as.numeric(first)))) rest else first
+    } else {
+      inner
+    }
+  }
+
   compute_contributions_ <- function(x_full, beta, train_colnames,
                                      term_labels, formula_str, x_df_complete) {
-    # Get assign attribute from a fresh model.matrix (before column reorder)
+    all_colnames <- colnames(x_full)
+    # earthUI import is inactive
+    ek <- NULL
+
+    if (!is.null(ek)) {
+      # Use earth's g-functions with earth's own coefficients.
+      # glmnet's non-zero coefs determine which terms survive,
+      # but earth's coefficients produce clean contributions.
+      # Use earth's training data (has correct factor types).
+      earth_data <- ek$data
+      # Align rows: earth_data may have different row count than x_full
+      n_earth <- nrow(earth_data)
+      n_xfull <- nrow(x_full)
+      if (n_earth == n_xfull) {
+        eval_data <- earth_data
+      } else if (n_earth > n_xfull) {
+        # Earth has more rows (e.g., includes subject with weight=0)
+        # Use first n_xfull rows of earth data after excluding subject
+        eval_data <- earth_data[(n_earth - n_xfull + 1):n_earth, , drop = FALSE]
+      } else {
+        eval_data <- earth_data
+      }
+      contribs <- compute_earth_contributions(
+        ek, eval_data, glmnet_coefs = beta)
+      return(contribs)
+    }
+
+    # Standard formula path (no earth import)
     x_ref <- stats::model.matrix(stats::as.formula(formula_str),
                                  data = x_df_complete)
     ref_assign <- attr(x_ref, "assign")
     ref_colnames <- colnames(x_ref)
 
-    # Map each training column to its term index
     col_to_term <- integer(length(train_colnames))
     for (j in seq_along(train_colnames)) {
       idx <- match(train_colnames[j], ref_colnames)
       if (!is.na(idx)) {
         col_to_term[j] <- ref_assign[idx]
       } else {
-        col_to_term[j] <- NA_integer_  # missing column (zero-padded)
+        col_to_term[j] <- NA_integer_
       }
     }
 
-    # Compute contribution per term
     contribs <- list()
     for (ti in seq_along(term_labels)) {
       cols_idx <- which(col_to_term == ti)
       if (length(cols_idx) == 0) {
         contribs[[term_labels[ti]]] <- rep(0, nrow(x_full))
       } else {
-        # contribution = sum over columns of beta[j] * x[,j]
         term_contrib <- rep(0, nrow(x_full))
         for (j in cols_idx) {
           b <- beta[train_colnames[j]]
@@ -374,6 +429,15 @@ function(input, output, session) {
         ord <- order(export_df[["residual_sf"]], decreasing = TRUE,
                      na.last = TRUE)
         export_df <- export_df[ord, , drop = FALSE]
+      }
+
+      # Convert Date/POSIXct columns to character for clean Excel output
+      for (cn in names(export_df)) {
+        if (inherits(export_df[[cn]], "POSIXct") ||
+            inherits(export_df[[cn]], "POSIXlt") ||
+            inherits(export_df[[cn]], "Date")) {
+          export_df[[cn]] <- as.character(export_df[[cn]])
+        }
       }
 
       base <- tools::file_path_sans_ext(data_out$file_name() %||% "glmnetui")
@@ -558,6 +622,10 @@ function(input, output, session) {
         x_full, beta, train_colnames, term_labels,
         em$formula_str, em$x_df[complete, , drop = FALSE])
 
+      # For earth path, use earth's intercept for the basis column
+      earth_intercept <- attr(contribs, "intercept")
+      basis_val <- if (!is.null(earth_intercept)) earth_intercept else intercept
+
       # Expand contributions to full data (NA for incomplete rows)
       contribs_full <- list()
       for (tl in names(contribs)) {
@@ -567,7 +635,7 @@ function(input, output, session) {
       }
 
       export_df[["basis"]] <- NA_real_
-      export_df[["basis"]][complete] <- round(intercept, 1)
+      export_df[["basis"]][complete] <- round(basis_val, 1)
 
       for (tl in names(contribs_full)) {
         col_name <- paste0(gsub(":", "_x_", tl), "_contribution")
@@ -598,9 +666,9 @@ function(input, output, session) {
 
       # Adjustment percentages (adjustment / comparable sale price)
       sale_price <- export_df[[response]]
-      export_df[["residual_adj_pct"]] <- round(resid_adj / sale_price * 100, 2)
-      export_df[["net_adj_pct"]]      <- round(adj_sum / sale_price * 100, 2)
-      export_df[["gross_adj_pct"]]    <- round(gross_sum / sale_price * 100, 2)
+      export_df[["residual_adj_pct"]] <- round(resid_adj / sale_price * 100, 1)
+      export_df[["net_adj_pct"]]      <- round(adj_sum / sale_price * 100, 1)
+      export_df[["gross_adj_pct"]]    <- round(gross_sum / sale_price * 100, 1)
 
       export_df[["adjusted_sale_price"]] <- round(actual + adj_sum, 1)
 
@@ -611,6 +679,35 @@ function(input, output, session) {
         export_df[[ac]][1L] <- NA_real_
       }
       export_df[["adjusted_sale_price"]][1L] <- round(subject_est, 1)
+
+      # Sort comps (rows 2+): weight > 0 first sorted by gross_adj_pct
+      # ascending, then weight = 0 at the end
+      if (nrow(export_df) > 1L) {
+        comps <- export_df[-1L, , drop = FALSE]
+        wt_col_name <- data_out$weight_col()
+        if (!is.null(wt_col_name) && wt_col_name %in% names(comps)) {
+          wt <- as.numeric(comps[[wt_col_name]])
+          wt[is.na(wt)] <- 0
+          # Sort: weight > 0 first (by gross_adj_pct), then weight = 0
+          comps <- comps[order(wt == 0, comps[["gross_adj_pct"]],
+                               na.last = TRUE), ]
+        } else {
+          comps <- comps[order(comps[["gross_adj_pct"]],
+                               na.last = TRUE), ]
+        }
+        export_df <- rbind(export_df[1L, , drop = FALSE], comps)
+        rownames(export_df) <- NULL
+      }
+
+      # Convert Date/POSIXct columns to character so the sales grid
+      # (which reads this file back) doesn't get date-formatted cells
+      for (cn in names(export_df)) {
+        if (inherits(export_df[[cn]], "POSIXct") ||
+            inherits(export_df[[cn]], "POSIXlt") ||
+            inherits(export_df[[cn]], "Date")) {
+          export_df[[cn]] <- as.character(export_df[[cn]])
+        }
+      }
 
       # Store full RCA data frame for Sales Grid
       rv_rca$rca_df <- export_df
@@ -960,178 +1057,92 @@ function(input, output, session) {
     if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
 
     fmt <- input$export_format
-    ext <- if (fmt == "docx") ".docx" else ".pdf"
+    ext <- switch(fmt, docx = ".docx", html = ".html", ".pdf")
     base <- tools::file_path_sans_ext(data_out$file_name() %||% "glmnetui")
     out_path <- file.path(folder, paste0(base, "_report_",
                           format(Sys.time(), "%Y%m%d_%H%M%S"), ext))
 
     tryCatch({
-      if (fmt == "docx") {
-        # Reuse existing Word report builder from report module
-        tmpdir <- tempdir()
-        # Make plots
-        model <- model_out$model()
-        lambda <- model_out$lambda()
-        gamma <- model_out$gamma()
-        x_mat <- model_out$x_matrix()
-        y_vec <- model_out$y_vector()
-        coef_df <- coef_out$coef_df()
+      model <- model_out$model()
+      lambda <- model_out$lambda()
+      gamma <- model_out$gamma()
+      x_mat <- model_out$x_matrix()
+      y_vec <- model_out$y_vector()
+      coef_df <- coef_out$coef_df()
 
-        pred_args <- list(model, newx = x_mat, s = lambda, type = "response")
-        if (!is.null(gamma)) pred_args$gamma <- gamma
-        preds <- as.numeric(do.call(stats::predict, pred_args))
-        resids <- y_vec - preds
+      # Determine alpha
+      alpha_val <- if (inherits(model, "cv.glmnet")) {
+        a <- model$glmnet.fit$call$alpha
+        if (is.null(a)) 1 else a
+      } else {
+        a <- model$call$alpha
+        if (is.null(a)) 1 else a
+      }
 
-        fit_obj <- if (inherits(model, "cv.glmnet") ||
-                         inherits(model, "cv.relaxed")) {
-          model$glmnet.fit
-        } else if (inherits(model, "relaxed")) {
-          model$relaxed
-        } else {
-          model
-        }
-
-        font_fam <- glmnet_font_family_()
-
-        # Coefficient path plot
-        beta_mat <- as.matrix(fit_obj$beta)
-        log_lambda <- log(fit_obj$lambda)
-        df_long <- data.frame(
-          log_lambda = rep(log_lambda, each = nrow(beta_mat)),
-          coefficient = as.numeric(beta_mat),
-          variable = rep(rownames(beta_mat), times = ncol(beta_mat)),
-          stringsAsFactors = FALSE
+      # Prepare assets (all plots and data)
+      shiny::withProgress(message = "Generating report...", value = 0.3, {
+        assets_dir <- prepare_report_assets(
+          model         = model,
+          lambda        = lambda,
+          gamma         = gamma,
+          x_mat         = x_mat,
+          y_vec         = y_vec,
+          coef_df       = coef_df,
+          predictors    = data_out$predictors(),
+          response      = data_out$response(),
+          data          = data_out$data(),
+          col_types     = data_out$col_types(),
+          purpose       = input$purpose %||% "general",
+          alpha         = alpha_val,
+          family        = model_out$family() %||% "gaussian",
+          standardize   = TRUE,
+          relaxed       = !is.null(gamma),
+          lambda_method = if (inherits(model, "cv.glmnet")) "cv" else "manual",
+          data_file_name = data_out$file_name() %||% ""
         )
-        p1 <- ggplot2::ggplot(df_long,
-                   ggplot2::aes(x = .data$log_lambda,
-                                y = .data$coefficient,
-                                color = .data$variable)) +
-          ggplot2::geom_line() +
-          ggplot2::labs(x = "Log(Lambda)", y = "Coefficient",
-                        title = "Coefficient Path") +
-          ggplot2::theme_minimal(base_family = font_fam)
-        ggplot2::ggsave(file.path(tmpdir, "coef_path.png"), p1,
-                        width = 8, height = 5, dpi = 150)
+        shiny::incProgress(0.4, detail = "Rendering...")
 
-        # CV plot
-        if (inherits(model, "cv.glmnet") || inherits(model, "cv.relaxed")) {
-          df_cv <- data.frame(
-            log_lambda = log(model$lambda),
-            cvm = model$cvm, cvup = model$cvup, cvlo = model$cvlo,
-            stringsAsFactors = FALSE)
-          p2 <- ggplot2::ggplot(df_cv, ggplot2::aes(x = .data$log_lambda,
-                                                     y = .data$cvm)) +
-            ggplot2::geom_point(color = "#bf616a", size = 1.5) +
-            ggplot2::geom_errorbar(ggplot2::aes(ymin = .data$cvlo,
-                                                ymax = .data$cvup), alpha = 0.4) +
-            ggplot2::geom_vline(xintercept = log(model$lambda.min),
-                                linetype = "dashed", color = "#5e81ac") +
-            ggplot2::geom_vline(xintercept = log(model$lambda.1se),
-                                linetype = "dashed", color = "#a3be8c") +
-            ggplot2::labs(x = "Log(Lambda)", y = "CV Error",
-                          title = "Cross-Validation Error") +
-            ggplot2::theme_minimal(base_family = font_fam)
-          ggplot2::ggsave(file.path(tmpdir, "cv_error.png"), p2,
-                          width = 8, height = 5, dpi = 150)
-        }
-
-        # Actual vs predicted
-        df_avp <- data.frame(actual = y_vec, predicted = preds)
-        p3 <- ggplot2::ggplot(df_avp, ggplot2::aes(x = .data$actual,
-                                                     y = .data$predicted)) +
-          ggplot2::geom_point(alpha = 0.5) +
-          ggplot2::geom_abline(slope = 1, intercept = 0,
-                               color = "#bf616a", linetype = "dashed") +
-          ggplot2::labs(x = "Actual", y = "Predicted",
-                        title = "Actual vs Predicted") +
-          ggplot2::theme_minimal(base_family = font_fam)
-        ggplot2::ggsave(file.path(tmpdir, "actual_vs_predicted.png"), p3,
-                        width = 8, height = 5, dpi = 150)
-
-        # Residuals vs fitted
-        df_resid <- data.frame(fitted = preds, residuals = resids)
-        p4 <- ggplot2::ggplot(df_resid, ggplot2::aes(x = .data$fitted,
-                                                       y = .data$residuals)) +
-          ggplot2::geom_point(alpha = 0.5) +
-          ggplot2::geom_hline(yintercept = 0, color = "#bf616a",
-                              linetype = "dashed") +
-          ggplot2::labs(x = "Fitted Values", y = "Residuals",
-                        title = "Residuals vs Fitted") +
-          ggplot2::theme_minimal(base_family = font_fam)
-        ggplot2::ggsave(file.path(tmpdir, "residuals_vs_fitted.png"), p4,
-                        width = 8, height = 5, dpi = 150)
-
-        # Build Word document
-        doc <- officer::read_docx()
-        doc <- officer::body_add_par(doc, "glmnetUI Model Report",
-                                     style = "heading 1")
-        doc <- officer::body_add_par(doc, paste("Date:",
-                                     format(Sys.time(), "%Y-%m-%d %H:%M")))
-        doc <- officer::body_add_par(doc, "")
-        doc <- officer::body_add_par(doc, "Model Summary",
-                                     style = "heading 2")
-        alpha_val <- if (inherits(model, "cv.glmnet")) {
-          model$glmnet.fit$call$alpha
-        } else { model$call$alpha }
-        if (!is.null(alpha_val))
-          doc <- officer::body_add_par(doc, paste("Alpha:", alpha_val))
-        doc <- officer::body_add_par(doc, paste("Lambda:", signif(lambda, 4)))
-        if (inherits(model, "cv.glmnet") || inherits(model, "cv.relaxed")) {
-          doc <- officer::body_add_par(doc,
-            paste("lambda.min:", signif(model$lambda.min, 4)))
-          doc <- officer::body_add_par(doc,
-            paste("lambda.1se:", signif(model$lambda.1se, 4)))
-        }
-        doc <- officer::body_add_par(doc, "Coefficients",
-                                     style = "heading 2")
-        doc <- officer::body_add_table(doc, value = coef_df,
-                                       style = "table_template")
-        doc <- officer::body_add_par(doc, "Diagnostic Plots",
-                                     style = "heading 2")
-        for (pf in c("coef_path.png", "cv_error.png",
-                      "actual_vs_predicted.png", "residuals_vs_fitted.png")) {
-          fp <- file.path(tmpdir, pf)
-          if (file.exists(fp)) {
-            doc <- officer::body_add_img(doc, src = fp, width = 6, height = 3.75)
-            doc <- officer::body_add_par(doc, "")
+        if (requireNamespace("quarto", quietly = TRUE)) {
+          render_report(
+            output_format = fmt,
+            output_file   = out_path,
+            assets_dir    = assets_dir
+          )
+        } else {
+          # Fallback: use old rmarkdown approach if quarto not available
+          rmd_template <- system.file("app", "report_template.Rmd",
+                                       package = "glmnetUI")
+          if (nzchar(rmd_template)) {
+            tmpdir <- tempdir()
+            rmd_copy <- file.path(tmpdir, "report.Rmd")
+            file.copy(rmd_template, rmd_copy, overwrite = TRUE)
+            output_format <- if (fmt == "html") {
+              rmarkdown::html_document(self_contained = TRUE)
+            } else if (fmt == "docx") {
+              rmarkdown::word_document()
+            } else {
+              rmarkdown::pdf_document()
+            }
+            tmp_out <- file.path(tmpdir, paste0("report", ext))
+            rmarkdown::render(
+              rmd_copy, output_format = output_format,
+              output_file = tmp_out,
+              params = list(
+                appraiser_name = "", property_address = "",
+                report_date = as.character(Sys.Date()),
+                file_number = "", lambda = lambda,
+                lambda_min = if (inherits(model, "cv.glmnet")) model$lambda.min else NA,
+                lambda_1se = if (inherits(model, "cv.glmnet")) model$lambda.1se else NA,
+                coef_df = coef_df, plot_dir = tmpdir
+              ),
+              envir = new.env(parent = globalenv()), quiet = TRUE
+            )
+            file.copy(tmp_out, out_path, overwrite = TRUE)
+          } else {
+            stop("Neither quarto nor report_template.Rmd available.")
           }
         }
-        print(doc, target = out_path)
-
-      } else {
-        # PDF via rmarkdown
-        tmpdir <- tempdir()
-        # Reuse the same plot generation as above
-        model <- model_out$model()
-        lambda <- model_out$lambda()
-        coef_df <- coef_out$coef_df()
-
-        rmd_template <- system.file("app", "report_template.Rmd",
-                                     package = "glmnetUI")
-        rmd_copy <- file.path(tmpdir, "report.Rmd")
-        file.copy(rmd_template, rmd_copy, overwrite = TRUE)
-
-        # Render to temp file first, then copy
-        tmp_out <- file.path(tmpdir, paste0("report", ext))
-        rmarkdown::render(
-          rmd_copy,
-          output_file = tmp_out,
-          params = list(
-            appraiser_name = "",
-            property_address = "",
-            report_date = as.character(Sys.Date()),
-            file_number = "",
-            lambda = lambda,
-            lambda_min = if (inherits(model, "cv.glmnet")) model$lambda.min else NA,
-            lambda_1se = if (inherits(model, "cv.glmnet")) model$lambda.1se else NA,
-            coef_df = coef_df,
-            plot_dir = tmpdir
-          ),
-          envir = new.env(parent = globalenv()),
-          quiet = TRUE
-        )
-        file.copy(tmp_out, out_path, overwrite = TRUE)
-      }
+      })
 
       shiny::showNotification(paste0("Report saved to: ", out_path),
                               type = "message", duration = 8)

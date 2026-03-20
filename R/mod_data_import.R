@@ -181,42 +181,59 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
       file_name = NULL
     )
 
+    # Cache directory for persisting uploaded files across sessions
+    cache_dir <- file.path(tools::R_user_dir("glmnetUI", "data"), "cache")
+    if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
+
+    # Load, cache, and populate helper
+    load_and_cache_ <- function(path, name, sheet = 1L) {
+      ext <- tolower(tools::file_ext(name))
+      if (ext == "csv") {
+        rv$data <- utils::read.csv(
+          path, stringsAsFactors = FALSE,
+          check.names = FALSE,
+          sep = locale_csv_sep_(), dec = locale_csv_dec_()
+        )
+        rv$sheets <- NULL
+      } else if (ext %in% c("xls", "xlsx")) {
+        rv$sheets <- readxl::excel_sheets(path)
+        rv$data <- as.data.frame(
+          readxl::read_excel(path, sheet = sheet)
+        )
+        shiny::updateSelectInput(session, "sheet", choices = rv$sheets,
+                                 selected = rv$sheets[sheet])
+      } else {
+        stop("Unsupported file type.")
+      }
+
+      rv$file_name <- name
+      names(rv$data) <- to_snake_case(names(rv$data))
+      rv$data <- auto_parse_dates_(rv$data)
+      rv$col_types <- detect_column_types(rv$data)
+      all_cols <- names(rv$data)
+
+      default_response <- if (length(all_cols) > 0) all_cols[1] else NULL
+      shiny::updateSelectInput(session, "response",
+                               choices = all_cols,
+                               selected = default_response)
+
+      # Cache a copy for next session
+      cached <- file.path(cache_dir, name)
+      tryCatch(file.copy(path, cached, overwrite = TRUE),
+               error = function(e) NULL)
+      last_file <- file.path(cache_dir, ".last_data")
+      tryCatch(writeLines(name, last_file), error = function(e) NULL)
+
+      rv$data
+    }
+
+    # No auto-load: user must import data via the file input
+
     # --- File import ---
     shiny::observeEvent(input$file_input, {
       req_file <- input$file_input
-      ext <- tolower(tools::file_ext(req_file$name))
-      rv$file_name <- req_file$name
-
       tryCatch({
-        if (ext == "csv") {
-          rv$data <- utils::read.csv(
-            req_file$datapath, stringsAsFactors = FALSE,
-            check.names = FALSE,
-            sep = locale_csv_sep_(), dec = locale_csv_dec_()
-          )
-          rv$sheets <- NULL
-        } else if (ext %in% c("xls", "xlsx")) {
-          rv$sheets <- readxl::excel_sheets(req_file$datapath)
-          rv$data <- as.data.frame(
-            readxl::read_excel(req_file$datapath, sheet = 1)
-          )
-          shiny::updateSelectInput(session, "sheet", choices = rv$sheets,
-                                   selected = rv$sheets[1])
-        } else {
-          shiny::showNotification("Unsupported file type.", type = "error")
-          return()
-        }
-
-        names(rv$data) <- to_snake_case(names(rv$data))
-        rv$data <- auto_parse_dates_(rv$data)
-        rv$col_types <- detect_column_types(rv$data)
-        all_cols <- names(rv$data)
-
-        default_response <- if (length(all_cols) > 0) all_cols[1] else NULL
-        shiny::updateSelectInput(session, "response",
-                                 choices = all_cols,
-                                 selected = default_response)
-
+        load_and_cache_(req_file$datapath, req_file$name)
       }, error = function(e) {
         shiny::showNotification(paste("Import error:", e$message),
                                 type = "error")
@@ -224,11 +241,26 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
     })
 
     shiny::observeEvent(input$sheet, {
+      if (is.null(rv$file_name)) return()
+      # Only applies to Excel files
+      ext <- tolower(tools::file_ext(rv$file_name))
+      if (!ext %in% c("xls", "xlsx")) return()
+      # Skip if sheets haven't been set yet (initial load)
+      if (is.null(rv$sheets)) return()
+
+      # Use cached file (Shiny temp files may be gone)
+      cached_path <- file.path(cache_dir, rv$file_name)
       req_file <- input$file_input
-      if (is.null(req_file)) return()
+      path <- if (!is.null(req_file) && file.exists(req_file$datapath)) {
+        req_file$datapath
+      } else if (file.exists(cached_path)) {
+        cached_path
+      } else {
+        return()
+      }
       tryCatch({
         rv$data <- as.data.frame(
-          readxl::read_excel(req_file$datapath, sheet = input$sheet)
+          readxl::read_excel(path, sheet = input$sheet)
         )
         names(rv$data) <- to_snake_case(names(rv$data))
         rv$data <- auto_parse_dates_(rv$data)

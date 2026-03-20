@@ -13,7 +13,7 @@
 #     output_file   = "Output/SalesComparison.xlsx"
 #   )
 #
-# The adjusted_file is the Excel output from earthUI Step 7
+# The adjusted_file is the Excel output from glmnetUI Step 7
 # (Calculate RCA Adjustments & Download).
 #
 # comp_rows: numeric vector of row numbers (2-based, since row 1 is subject).

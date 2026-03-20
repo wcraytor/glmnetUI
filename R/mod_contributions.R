@@ -71,30 +71,52 @@ contributionsServer <- function(id, model_module, data_module) {
       names(coef_vec) <- coef_names
       intercept <- as.numeric(coef_sparse)[1L]
 
-      # Map model matrix columns to original predictor names
+      # Map model matrix columns to original predictor names.
+      # Map each column to its parent predictor.
+      # With earth basis, columns include h() hinges, factor dummies,
+      # and interaction products. Use earth's predictor list for
+      # factor dummy prefix matching.
       col_to_pred <- character(length(coef_names))
-      for (cn in coef_names) {
-        # Interaction terms (contain ":") are their own group
-        if (grepl(":", cn, fixed = TRUE)) {
-          col_to_pred[which(coef_names == cn)] <- cn
-          next
+
+      hinge_var_ <- function(h) {
+        inner <- sub("^h\\(", "", sub("\\)$", "", h))
+        parts <- strsplit(inner, "-", fixed = TRUE)[[1]]
+        if (length(parts) >= 2) {
+          first <- parts[1]
+          rest  <- paste(parts[-1], collapse = "-")
+          if (suppressWarnings(!is.na(as.numeric(first)))) rest else first
+        } else {
+          inner
         }
-        for (p in preds) {
-          if (cn == p || startsWith(cn, paste0(p))) {
-            suffix <- sub(paste0("^", p), "", cn)
-            if (nzchar(suffix)) {
-              longer_match <- FALSE
-              for (op in setdiff(preds, p)) {
-                if (startsWith(cn, paste0(op)) && nchar(op) > nchar(p)) {
-                  longer_match <- TRUE
-                  break
-                }
-              }
-              if (longer_match) next
-            }
-            col_to_pred[which(coef_names == cn)] <- p
-            break
-          }
+      }
+
+      # Use earth predictors if available, otherwise glmnetUI predictors
+      earth_import <- model_module$earth_import()
+      parent_preds <- if (!is.null(earth_import)) {
+        earth_import$predictors
+      } else {
+        preds
+      }
+      # Sort by length descending so longer names match first
+      parent_preds_sorted <- parent_preds[order(-nchar(parent_preds))]
+
+      component_parent_ <- function(comp) {
+        if (grepl("^h[(]", comp)) return(hinge_var_(comp))
+        for (p in parent_preds_sorted) {
+          if (startsWith(comp, p)) return(p)
+        }
+        comp
+      }
+
+      for (cn in coef_names) {
+        idx <- which(coef_names == cn)
+        components <- strsplit(cn, "\\*")[[1]]
+        parent_vars <- vapply(components, component_parent_, character(1))
+        parent_vars <- unique(parent_vars)
+        if (length(parent_vars) == 1L) {
+          col_to_pred[idx] <- parent_vars
+        } else {
+          col_to_pred[idx] <- paste(sort(parent_vars), collapse = ":")
         }
       }
 
@@ -114,19 +136,39 @@ contributionsServer <- function(id, model_module, data_module) {
         contribs[[pred_name]] <- contrib_vec
       }
 
-      # For the x-axis, use model matrix column directly for numeric predictors
-      # Also store the coefficient (slope) for single-column numeric predictors
+      # For the x-axis, use original data values for numeric predictors.
+      # With earth basis, x_mat has hinge columns, not raw predictors,
+      # so we look up the original variable from the appropriate source.
       x_values <- list()
       slopes <- list()
+      # Determine source for raw predictor values
+      earth_data <- NULL
+      earth_import <- model_module$earth_import()
+      if (!is.null(earth_import)) earth_data <- earth_import$data
+
       for (pred_name in unique_preds) {
+        if (grepl(":", pred_name, fixed = TRUE)) next
         idx <- which(col_to_pred == pred_name)
-        if (length(idx) == 1L) {
-          # Single column = numeric predictor; use x_mat values directly
+        if (length(idx) == 1L && !grepl("h\\(", coef_names[idx])) {
+          # Single formula column = numeric predictor
           x_values[[pred_name]] <- x_mat[, idx]
           slopes[[pred_name]] <- coef_vec[idx]
+        } else if (!is.null(earth_data) &&
+                   pred_name %in% names(earth_data) &&
+                   is.numeric(earth_data[[pred_name]])) {
+          # Earth basis: use earth's training data
+          ed_vals <- earth_data[[pred_name]]
+          if (length(ed_vals) == nrow(x_mat)) {
+            x_values[[pred_name]] <- ed_vals
+          } else if (length(ed_vals) == nrow(x_mat) + 1L) {
+            # Earth has subject row, x_mat doesn't: skip row 1
+            x_values[[pred_name]] <- ed_vals[-1L]
+          }
         } else if (pred_name %in% names(df) && is.numeric(df[[pred_name]])) {
-          # Multiple columns but original is numeric (e.g., interaction components)
-          # Skip — will use histogram fallback
+          # Fallback: use imported data (may have row count mismatch)
+          if (nrow(df) == nrow(x_mat)) {
+            x_values[[pred_name]] <- df[[pred_name]]
+          }
         }
       }
 

@@ -17,6 +17,17 @@ UI component for the glmnet modeling module. Provides controls for
 alpha, lambda, family, model fitting, sign constraints, relaxed lasso,
 penalty factors, weights, alpha grid search, and interaction terms.
 }
+\section{Interaction terms warning}{
+
+Enabling glmnet interaction terms will produce adjustments that are
+difficult to interpret and explain to third parties. When an earthUI
+result is imported (Section 2), the interaction matrix is disabled
+and interactions are handled exclusively by the earth model's hinge
+basis functions. earth() interactions -- even higher-order terms --
+are interpretable because each hinge function has a clear geometric
+meaning.
+}
+
 \examples{
 if (interactive()) {
   ui <- shiny::fluidPage(modelingUI("model"))

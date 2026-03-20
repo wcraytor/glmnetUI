@@ -68,8 +68,8 @@ format_glmnet_equation_ <- function(model, lambda, gamma, response) {
   # Keep only non-zero coefficients
   nonzero <- beta[beta != 0]
 
-  # Escape variable name for LaTeX \text{}
-  esc <- function(x) gsub("_", "\\_", x, fixed = TRUE)
+  # Inside \text{}, underscores render as-is in MathJax
+  esc <- function(x) x
 
   # Build LaTeX lines
   lines <- character(0)
@@ -90,7 +90,12 @@ format_glmnet_equation_ <- function(model, lambda, gamma, response) {
       abs_b <- abs(b)
 
       # Format the variable term
-      if (grepl(":", nm, fixed = TRUE)) {
+      # IMPORTANT: earth basis columns use h() naming with *, (, ).
+      # See memory/project_earth_integration.md.
+      if (grepl("h(", nm, fixed = TRUE)) {
+        # Earth basis term: format as math hinge notation
+        var_tex <- format_earth_term_latex_(nm, esc)
+      } else if (grepl(":", nm, fixed = TRUE)) {
         # Interaction term: x1:x2 -> \text{x1} \times \text{x2}
         parts <- strsplit(nm, ":", fixed = TRUE)[[1L]]
         var_tex <- paste(sprintf("\\text{%s}", vapply(parts, esc, character(1))),
@@ -129,4 +134,40 @@ format_coef_ <- function(x) {
   } else {
     formatC(x, format = "f", digits = 6)
   }
+}
+
+#' Format a single earth hinge component as LaTeX
+#' e.g. "h(var-knot)" -> "h(\\text{var} - knot)"
+#'      "h(knot-var)" -> "h(knot - \\text{var})"
+#'      "var"         -> "\\text{var}" (linear entry)
+#' @noRd
+format_hinge_latex_ <- function(component, esc) {
+  if (!grepl("^h\\(", component)) {
+    # Linear entry (no hinge)
+    return(sprintf("\\text{%s}", esc(component)))
+  }
+  inner <- sub("^h\\(", "", sub("\\)$", "", component))
+  parts <- strsplit(inner, "-", fixed = TRUE)[[1]]
+  if (length(parts) >= 2) {
+    first <- parts[1]
+    rest <- paste(parts[-1], collapse = "-")
+    if (suppressWarnings(!is.na(as.numeric(first)))) {
+      # Reverse hinge: h(knot - var)
+      sprintf("h(%s - \\text{%s})", first, esc(rest))
+    } else {
+      # Forward hinge: h(var - knot)
+      sprintf("h(\\text{%s} - %s)", esc(first), rest)
+    }
+  } else {
+    sprintf("h(%s)", esc(inner))
+  }
+}
+
+#' Format an earth basis term (possibly product) as LaTeX
+#' e.g. "h(var1-k1)*h(var2-k2)" -> "h(...) \\times h(...)"
+#' @noRd
+format_earth_term_latex_ <- function(nm, esc) {
+  components <- strsplit(nm, "*", fixed = TRUE)[[1]]
+  parts_tex <- vapply(components, format_hinge_latex_, character(1), esc = esc)
+  paste(parts_tex, collapse = " \\times ")
 }
