@@ -68,8 +68,10 @@ format_glmnet_equation_ <- function(model, lambda, gamma, response) {
   # Keep only non-zero coefficients
   nonzero <- beta[beta != 0]
 
-  # Inside \text{}, underscores render as-is in MathJax
-  esc <- function(x) x
+  # Escape underscores for LaTeX: \text{sale_price} breaks in PDF.
+
+  # Use \text{sale\_price} which works in both MathJax and LaTeX.
+  esc <- function(x) gsub("_", "\\_", x, fixed = TRUE)
 
   # Build LaTeX lines
   lines <- character(0)

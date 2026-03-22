@@ -161,8 +161,9 @@ The sidebar is organized into numbered sections:
 
 Each column is listed with:
 
-- **Type** --- data type dropdown (numeric, integer, character, factor,
-  Date, POSIXct)
+- **Type** --- data type dropdown (numeric, integer, character, Date, POSIXct)
+- **Fac** --- factor checkbox. Check to treat the variable as a categorical
+  factor (creates dummy columns in the model matrix)
 - **Inc** --- include as predictor checkbox
 - **Force** --- force into model (penalty factor = 0, never dropped by lasso)
 - **Special** --- special column designation (appraisal/market only)
@@ -262,6 +263,14 @@ no penalty.
 - **Gamma = 1**: No relaxation (same as regular glmnet)
 - With cross-validation, gamma is chosen automatically
 
+### Random Seed
+
+A text input pre-filled with a random integer ensures reproducible
+cross-validation fold assignments. After each fit, a new seed is
+auto-generated (using system time, not R's RNG). The last 5 seeds used
+for the current file are shown as clickable links for easy recall.
+Seed history resets when a new file is loaded.
+
 ### Interaction Matrix
 
 An interactive upper-triangular matrix lets you control which variable pairs
@@ -280,6 +289,25 @@ automatically, so "Allow All" is a reasonable starting point.
 > can be difficult to interpret and explain in court or audit settings.
 > Use interactions cautiously and verify that the resulting adjustments
 > are reasonable.
+
+### Block from Main Effect (Interaction Only)
+
+**Right-click** a variable name in the Interaction Matrix to block it
+from entering the model as a main effect. A bold **" 1"** indicator
+appears after the variable name.
+
+When blocked:
+
+- The variable is **removed** from the main formula terms
+- The variable **can still** appear in interaction terms (`x1:x2`)
+- Right-click again to unblock
+- State persists via localStorage per input file
+
+**Use case:** When modeling time adjustments that should scale with
+property size, block `sale_age` from the main effect and allow it only
+in an interaction with `living_area`. This creates a `sale_age:living_area`
+interaction term instead of a flat `sale_age` coefficient -- the time
+appreciation rate varies by house size.
 
 ## Result Tabs
 
@@ -335,14 +363,16 @@ Importance table below shows: Variable, Importance, Coefficient, Relative %.
 
 ### Contributions
 
-Per-variable partial effect plots:
+Per-variable partial effect plots, selected via dropdown:
 
-- **Numeric predictors**: Scatter plot with line segment, labeled with the
-  slope (e.g., `+1,234.56/unit`). The slope adapts units based on x-axis
-  range (e.g., `/0.001` for latitude/longitude).
-- **Factor/interaction predictors**: Histogram of contribution distribution.
-
-Select variables via dropdown.
+- **Numeric predictors**: Scatter plot with linear fit line, labeled with
+  the slope (e.g., `+1,234.56/unit`).
+- **Factor variables**: Box plot showing contribution distribution per
+  factor level.
+- **Two-variable interactions**: Three stacked visualizations:
+  1. 3D surface plot (`persp()`) of the joint contribution
+  2. Scatter plot with points colored by contribution
+  3. Heatmap of mean contribution across both variable ranges
 
 ### ANOVA
 
@@ -367,10 +397,21 @@ comma-formatted labels (no scientific notation):
 
 Each plot has a **Download PNG** button.
 
+### Glmnet Output
+
+Raw model output showing: random seed used, model print, selected lambda,
+lambda.min/1se, gamma (if relaxed), and full coefficient vector.
+
 ### Report
 
 Configure report fields (appraiser name, property address, report date,
-file number) and export to Word (.docx) or PDF.
+file number) and export to Word (.docx), PDF, or HTML. Reports are
+rendered via Quarto when available, with an automatic rmarkdown fallback.
+
+Report contribution plots match the Contributions tab: scatter with fit
+line for numeric predictors, box plots for factors, and scatter/heatmap/3D
+persp snapshots for interactions. All axis labels use comma-formatted
+numbers (no scientific notation).
 
 ## Downloading Data (Step 6)
 

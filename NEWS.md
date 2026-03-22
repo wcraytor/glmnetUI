@@ -1,16 +1,22 @@
 # glmnetUI 0.1.2
 
-* **Enhanced reports**: Full-featured reports via Quarto (HTML, PDF, Word) including all tab content: Dataset Description, Model Specification, Results Summary, Equation, Coefficients, Variable Importance, Contributions plots, Correlation Matrix, ANOVA, and Diagnostics (Coefficient Path, CV Error, Actual vs Predicted, Residuals vs Fitted, Q-Q Plot).
+* **Random seed** for reproducible cross-validation: text input pre-filled with random integer, seed history (last 5 per file) with clickable recall links, `set.seed()` called before fitting, seed shown in Glmnet Output tab and fit status.
+* **Factor checkbox column** ("Fac") in Variable Configuration: dedicated checkbox between Type and Inc columns to designate variables as factors. Replaces the previous "factor" option in the Type dropdown. Persists via localStorage.
+* **Block from Main Effect**: Right-click a variable name in the Interaction Matrix to block it from the main effect (interaction only). Bold " 1" indicator shown. State persists via localStorage.
+* **Glmnet Output tab**: Shows raw model print, selected lambda, lambda.min/1se, gamma, and full coefficient vector — matching earthUI's "Earth Output" tab.
+* **3D surface plots** for interactions in Contributions tab: `persp()` surface + scatter + heatmap for two-numeric interactions. Factor variables show box plots by level.
+* **Enhanced reports**: Full-featured reports via Quarto (HTML, PDF, Word) with automatic rmarkdown fallback. Includes: Dataset Description, Model Specification, Results Summary, Equation, Coefficients, Variable Importance, Contributions plots, Correlation Matrix, ANOVA, Diagnostics (Coefficient Path, CV Error, Actual vs Predicted, Residuals vs Fitted, Q-Q Plot), and Model Output. Contribution plots in reports now match the Contributions tab: scatter with fit line (numeric), box plot (factor), and scatter/heatmap/static 3D persp (interactions). Axis labels and color legends use comma-formatted numbers. HTML reports are self-contained with embedded images. Report tab and Step 9 both use the same pipeline. Elapsed timer shown during generation.
+* **Report bug fixes**: Fixed LaTeX compilation failures caused by unescaped underscores in variable names within `\text{}` and by `print(cv.relaxed)` dumping a 200K+ character `Call:` field that exceeded LaTeX's bufsize. The model `Call:` is now stripped before saving to report assets.
 * **Advanced glmnet parameters** section in sidebar: lambda.min.ratio, nlambda, CV loss metric (MSE/MAE/Deviance), convergence threshold, max iterations, intercept toggle. Visible for documentation/audit purposes even at defaults.
-* **Improved Sales Grid formatting**: Fixed cell number formats using openxlsx; all value contribution, adjustment, percentage, and sale price cells render correctly.
+* **Improved Sales Grid formatting**: Fixed cell number formats; all value contribution, adjustment, percentage, and sale price cells render correctly.
 * **Sorting**: RCA adjusted spreadsheet sorts comps with weight > 0 by gross_adj_pct ascending, weight = 0 comps at end.
-* **Collapsible section arrow spacing**: Fixed CSS for consistent spacing between collapse arrow and section title.
-* **HTML report format**: Added HTML as a third report output option alongside Word and PDF.
+* **Interaction matrix**: JavaScript moved to static file for reliable execution in Shiny modules. Default is all unchecked (Clear All); saved settings restored from localStorage.
+* **Contribution plots**: Fixed interaction terms being mixed into parent variable contributions (split on `:` for formula interactions). Linear line for single-coefficient predictors instead of jagged geom_line.
 * **Percentage formatting**: residual_adj_pct, net_adj_pct, gross_adj_pct rounded to 1 decimal place.
 * **Date column handling**: Date/POSIXct columns converted to character before Excel export to prevent datetime formatting in Sales Grid.
 * **Upload size limit**: Increased to 3 GB for large files.
 * **Demo dataset**: Appraisal_1.csv included in inst/extdata.
-* Removed backslash escaping in equation display (MathJax handles underscores in `\text{}` natively).
+* **Dark mode**: Block-from-degree-1 indicator uses `var(--bs-body-color)` for theme-adaptive color.
 
 # glmnetUI 0.1.1
 

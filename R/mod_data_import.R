@@ -316,7 +316,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
       row_css <- "display:flex; align-items:center; padding:3px 6px;"
       hdr_css <- paste0(row_css, " font-weight:bold;")
 
-      all_types <- c("numeric", "integer", "character", "factor",
+      all_types <- c("numeric", "integer", "character",
                      "Date", "POSIXct")
 
       appraiser <- purpose() %in% c("appraisal", "market")
@@ -332,12 +332,13 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
       hdr_cols <- list(
         shiny::tags$div(style = "flex:1; min-width:100px;", "Variable"),
         shiny::tags$div(style = "width:90px; text-align:center;", "Type"),
-        shiny::tags$div(style = "width:40px; text-align:center;", "Inc"),
+        shiny::tags$div(style = "width:30px; text-align:center;", "Fac"),
+        shiny::tags$div(style = "width:30px; text-align:center;", "Inc"),
         shiny::tags$div(style = "width:40px; text-align:center;", "Force"),
-        shiny::tags$div(style = "width:120px; text-align:center;", "Special")
+        shiny::tags$div(style = "width:90px; text-align:center;", "Special")
       )
       hdr_cols <- c(hdr_cols, list(
-        shiny::tags$div(style = "width:80px; text-align:center;", "Sign"),
+        shiny::tags$div(style = "width:60px; text-align:center;", "Sign"),
         shiny::tags$div(style = "width:45px; text-align:center;", "NAs")
       ))
       header <- shiny::tags$div(
@@ -381,7 +382,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
           shiny::tags$option(value = sp, sp)
         })
         special_el <- shiny::tags$div(
-          style = "width:120px; text-align:center;",
+          style = "width:90px; text-align:center;",
           shiny::tags$select(
             id = ns(paste0("special_", col_name)),
             class = "form-control glmnet-special-sel",
@@ -401,7 +402,16 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
             type_el
           ),
           shiny::tags$div(
-            style = "width:40px; text-align:center;",
+            style = "width:30px; text-align:center;",
+            shiny::tags$input(
+              type = "checkbox",
+              id = ns(paste0("fac_", col_name)),
+              class = "glmnet-fac-cb",
+              `data-col` = col_name
+            )
+          ),
+          shiny::tags$div(
+            style = "width:30px; text-align:center;",
             shiny::tags$input(
               type = "checkbox",
               id = ns(paste0("inc_", col_name)),
@@ -422,7 +432,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         row_cells <- c(row_cells, list(special_el))
         row_cells <- c(row_cells, list(
           shiny::tags$div(
-            style = "width:80px; text-align:center;",
+            style = "width:60px; text-align:center;",
             sign_el
           ),
           shiny::tags$div(
@@ -453,11 +463,13 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
             var types = {};
             var forceVars = [];
             var specials = {};
+            var facVars = [];
             for (var i = 0; i < cols.length; i++) {
               var cb = document.getElementById(nsPrefix + "inc_" + cols[i]);
               var tp = document.getElementById(nsPrefix + "type_" + cols[i]);
               var fcb = document.getElementById(nsPrefix + "force_" + cols[i]);
               var sp = document.getElementById(nsPrefix + "special_" + cols[i]);
+              var fac = document.getElementById(nsPrefix + "fac_" + cols[i]);
               if (cb && cb.checked) {
                 preds.push(cols[i]);
               }
@@ -465,6 +477,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
                 types[cols[i]] = tp.value;
               }
               if (fcb && fcb.checked) forceVars.push(cols[i]);
+              if (fac && fac.checked) facVars.push(cols[i]);
               if (sp) specials[cols[i]] = sp.value;
             }
             Shiny.setInputValue(nsPrefix + "predictors", preds,
@@ -472,6 +485,8 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
             Shiny.setInputValue(nsPrefix + "col_types_override", types,
                                 {priority: "event"});
             Shiny.setInputValue(nsPrefix + "force_vars", forceVars,
+                                {priority: "event"});
+            Shiny.setInputValue(nsPrefix + "fac_vars", facVars,
                                 {priority: "event"});
             Shiny.setInputValue(nsPrefix + "col_specials", specials,
                                 {priority: "event"});
@@ -485,8 +500,10 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
               var tp = document.getElementById(nsPrefix + "type_" + cols[i]);
               var fcb = document.getElementById(nsPrefix + "force_" + cols[i]);
               var sp = document.getElementById(nsPrefix + "special_" + cols[i]);
+              var fac = document.getElementById(nsPrefix + "fac_" + cols[i]);
               state[cols[i]] = {
                 inc: cb ? cb.checked : false,
+                fac: fac ? fac.checked : false,
                 sign: sel ? sel.value : "either",
                 type: tp ? tp.value : "character",
                 force: fcb ? fcb.checked : false,
@@ -510,8 +527,10 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
               var sel = document.getElementById(nsPrefix + "sign_" + cols[i]);
               var tp = document.getElementById(nsPrefix + "type_" + cols[i]);
               var fcb = document.getElementById(nsPrefix + "force_" + cols[i]);
+              var fac = document.getElementById(nsPrefix + "fac_" + cols[i]);
               if (saved && saved[cols[i]]) {
                 if (cb) cb.checked = saved[cols[i]].inc;
+                if (fac) fac.checked = !!saved[cols[i]].fac;
                 if (sel) sel.value = saved[cols[i]].sign || "either";
                 if (tp && saved[cols[i]].type) tp.value = saved[cols[i]].type;
                 if (fcb && saved[cols[i]].force) fcb.checked = saved[cols[i]].force;
@@ -551,8 +570,25 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
               saveState();
             });
 
+          $(document).off("change.glmnetfac").on("change.glmnetfac",
+            ".glmnet-fac-cb", function() {
+              gatherState();
+              saveState();
+            });
+
           $(document).off("change.glmnetspecial").on("change.glmnetspecial",
             ".glmnet-special-sel", function() {
+              // Auto-set type when special implies it
+              var colName = $(this).attr("data-col");
+              var specialVal = $(this).val();
+              if ((specialVal === "area" || specialVal === "factor") && colName) {
+                var typeEl = document.getElementById(nsPrefix + "type_" + colName);
+                if (typeEl && typeEl.value !== "character") {
+                  // factor type is now in Special, not Type dropdown
+                  // but we still need the data to be treated as factor
+                  // in the modeling code
+                }
+              }
               gatherState();
               saveState();
             });
@@ -702,6 +738,11 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
       if (is.null(fv)) character(0) else fv
     })
 
+    fac_vars <- shiny::reactive({
+      fv <- input$fac_vars
+      if (is.null(fv)) character(0) else fv
+    })
+
     col_specials <- shiny::reactive({
       sp <- input$col_specials
       if (is.null(sp) || !is.list(sp)) {
@@ -725,6 +766,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         names(sp)[wt_idx[1L]]
       }),
       force_in = force_in,
+      fac_vars = fac_vars,
       col_specials = col_specials,
       file_name = shiny::reactive(rv$file_name),
       rv = rv

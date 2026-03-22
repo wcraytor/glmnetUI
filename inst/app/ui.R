@@ -493,6 +493,23 @@ bslib::page_fluid(
             )
           ),
           shiny::tabPanel("Diagnostics", diagnosticsUI("diag")),
+          shiny::tabPanel("Glmnet Output",
+            shiny::conditionalPanel(
+              condition = "!output.model_fitted",
+              shiny::tags$div(
+                style = "text-align:center; padding:40px 20px;",
+                shiny::tags$p("Fit a model to see glmnet output.",
+                              style = "color: var(--bs-secondary-color);")
+              )
+            ),
+            shiny::conditionalPanel(
+              condition = "output.model_fitted",
+              shiny::tags$div(
+                style = "overflow-x: auto;",
+                shiny::verbatimTextOutput("glmnet_output")
+              )
+            )
+          ),
           shiny::tabPanel("Report", reportUI("report")),
           shiny::tabPanel("RCA Adjustments",
             shiny::conditionalPanel(

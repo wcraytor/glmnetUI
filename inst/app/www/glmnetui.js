@@ -42,6 +42,47 @@ $(document).on("shiny:connected", function() {
   }
 });
 
+// Report generation timer: floating overlay showing elapsed time
+var _reportTimer = null;
+var _reportTimerStart = 0;
+var _reportTimerDiv = null;
+Shiny.addCustomMessageHandler("report_timer", function(msg) {
+  if (msg.action === "start") {
+    _reportTimerStart = Date.now();
+    if (_reportTimer) clearInterval(_reportTimer);
+    // Create floating timer overlay
+    if (!_reportTimerDiv) {
+      _reportTimerDiv = document.createElement("div");
+      _reportTimerDiv.id = "glmnet-report-timer";
+      _reportTimerDiv.style.cssText =
+        "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);" +
+        "background:rgba(0,0,0,0.85); color:white; padding:20px 40px;" +
+        "border-radius:10px; font-size:18px; z-index:99999;" +
+        "text-align:center; font-family:sans-serif;";
+      document.body.appendChild(_reportTimerDiv);
+    }
+    _reportTimerDiv.style.display = "block";
+    _reportTimerDiv.innerHTML = "Generating report...<br><span style='font-size:28px; font-weight:bold;'>0s</span>";
+
+    _reportTimer = setInterval(function() {
+      var elapsed = Math.floor((Date.now() - _reportTimerStart) / 1000);
+      var min = Math.floor(elapsed / 60);
+      var sec = elapsed % 60;
+      var timeStr = min > 0
+        ? min + ":" + (sec < 10 ? "0" : "") + sec
+        : sec + "s";
+      if (_reportTimerDiv) {
+        _reportTimerDiv.innerHTML =
+          "Generating report...<br><span style='font-size:28px; font-weight:bold;'>" +
+          timeStr + "</span>";
+      }
+    }, 1000);
+  } else if (msg.action === "stop") {
+    if (_reportTimer) { clearInterval(_reportTimer); _reportTimer = null; }
+    if (_reportTimerDiv) _reportTimerDiv.style.display = "none";
+  }
+});
+
 // Show white checkmark on button after successful action
 Shiny.addCustomMessageHandler("btn_done", function(msg) {
   var btn = document.getElementById(msg.id);
@@ -150,12 +191,14 @@ window.glmnetApplyVariables = function(saved) {
   for (var colName in saved) {
     var sv = saved[colName];
     var $inc = $(document.getElementById("data-inc_" + colName));
+    var $fac = $(document.getElementById("data-fac_" + colName));
     var $force = $(document.getElementById("data-force_" + colName));
     var $sign = $(document.getElementById("data-sign_" + colName));
     var $type = $(document.getElementById("data-type_" + colName));
     var $special = $(document.getElementById("data-special_" + colName));
 
     if ($inc.length && sv.inc !== undefined) $inc.prop("checked", sv.inc);
+    if ($fac.length && sv.fac !== undefined) $fac.prop("checked", sv.fac);
     if ($force.length && sv.force !== undefined) $force.prop("checked", sv.force);
     if ($sign.length && sv.sign) $sign.val(sv.sign);
     if ($type.length && sv.type) $type.val(sv.type);
@@ -230,11 +273,137 @@ Shiny.addCustomMessageHandler("apply_glmnet_defaults", function(msg) {
   $(".glmnet-sign-sel").val("either");
   $(".glmnet-special-sel").val("no");
   if ($(".glmnet-var-cb").length) $(".glmnet-var-cb").first().trigger("change");
-  // Check all interactions
-  $(".glmnet-interaction-cb").prop("checked", true);
+  // Clear all interactions (default is unchecked)
+  $(".glmnet-interaction-cb").prop("checked", false);
   if ($(".glmnet-interaction-cb").length) {
     $(".glmnet-interaction-cb").first().trigger("change");
   }
+});
+
+// --- Interaction matrix: init click/right-click/persistence ---
+Shiny.addCustomMessageHandler("glmnet_init_matrix", function(msg) {
+  var n = msg.n;
+  var nsPrefix = msg.nsPrefix;
+  var storageKey = "glmnetUI_interactions_" + msg.storageKey;
+  var glmnetPreds = msg.preds;
+  var blk1Key = "glmnetUI_blk1_" + msg.storageKey;
+
+  function saveState() {
+    var state = {};
+    for (var i = 1; i < n; i++) {
+      for (var j = i + 1; j <= n; j++) {
+        var id = nsPrefix + "int_" + i + "_" + j;
+        state[i + "_" + j] = $("#" + CSS.escape(id)).is(":checked");
+      }
+    }
+    try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch(e) {}
+  }
+
+  function restoreState() {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(storageKey)); } catch(e) {}
+    if (!saved) return;
+    for (var i = 1; i < n; i++) {
+      for (var j = i + 1; j <= n; j++) {
+        var key = i + "_" + j;
+        if (saved[key] !== undefined) {
+          var id = nsPrefix + "int_" + i + "_" + j;
+          $("#" + CSS.escape(id)).prop("checked", saved[key]);
+        }
+      }
+    }
+  }
+
+  function syncToShiny() {
+    for (var i = 1; i < n; i++) {
+      for (var j = i + 1; j <= n; j++) {
+        var id = nsPrefix + "int_" + i + "_" + j;
+        Shiny.setInputValue(id, $("#" + CSS.escape(id)).is(":checked"));
+      }
+    }
+  }
+
+  // Delay restore until checkboxes are in the DOM
+  // (sendCustomMessage fires before renderUI output is rendered)
+  setTimeout(function() {
+    restoreState();
+    setTimeout(function() {
+      syncToShiny();
+      var all = $(".glmnet-interaction-cb").length;
+      var checked = $(".glmnet-interaction-cb:checked").length;
+      $("#" + CSS.escape(nsPrefix + "allow_all")).prop("checked", checked === all);
+      $("#" + CSS.escape(nsPrefix + "clear_all")).prop("checked", checked === 0);
+    }, 200);
+  }, 500);
+
+  // Checkbox change: save and sync
+  $(document).off("change.glmnetmatrix").on("change.glmnetmatrix",
+    ".glmnet-interaction-cb", function() {
+      saveState();
+      syncToShiny();
+    });
+
+  // Left-click variable name: toggle all its interactions
+  $(document).off("click.glmnetvarlabel").on("click.glmnetvarlabel",
+    ".glmnet-matrix-varlabel", function() {
+      var k = parseInt($(this).attr("data-var-idx"));
+      if (isNaN(k)) return;
+      var cbs = [];
+      for (var i = 1; i <= n; i++) {
+        if (i === k) continue;
+        var lo = Math.min(i, k), hi = Math.max(i, k);
+        var id = nsPrefix + "int_" + lo + "_" + hi;
+        var $cb = $("#" + CSS.escape(id));
+        if ($cb.length) cbs.push($cb);
+      }
+      var allChecked = cbs.every(function($cb) { return $cb.is(":checked"); });
+      cbs.forEach(function($cb) { $cb.prop("checked", !allChecked); });
+      if (cbs.length > 0) cbs[0].trigger("change");
+    });
+
+  // Block from main effect: right-click variable name
+  var blk1 = {};
+  try { var s = JSON.parse(localStorage.getItem(blk1Key)); if (s) blk1 = s; } catch(e) {}
+
+  function updateBlk1Labels() {
+    $(".glmnet-matrix-varlabel").each(function() {
+      var idx = parseInt($(this).attr("data-var-idx"));
+      if (isNaN(idx)) return;
+      var varName = glmnetPreds[idx - 1];
+      var $ind = $(this).find(".blk1-indicator");
+      if (blk1[varName]) {
+        if ($ind.length === 0) {
+          $(this).append('<span class="blk1-indicator" style="color:var(--bs-body-color, #000);font-weight:bold;font-size:0.85em;"> 1</span>');
+        }
+      } else {
+        $ind.remove();
+      }
+    });
+  }
+
+  function syncBlk1() {
+    var blocked = [];
+    for (var v in blk1) { if (blk1[v]) blocked.push(v); }
+    Shiny.setInputValue(nsPrefix + "block_main_effect",
+      blocked.length > 0 ? blocked : null, {priority: "event"});
+    try { localStorage.setItem(blk1Key, JSON.stringify(blk1)); } catch(e) {}
+  }
+
+  updateBlk1Labels();
+  setTimeout(syncBlk1, 250);
+
+  $(document).off("contextmenu.glmnetBlk1").on("contextmenu.glmnetBlk1",
+    ".glmnet-matrix-varlabel", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var idx = parseInt($(this).attr("data-var-idx"));
+      if (isNaN(idx)) return false;
+      var varName = glmnetPreds[idx - 1];
+      blk1[varName] = !blk1[varName];
+      updateBlk1Labels();
+      syncBlk1();
+      return false;
+    });
 });
 
 // --- Collect and save current settings as defaults ---

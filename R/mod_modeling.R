@@ -213,20 +213,7 @@ modelingUI <- function(id) {
 
     # --- Interaction Matrix ---
     shiny::hr(),
-    shiny::conditionalPanel(
-      condition = sprintf("output['%s']", "earth-has_earth"),
-      shiny::tags$div(
-        class = "alert alert-info",
-        style = "font-size:0.85em; padding:8px 12px; margin-bottom:8px;",
-        shiny::tags$strong("earthUI imported:"),
-        " Interactions are determined by the earth model.",
-        " The glmnet interaction matrix is disabled.",
-        " earth() interactions, including higher-order terms,",
-        " are interpretable and included via the hinge basis functions."
-      )
-    ),
-    shiny::conditionalPanel(
-      condition = sprintf("!output['%s']", "earth-has_earth"),
+    shiny::tags$div(
       shiny::tags$span(
         shiny::h5("Interaction Matrix", style = "display:inline;"),
         help_icon(paste(
@@ -253,7 +240,7 @@ modelingUI <- function(id) {
           style = "font-size:0.85em; margin-right:12px; cursor:pointer;",
           shiny::tags$input(
             type = "checkbox", id = ns("allow_all"),
-            class = "glmnet-int-toggle", checked = "checked",
+            class = "glmnet-int-toggle",
             style = "margin-right:4px;"
           ),
           "Allow All"
@@ -398,6 +385,9 @@ modelingUI <- function(id) {
 fitModelUI <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
+    shiny::textInput(ns("random_seed"), "Random seed",
+                     value = as.character(sample.int(.Machine$integer.max, 1L))),
+    shiny::uiOutput(ns("seed_history_ui")),
     shiny::actionButton(ns("fit_btn"), "Fit Model",
                         class = "btn-primary btn-lg",
                         width = "100%"),
@@ -453,8 +443,49 @@ modelingServer <- function(id, data_module,
       family_used = NULL,
       nfolds_used = NULL,
       n_obs = NULL,
-      n_excluded = 0L
+      n_excluded = 0L,
+      seed_used = NULL
     )
+
+    rv_seed_history <- shiny::reactiveVal(integer(0))
+
+    # Seed history UI: show last 5 seeds as clickable links
+    output$seed_history_ui <- shiny::renderUI({
+      hist <- rv_seed_history()
+      if (length(hist) == 0L) return(NULL)
+      shiny::tags$div(
+        style = "margin-top: -8px; margin-bottom: 8px;",
+        shiny::tags$label("Recent seeds (last used is first):",
+                          style = "font-size: 0.8em; color: var(--bs-secondary-color);"),
+        shiny::tags$div(
+          style = "display: flex; flex-wrap: wrap; gap: 4px;",
+          lapply(hist, function(s) {
+            shiny::actionLink(
+              ns(paste0("seed_recall_", s)),
+              label = as.character(s),
+              style = paste0("font-size: 0.8em; padding: 1px 6px;",
+                             " border: 1px solid #ccc; border-radius: 3px;",
+                             " text-decoration: none;"))
+          })
+        )
+      )
+    })
+
+    # Click a recent seed to fill the input
+    shiny::observe({
+      hist <- rv_seed_history()
+      lapply(hist, function(s) {
+        shiny::observeEvent(input[[paste0("seed_recall_", s)]], {
+          shiny::updateTextInput(session, "random_seed",
+                                 value = as.character(s))
+        }, ignoreInit = TRUE)
+      })
+    })
+
+    # Reset seed history when a new file is loaded
+    shiny::observeEvent(data_module$file_name(), {
+      rv_seed_history(integer(0))
+    }, ignoreInit = TRUE)
 
     # --- Recompute sale_age when effective_date changes ---
     shiny::observeEvent(effective_date(), {
@@ -681,7 +712,6 @@ modelingServer <- function(id, data_module,
                 shiny::tags$input(
                   type = "checkbox", id = cb_id,
                   class = "glmnet-interaction-cb",
-                  checked = "checked",
                   style = "margin:0;"
                 )
               )
@@ -699,84 +729,15 @@ modelingServer <- function(id, data_module,
       }
 
       storage_key <- if (is.null(file_key)) "default" else file_key
-      int_js <- sprintf('
-        (function() {
-          var n = %d;
-          var nsPrefix = "%s";
-          var storageKey = "glmnetUI_interactions_" + %s;
-
-          function saveState() {
-            var state = {};
-            for (var i = 1; i < n; i++) {
-              for (var j = i + 1; j <= n; j++) {
-                var id = nsPrefix + "int_" + i + "_" + j;
-                state[i + "_" + j] = $("#" + CSS.escape(id)).is(":checked");
-              }
-            }
-            try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch(e) {}
-          }
-
-          function restoreState() {
-            var saved = null;
-            try { saved = JSON.parse(localStorage.getItem(storageKey)); } catch(e) {}
-            if (!saved) return;
-            for (var i = 1; i < n; i++) {
-              for (var j = i + 1; j <= n; j++) {
-                var key = i + "_" + j;
-                if (saved[key] !== undefined) {
-                  var id = nsPrefix + "int_" + i + "_" + j;
-                  $("#" + CSS.escape(id)).prop("checked", saved[key]);
-                }
-              }
-            }
-          }
-
-          function syncToShiny() {
-            for (var i = 1; i < n; i++) {
-              for (var j = i + 1; j <= n; j++) {
-                var id = nsPrefix + "int_" + i + "_" + j;
-                Shiny.setInputValue(id, $("#" + CSS.escape(id)).is(":checked"));
-              }
-            }
-          }
-
-          restoreState();
-          setTimeout(function() {
-            syncToShiny();
-            var all = $(".glmnet-interaction-cb").length;
-            var checked = $(".glmnet-interaction-cb:checked").length;
-            $("#" + CSS.escape(nsPrefix + "allow_all")).prop("checked", checked === all);
-            $("#" + CSS.escape(nsPrefix + "clear_all")).prop("checked", checked === 0);
-          }, 200);
-
-          $(document).off("change.glmnetmatrix").on("change.glmnetmatrix",
-            ".glmnet-interaction-cb", function() {
-              saveState();
-              syncToShiny();
-            });
-
-          $(document).off("click.glmnetvarlabel").on("click.glmnetvarlabel",
-            ".glmnet-matrix-varlabel", function() {
-              var k = parseInt($(this).attr("data-var-idx"));
-              if (isNaN(k)) return;
-              var cbs = [];
-              for (var i = 1; i <= n; i++) {
-                if (i === k) continue;
-                var lo = Math.min(i, k), hi = Math.max(i, k);
-                var id = nsPrefix + "int_" + lo + "_" + hi;
-                var $cb = $("#" + CSS.escape(id));
-                if ($cb.length) cbs.push($cb);
-              }
-              var allChecked = cbs.every(function($cb) { return $cb.is(":checked"); });
-              cbs.forEach(function($cb) { $cb.prop("checked", !allChecked); });
-              if (cbs.length > 0) cbs[0].trigger("change");
-            });
-        })();
-      ',
-        n, ns(""),
-        jsonlite::toJSON(storage_key, auto_unbox = TRUE)
-      )
-      js <- shiny::tags$script(shiny::HTML(int_js))
+      # Send JS config to the client via custom message handler.
+      # Script tags inside renderUI don't reliably execute in Shiny
+      # modules, so we use sendCustomMessage instead.
+      session$sendCustomMessage("glmnet_init_matrix", list(
+        n = n,
+        nsPrefix = ns(""),
+        storageKey = storage_key,
+        preds = preds
+      ))
 
       shiny::tags$div(
         style = paste0(
@@ -787,8 +748,7 @@ modelingServer <- function(id, data_module,
           style = "border-collapse:collapse;",
           shiny::tags$thead(header_row),
           shiny::tags$tbody(body_rows)
-        ),
-        js
+        )
       )
     })
 
@@ -981,8 +941,11 @@ modelingServer <- function(id, data_module,
         # --- Apply type overrides ---
         x_df <- df_clean[, preds, drop = FALSE]
         col_types <- data_module$col_types()
+        fac_vars <- data_module$fac_vars()
         for (p in preds) {
-          if (!is.null(col_types[p])) {
+          if (p %in% fac_vars) {
+            x_df[[p]] <- as.factor(x_df[[p]])
+          } else if (!is.null(col_types[p])) {
             if (col_types[p] %in% c("factor", "character")) {
               x_df[[p]] <- as.factor(x_df[[p]])
             } else if (col_types[p] == "numeric") {
@@ -1044,7 +1007,14 @@ modelingServer <- function(id, data_module,
         } else {
           # No earth import: standard formula model matrix
           ints <- get_interaction_pairs()
-          formula_parts <- preds
+          # Remove blocked variables from main effects
+          blk <- input$block_main_effect
+          main_preds <- if (!is.null(blk) && length(blk) > 0L) {
+            setdiff(preds, blk)
+          } else {
+            preds
+          }
+          formula_parts <- main_preds
           if (length(ints) > 0) {
             int_strs <- vapply(ints, function(pair) {
               paste(pair, collapse = ":")
@@ -1115,6 +1085,28 @@ modelingServer <- function(id, data_module,
         )
         if (!is.null(wt_vec)) fit_args$weights <- wt_vec
         if (relax_val) fit_args$relax <- TRUE
+
+        # --- Random seed for reproducible CV ---
+        user_seed <- suppressWarnings(as.integer(input$random_seed))
+        if (is.null(user_seed) || is.na(user_seed)) {
+          seed <- sample.int(.Machine$integer.max, 1L)
+        } else {
+          seed <- user_seed
+        }
+        set.seed(seed)
+        rv$seed_used <- seed
+
+        # Save to history (last 5, most recent first) and auto-fill
+        # new seed for next run using Sys.time + PID (not R's RNG)
+        hist <- rv_seed_history()
+        hist <- c(seed, setdiff(hist, seed))
+        if (length(hist) > 5L) hist <- hist[1:5]
+        rv_seed_history(hist)
+        next_seed <- as.integer(
+          (as.numeric(Sys.time()) * 1000 + Sys.getpid()) %%
+            .Machine$integer.max)
+        shiny::updateTextInput(session, "random_seed",
+                               value = as.character(next_seed))
 
         # --- Alpha: fixed or grid search ---
         if (input$alpha_method == "grid") {
@@ -1331,6 +1323,12 @@ modelingServer <- function(id, data_module,
           shiny::tags$br(),
           paste0("Non-zero coefficients: ", n_nonzero,
                  " of ", ncol(x_mat)),
+          if (!is.null(rv$seed_used)) {
+            shiny::tagList(
+              shiny::tags$br(),
+              paste0("Random seed: ", rv$seed_used)
+            )
+          },
           if (is_cv) {
             shiny::tagList(
               shiny::tags$br(),
@@ -1351,6 +1349,7 @@ modelingServer <- function(id, data_module,
       family = shiny::reactive(input$family),
       fitted = shiny::reactive(rv$fitted),
       fit_count = shiny::reactive(rv$fit_count),
+      seed_used = shiny::reactive(rv$seed_used),
       earth_import = earth_knots_r
     ))
   })

@@ -6,6 +6,7 @@ format:
     theme: flatly
     mainfont: "Roboto Condensed"
     html-math-method: katex
+    embed-resources: true
     include-in-header:
       text: |
         <style>
@@ -49,7 +50,10 @@ include_plot <- function(name, width = 8, height = 5) {
   if (.has_assets) {
     f <- file.path(.plots_dir, paste0(name, ".", .plot_ext))
     if (file.exists(f)) {
-      knitr::include_graphics(f)
+      # Use relative path — plots/ is next to the QMD in the render dir.
+      # Absolute paths break in LaTeX (luatex prepends ./).
+      rel <- file.path("plots", paste0(name, ".", .plot_ext))
+      cat(sprintf("![](%s)\n\n", rel))
     }
   }
 }
@@ -103,7 +107,7 @@ knitr::kable(.assets$coef_df, digits = 4)
 
 ## Variable Importance
 
-```{r importance-plot, fig.width=8, fig.height=5}
+```{r importance-plot, results='asis'}
 include_plot("importance")
 ```
 
@@ -113,20 +117,28 @@ knitr::kable(.assets$importance_df, digits = 4)
 
 ## Contributions
 
-```{r contributions, fig.width=8, fig.height=5, results='asis'}
+```{r contributions, results='asis'}
 contrib_names <- .assets$contrib_names
 for (vname in contrib_names) {
   safe_name <- gsub("[^a-zA-Z0-9_]", "_", vname)
   cat(sprintf("\n### %s\n\n", vname))
-  include_plot(paste0("contrib_", safe_name))
+  is_int <- grepl(":", vname, fixed = TRUE)
+  if (is_int) {
+    # Interaction: scatter + heatmap + 3D persp
+    include_plot(paste0("contrib_", safe_name, "_scatter"))
+    include_plot(paste0("contrib_", safe_name, "_heatmap"))
+    include_plot(paste0("contrib_", safe_name, "_3d"))
+  } else {
+    include_plot(paste0("contrib_", safe_name))
+  }
   cat("\n\n")
 }
 ```
 
 ## Correlation Matrix
 
-```{r correlation, fig.width=10, fig.height=8}
-include_plot("correlation", width = 10, height = 8)
+```{r correlation, results='asis'}
+include_plot("correlation")
 ```
 
 ## ANOVA Decomposition
@@ -139,31 +151,31 @@ knitr::kable(.assets$anova_df, digits = 2)
 
 ### Coefficient Path
 
-```{r coef-path, fig.width=8, fig.height=5}
+```{r coef-path, results='asis'}
 include_plot("coef_path")
 ```
 
 ### Cross-Validation Error
 
-```{r cv-error, fig.width=8, fig.height=5}
+```{r cv-error, results='asis'}
 include_plot("cv_error")
 ```
 
 ### Actual vs Predicted
 
-```{r actual-vs-predicted, fig.width=8, fig.height=5}
+```{r actual-vs-predicted, results='asis'}
 include_plot("actual_vs_predicted")
 ```
 
 ### Residuals vs Fitted
 
-```{r residuals-vs-fitted, fig.width=8, fig.height=5}
+```{r residuals-vs-fitted, results='asis'}
 include_plot("residuals_vs_fitted")
 ```
 
 ### Normal Q-Q Plot
 
-```{r qq-plot, fig.width=8, fig.height=5}
+```{r qq-plot, results='asis'}
 include_plot("qq")
 ```
 
@@ -171,7 +183,7 @@ include_plot("qq")
 
 ```{r model-output, comment=""}
 cat("== glmnet Model ==\n\n")
-cat(paste(.assets$model_print, collapse = "\n"))
+print(.assets$model)
 ```
 
 ---

@@ -19,7 +19,7 @@ reportServer(id, model_module, coef_module, data_module)
 \code{NULL} (side effects only: report downloads).
 }
 \description{
-Server logic for generating Word and PDF reports.
+Server logic for generating Word, PDF, and HTML reports.
 }
 \examples{
 if (interactive()) {

@@ -18,6 +18,8 @@ render_report(output_format = "html", output_file, assets_dir)
 The output file path (invisibly).
 }
 \description{
-Renders the Quarto template into HTML, PDF, or Word output using
-pre-generated assets.
+Renders a model report in the requested format using pre-generated
+assets from \code{\link[=prepare_report_assets]{prepare_report_assets()}}.  Tries Quarto first; if Quarto
+is unavailable or fails, falls back to rmarkdown with the bundled
+\code{report_template.Rmd}.
 }

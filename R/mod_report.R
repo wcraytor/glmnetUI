@@ -30,7 +30,7 @@ reportUI <- function(id) {
 
 #' Report Export Module Server
 #'
-#' Server logic for generating Word and PDF reports.
+#' Server logic for generating Word, PDF, and HTML reports.
 #'
 #' @param id Module namespace ID.
 #' @param model_module Reactive list returned by [modelingServer()].
@@ -209,9 +209,11 @@ reportServer <- function(id, model_module, coef_module, data_module) {
         paste0("glmnet_report_", format(Sys.Date(), "%Y%m%d"), ".docx")
       },
       content = function(file) {
+        message("[glmnetUI MOD] dl_word handler: file=", file)
         tryCatch(
-          build_word_report(file),
+          generate_report_(file, "docx"),
           error = function(e) {
+            message("[glmnetUI MOD] Word export ERROR: ", e$message)
             shiny::showNotification(paste("Word export error:", e$message),
                                     type = "error")
           }
@@ -219,45 +221,58 @@ reportServer <- function(id, model_module, coef_module, data_module) {
       }
     )
 
+    # Helper: generate report via prepare_report_assets + render_report
+    # render_report() now has built-in Quarto→rmarkdown fallback
+    generate_report_ <- function(file, fmt) {
+      message("[glmnetUI MOD] generate_report_() called: fmt=", fmt,
+              " file=", file)
+      model <- model_module$model()
+      lambda <- model_module$lambda()
+      gamma <- model_module$gamma()
+      x_mat <- model_module$x_matrix()
+      y_vec <- model_module$y_vector()
+      coef_df <- coef_module$coef_df()
+
+      alpha_val <- if (inherits(model, "cv.glmnet")) {
+        a <- model$glmnet.fit$call$alpha
+        if (is.null(a)) 1 else a
+      } else {
+        a <- model$call$alpha
+        if (is.null(a)) 1 else a
+      }
+
+      message("[glmnetUI MOD] Calling prepare_report_assets()...")
+      assets_dir <- prepare_report_assets(
+        model = model, lambda = lambda, gamma = gamma,
+        x_mat = x_mat, y_vec = y_vec, coef_df = coef_df,
+        predictors = data_module$predictors() %||% character(0),
+        response = data_module$response() %||% "y",
+        data = data_module$data(),
+        data_file_name = data_module$file_name() %||% ""
+      )
+      message("[glmnetUI MOD] assets_dir=", assets_dir)
+
+      message("[glmnetUI MOD] Calling render_report()...")
+      render_report(output_format = fmt, output_file = file,
+                    assets_dir = assets_dir)
+      message("[glmnetUI MOD] render_report() done. file exists: ",
+              file.exists(file))
+    }
+
     output$dl_pdf <- shiny::downloadHandler(
       filename = function() {
         paste0("glmnet_report_", format(Sys.Date(), "%Y%m%d"), ".pdf")
       },
       content = function(file) {
-        tryCatch({
-          tmpdir <- tempdir()
-          make_plots(tmpdir)
-          coef_df <- coef_module$coef_df()
-
-          rmd_template <- system.file("app", "report_template.Rmd",
-                                      package = "glmnetUI")
-          rmd_copy <- file.path(tmpdir, "report.Rmd")
-          file.copy(rmd_template, rmd_copy, overwrite = TRUE)
-
-          model <- model_module$model()
-          lambda <- model_module$lambda()
-
-          rmarkdown::render(
-            rmd_copy,
-            output_file = file,
-            params = list(
-              appraiser_name = input$appraiser_name,
-              property_address = input$property_address,
-              report_date = as.character(input$report_date),
-              file_number = input$file_number,
-              lambda = lambda,
-              lambda_min = if (inherits(model, "cv.glmnet")) model$lambda.min else NA,
-              lambda_1se = if (inherits(model, "cv.glmnet")) model$lambda.1se else NA,
-              coef_df = coef_df,
-              plot_dir = tmpdir
-            ),
-            envir = new.env(parent = globalenv()),
-            quiet = TRUE
-          )
-        }, error = function(e) {
-          shiny::showNotification(paste("PDF export error:", e$message),
-                                  type = "error")
-        })
+        message("[glmnetUI MOD] dl_pdf handler: file=", file)
+        tryCatch(
+          generate_report_(file, "pdf"),
+          error = function(e) {
+            message("[glmnetUI MOD] PDF export ERROR: ", e$message)
+            shiny::showNotification(paste("PDF export error:", e$message),
+                                    type = "error")
+          }
+        )
       }
     )
 

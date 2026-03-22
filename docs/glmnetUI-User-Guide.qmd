@@ -60,7 +60,8 @@ format:
 \begin{center}
 {\fontsize{48}{56}\selectfont\textbf{glmnetUI}}\\[12pt]
 {\Large User Guide}\\[24pt]
-{\small General Use · Appraisal Features · Market Area Analysis · Complete Reference}
+{\small General Use · Appraisal Features · Market Area Analysis · Complete Reference}\\[24pt]
+{\small by William B. Craytor, 3/21/2026}
 \end{center}
 
 \vspace{2cm}
@@ -979,7 +980,7 @@ Each plot has a **Download PNG** button for saving at 150 DPI.
 
 ## Report
 
-Configure report fields (appraiser name, property address, report date, file number) and export to Word (.docx) or PDF. See Chapter 12.
+Configure report fields (appraiser name, property address, report date, file number) and export to Word (.docx), PDF, or HTML. See Chapter 13.
 
 \newpage
 
@@ -1153,7 +1154,10 @@ Reports include all tab content:
 - Model equation (LaTeX-rendered)
 - Coefficient table
 - Variable importance (bar chart and table)
-- Per-variable contribution plots
+- Per-variable contribution plots matching the Contributions tab:
+  - **Numeric predictors**: scatter plot with linear fit line
+  - **Factor variables**: box plot by level
+  - **Interactions**: scatter colored by contribution, heatmap of mean contribution, and static 3D surface snapshot (persp)
 - Correlation matrix heatmap
 - ANOVA decomposition table
 - Diagnostic plots:
@@ -1162,7 +1166,9 @@ Reports include all tab content:
   - Actual vs Predicted
   - Residuals vs Fitted
   - Normal Q-Q Plot
-- Raw model output
+- Model output
+
+All axis labels and color legends use comma-formatted numbers (no scientific notation).
 
 A white checkmark appears on the Download Report button after successful generation.
 

@@ -1,10 +1,13 @@
 ---
 title: "glmnetUI Model Report"
 output:
+  html_document:
+    toc: true
+    self_contained: true
   pdf_document:
-    latex_engine: xelatex
-mainfont: "Roboto Condensed"
-sansfont: "Roboto Condensed"
+    toc: true
+  word_document:
+    toc: true
 params:
   appraiser_name: ""
   property_address: ""
@@ -18,55 +21,153 @@ params:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
-```
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 8, fig.height = 5)
 
-## Report Information
+# Try to load pre-computed assets from plot_dir
+.assets <- NULL
+.plots_dir <- params$plot_dir
+data_file <- file.path(.plots_dir, "report_data.rds")
+if (file.exists(data_file)) {
+  .assets <- readRDS(data_file)
+  .plots_dir <- file.path(dirname(data_file), "plots")
+}
 
-| Field | Value |
-|-------|-------|
-| Appraiser | `r params$appraiser_name` |
-| Property | `r params$property_address` |
-| Date | `r params$report_date` |
-| File Number | `r params$file_number` |
-
-## Model Summary
-
-- **Lambda selected:** `r signif(params$lambda, 4)`
-```{r lambda-details, results='asis'}
-if (!is.na(params$lambda_min)) {
-  cat(sprintf("- **lambda.min:** %s\n", signif(params$lambda_min, 4)))
-  cat(sprintf("- **lambda.1se:** %s\n", signif(params$lambda_1se, 4)))
+include_plot <- function(name, width = 8, height = 5) {
+  for (ext in c("png", "pdf")) {
+    f <- file.path(.plots_dir, paste0(name, ".", ext))
+    if (file.exists(f)) {
+      cat(sprintf("![](%s)\n\n", f))
+      return(invisible(NULL))
+    }
+  }
 }
 ```
 
-## Coefficient Table
+```{r dataset-desc, results='asis', eval=!is.null(.assets)}
+cat("## Dataset Description\n\n")
+cat("| Property | Value |\n|----------|-------|\n")
+cat(sprintf("| Data file | %s |\n", .assets$data_file_name))
+cat(sprintf("| Observations | %d |\n", .assets$n_obs))
+cat(sprintf("| Response variable | %s |\n", .assets$response))
+cat(sprintf("| Predictors | %s |\n", paste(.assets$predictors, collapse = ", ")))
+cat(sprintf("| Purpose | %s |\n", .assets$purpose))
+```
+
+```{r model-spec, results='asis', eval=!is.null(.assets)}
+cat("\n## Model Specification\n\n")
+cat("| Parameter | Value |\n|-----------|-------|\n")
+cat(sprintf("| Alpha | %s |\n", .assets$alpha))
+cat(sprintf("| Lambda | %s |\n", signif(.assets$lambda, 5)))
+cat(sprintf("| Lambda selection | %s |\n", .assets$lambda_method))
+cat(sprintf("| Family | %s |\n", .assets$family))
+cat(sprintf("| Standardize | %s |\n", .assets$standardize))
+cat(sprintf("| Relaxed | %s |\n", .assets$relaxed))
+cat(sprintf("| Non-zero coefficients | %d |\n", .assets$n_nonzero))
+cat(sprintf("| Total predictors | %d |\n", .assets$n_predictors))
+```
+
+```{r results-summary, results='asis', eval=!is.null(.assets)}
+cat("\n## Results Summary\n\n")
+cat("| Metric | Value |\n|--------|-------|\n")
+cat(sprintf("| R² | %.4f |\n", .assets$r_squared))
+cat(sprintf("| Adjusted R² | %.4f |\n", .assets$adj_r_squared))
+cat(sprintf("| Generalized R² | %.4f |\n", .assets$gen_r_squared))
+cvr2 <- if (!is.na(.assets$cv_r_squared)) sprintf("%.4f", .assets$cv_r_squared) else "N/A"
+cat(sprintf("| CV R² | %s |\n", cvr2))
+cat(sprintf("| RMSE | %.2f |\n", .assets$rmse))
+cat(sprintf("| MAE | %.2f |\n", .assets$mae))
+```
+
+```{r equation, results='asis', eval=!is.null(.assets)}
+cat("\n## Model Equation\n\n")
+cat("$$\n", .assets$equation_latex, "\n$$\n")
+```
+
+## Coefficients
 
 ```{r coef-table}
-if (!is.null(params$coef_df)) {
-  knitr::kable(params$coef_df, row.names = FALSE,
-               col.names = c("Variable", "Coefficient", "Sign Warning"))
+coef_df <- if (!is.null(.assets)) .assets$coef_df else params$coef_df
+if (!is.null(coef_df)) {
+  knitr::kable(coef_df, digits = 4)
 }
 ```
 
-## Diagnostic Plots
-
-```{r coef-path, fig.cap="Coefficient Path"}
-f <- file.path(params$plot_dir, "coef_path.png")
-if (file.exists(f)) knitr::include_graphics(f)
+```{r importance, results='asis', eval=!is.null(.assets) && nrow(.assets$importance_df) > 0}
+cat("\n## Variable Importance\n\n")
 ```
 
-```{r cv-error, fig.cap="Cross-Validation Error"}
-f <- file.path(params$plot_dir, "cv_error.png")
-if (file.exists(f)) knitr::include_graphics(f)
+```{r importance-plot, results='asis', eval=!is.null(.assets)}
+include_plot("importance")
 ```
 
-```{r avp, fig.cap="Actual vs Predicted"}
-f <- file.path(params$plot_dir, "actual_vs_predicted.png")
-if (file.exists(f)) knitr::include_graphics(f)
+```{r importance-table, eval=!is.null(.assets) && nrow(.assets$importance_df) > 0}
+knitr::kable(.assets$importance_df, digits = 4)
 ```
 
-```{r resid, fig.cap="Residuals vs Fitted"}
-f <- file.path(params$plot_dir, "residuals_vs_fitted.png")
-if (file.exists(f)) knitr::include_graphics(f)
+```{r contributions, results='asis', eval=!is.null(.assets)}
+cat("\n## Contributions\n\n")
+contrib_names <- .assets$contrib_names
+for (vname in contrib_names) {
+  safe_name <- gsub("[^a-zA-Z0-9_]", "_", vname)
+  cat(sprintf("\n### %s\n\n", vname))
+  is_int <- grepl(":", vname, fixed = TRUE)
+  if (is_int) {
+    include_plot(paste0("contrib_", safe_name, "_scatter"))
+    include_plot(paste0("contrib_", safe_name, "_heatmap"))
+    include_plot(paste0("contrib_", safe_name, "_3d"))
+  } else {
+    include_plot(paste0("contrib_", safe_name))
+  }
+  cat("\n\n")
+}
 ```
+
+```{r correlation-heading, results='asis', eval=!is.null(.assets)}
+cat("\n## Correlation Matrix\n\n")
+```
+
+```{r correlation-plot, results='asis', eval=!is.null(.assets)}
+include_plot("correlation")
+```
+
+```{r anova, results='asis', eval=!is.null(.assets) && nrow(.assets$anova_df) > 0}
+cat("\n## ANOVA Decomposition\n\n")
+knitr::kable(.assets$anova_df, digits = 2)
+```
+
+## Diagnostics
+
+```{r coef-path-plot, results='asis'}
+cat("\n### Coefficient Path\n\n")
+include_plot("coef_path")
+```
+
+```{r cv-error-plot, results='asis'}
+cat("\n### Cross-Validation Error\n\n")
+include_plot("cv_error")
+```
+
+```{r avp-plot, results='asis'}
+cat("\n### Actual vs Predicted\n\n")
+include_plot("actual_vs_predicted")
+```
+
+```{r resid-plot, results='asis'}
+cat("\n### Residuals vs Fitted\n\n")
+include_plot("residuals_vs_fitted")
+```
+
+```{r qq-plot, results='asis'}
+cat("\n### Normal Q-Q Plot\n\n")
+include_plot("qq")
+```
+
+```{r model-output, comment="", eval=!is.null(.assets)}
+cat("== glmnet Model ==\n\n")
+print(.assets$model)
+```
+
+---
+
+*Report generated by [glmnetUI](https://github.com/wcraytor/glmnetUI) on `r Sys.time()`*

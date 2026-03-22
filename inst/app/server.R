@@ -87,6 +87,38 @@ function(input, output, session) {
   output$model_fitted <- shiny::reactive(isTRUE(model_out$fitted()))
   shiny::outputOptions(output, "model_fitted", suspendWhenHidden = FALSE)
 
+  # --- Glmnet Output tab ---
+  output$glmnet_output <- shiny::renderPrint({
+    shiny::req(model_out$fitted())
+    model <- model_out$model()
+    lambda <- model_out$lambda()
+    gamma <- model_out$gamma()
+    seed <- model_out$seed_used()
+
+    if (!is.null(seed)) {
+      cat(sprintf("== Random Seed: %d ==\n\n", seed))
+    }
+
+    cat("== Model ==\n\n")
+    print(model)
+
+    cat("\n\n== Selected Lambda ==\n\n")
+    cat(sprintf("Lambda: %s\n", signif(lambda, 6)))
+    if (inherits(model, "cv.glmnet") || inherits(model, "cv.relaxed")) {
+      cat(sprintf("lambda.min: %s\n", signif(model$lambda.min, 6)))
+      cat(sprintf("lambda.1se: %s\n", signif(model$lambda.1se, 6)))
+    }
+    if (!is.null(gamma)) {
+      cat(sprintf("Gamma (relaxed): %s\n", signif(gamma, 4)))
+    }
+
+    cat("\n\n== Coefficients ==\n\n")
+    coef_args <- list(model, s = lambda)
+    if (!is.null(gamma)) coef_args$gamma <- gamma
+    coef_sparse <- do.call(stats::coef, coef_args)
+    print(coef_sparse)
+  })
+
   # --- RCA percentage data (stored after RCA export) ---
   rv_rca <- shiny::reactiveValues(pct_data = NULL, rca_df = NULL)
 
@@ -133,30 +165,25 @@ function(input, output, session) {
 
     # --- Prepare predictor data frame with aligned factor levels ---
     x_df <- export_df[, preds_col, drop = FALSE]
+    fac_vars <- data_out$fac_vars()
     for (p in preds_col) {
-      if (!is.null(col_types[p])) {
-        if (col_types[p] %in% c("factor", "character")) {
-          prefix <- paste0(p)
-          # Extract factor levels from training column names
-          # Only match columns that start with this predictor and aren't
-          # a longer predictor name (e.g., distinguish "area" from "area_id")
-          matched <- grep(paste0("^", prefix), train_colnames, value = TRUE)
-          # Filter out matches that belong to a longer predictor name
-          other_preds <- setdiff(preds_col, p)
-          for (op in other_preds) {
-            matched <- matched[!grepl(paste0("^", op), matched)]
-          }
-          train_lvls <- sub(paste0("^", prefix), "", matched)
-          # Include all levels (training + unseen) so unseen levels
-          # get zero coefficients rather than NA
-          all_lvls <- unique(c(train_lvls, as.character(x_df[[p]])))
-          all_lvls <- all_lvls[!is.na(all_lvls) & nzchar(all_lvls)]
-          x_df[[p]] <- factor(x_df[[p]], levels = all_lvls)
-        } else if (col_types[p] == "numeric") {
-          x_df[[p]] <- as.numeric(x_df[[p]])
-        } else if (col_types[p] == "integer") {
-          x_df[[p]] <- as.integer(x_df[[p]])
+      is_factor <- (p %in% fac_vars) ||
+                   (!is.null(col_types[p]) && col_types[p] %in% c("factor", "character"))
+      if (is_factor) {
+        prefix <- paste0(p)
+        matched <- grep(paste0("^", prefix), train_colnames, value = TRUE)
+        other_preds <- setdiff(preds_col, p)
+        for (op in other_preds) {
+          matched <- matched[!grepl(paste0("^", op), matched)]
         }
+        train_lvls <- sub(paste0("^", prefix), "", matched)
+        all_lvls <- unique(c(train_lvls, as.character(x_df[[p]])))
+        all_lvls <- all_lvls[!is.na(all_lvls) & nzchar(all_lvls)]
+        x_df[[p]] <- factor(x_df[[p]], levels = all_lvls)
+      } else if (!is.null(col_types[p]) && col_types[p] == "numeric") {
+        x_df[[p]] <- as.numeric(x_df[[p]])
+      } else if (!is.null(col_types[p]) && col_types[p] == "integer") {
+        x_df[[p]] <- as.integer(x_df[[p]])
       }
     }
 
@@ -1050,6 +1077,7 @@ function(input, output, session) {
 
   # --- 9. Download Report (to output folder) ---
   observeEvent(input$export_report_btn, {
+    message("[glmnetUI S9] ====== export_report_btn clicked ======")
     shiny::req(model_out$fitted())
 
     folder <- input$output_folder
@@ -1061,6 +1089,7 @@ function(input, output, session) {
     base <- tools::file_path_sans_ext(data_out$file_name() %||% "glmnetui")
     out_path <- file.path(folder, paste0(base, "_report_",
                           format(Sys.time(), "%Y%m%d_%H%M%S"), ext))
+    message("[glmnetUI S9] format=", fmt, " output=", out_path)
 
     tryCatch({
       model <- model_out$model()
@@ -1069,6 +1098,10 @@ function(input, output, session) {
       x_mat <- model_out$x_matrix()
       y_vec <- model_out$y_vector()
       coef_df <- coef_out$coef_df()
+      message("[glmnetUI S9] model class: ", paste(class(model), collapse = ", "))
+      message("[glmnetUI S9] lambda=", lambda, " gamma=", gamma)
+      message("[glmnetUI S9] x_mat: ", nrow(x_mat), "x", ncol(x_mat),
+              " y_vec: ", length(y_vec), " coef_df: ", nrow(coef_df), " rows")
 
       # Determine alpha
       alpha_val <- if (inherits(model, "cv.glmnet")) {
@@ -1080,74 +1113,86 @@ function(input, output, session) {
       }
 
       # Prepare assets (all plots and data)
-      shiny::withProgress(message = "Generating report...", value = 0.3, {
-        assets_dir <- prepare_report_assets(
-          model         = model,
-          lambda        = lambda,
-          gamma         = gamma,
-          x_mat         = x_mat,
-          y_vec         = y_vec,
-          coef_df       = coef_df,
-          predictors    = data_out$predictors(),
-          response      = data_out$response(),
-          data          = data_out$data(),
-          col_types     = data_out$col_types(),
-          purpose       = input$purpose %||% "general",
-          alpha         = alpha_val,
-          family        = model_out$family() %||% "gaussian",
-          standardize   = TRUE,
-          relaxed       = !is.null(gamma),
-          lambda_method = if (inherits(model, "cv.glmnet")) "cv" else "manual",
-          data_file_name = data_out$file_name() %||% ""
-        )
-        shiny::incProgress(0.4, detail = "Rendering...")
+      session$sendCustomMessage("report_timer", list(action = "start"))
+      message("[glmnetUI S9] Calling prepare_report_assets()...")
+      assets_dir <- prepare_report_assets(
+        model         = model,
+        lambda        = lambda,
+        gamma         = gamma,
+        x_mat         = x_mat,
+        y_vec         = y_vec,
+        coef_df       = coef_df,
+        predictors    = data_out$predictors() %||% character(0),
+        response      = data_out$response() %||% "y",
+        data          = data_out$data(),
+        col_types     = data_out$col_types(),
+        purpose       = as.character(input$purpose %||% "general"),
+        alpha         = as.numeric(alpha_val %||% 1),
+        family        = as.character(model_out$family() %||% "gaussian"),
+        standardize   = TRUE,
+        relaxed       = !is.null(gamma),
+        lambda_method = if (inherits(model, "cv.glmnet")) "cv" else "manual",
+        data_file_name = as.character(data_out$file_name() %||% "")
+      )
+      message("[glmnetUI S9] assets_dir=", assets_dir)
+      message("[glmnetUI S9] Assets dir exists: ", dir.exists(assets_dir))
+      message("[glmnetUI S9] report_data.rds exists: ",
+              file.exists(file.path(assets_dir, "report_data.rds")))
+      plots_dir <- file.path(assets_dir, "plots")
+      if (dir.exists(plots_dir)) {
+        message("[glmnetUI S9] Plot files: ",
+                paste(list.files(plots_dir), collapse = ", "))
+      }
 
-        if (requireNamespace("quarto", quietly = TRUE)) {
-          render_report(
-            output_format = fmt,
-            output_file   = out_path,
-            assets_dir    = assets_dir
-          )
-        } else {
-          # Fallback: use old rmarkdown approach if quarto not available
-          rmd_template <- system.file("app", "report_template.Rmd",
-                                       package = "glmnetUI")
-          if (nzchar(rmd_template)) {
-            tmpdir <- tempdir()
-            rmd_copy <- file.path(tmpdir, "report.Rmd")
-            file.copy(rmd_template, rmd_copy, overwrite = TRUE)
-            output_format <- if (fmt == "html") {
-              rmarkdown::html_document(self_contained = TRUE)
-            } else if (fmt == "docx") {
-              rmarkdown::word_document()
-            } else {
-              rmarkdown::pdf_document()
-            }
-            tmp_out <- file.path(tmpdir, paste0("report", ext))
-            rmarkdown::render(
-              rmd_copy, output_format = output_format,
-              output_file = tmp_out,
-              params = list(
-                appraiser_name = "", property_address = "",
-                report_date = as.character(Sys.Date()),
-                file_number = "", lambda = lambda,
-                lambda_min = if (inherits(model, "cv.glmnet")) model$lambda.min else NA,
-                lambda_1se = if (inherits(model, "cv.glmnet")) model$lambda.1se else NA,
-                coef_df = coef_df, plot_dir = tmpdir
-              ),
-              envir = new.env(parent = globalenv()), quiet = TRUE
+      # Render report via callr::r() (clean R process) — render_report()
+      # now has Quarto→rmarkdown fallback built in
+      message("[glmnetUI S9] Starting render_report() via callr::r()...")
+      if (requireNamespace("callr", quietly = TRUE)) {
+        result <- callr::r(
+          function(assets_dir, output_format, output_file) {
+            glmnetUI::render_report(
+              output_format = output_format,
+              output_file   = output_file,
+              assets_dir    = assets_dir
             )
-            file.copy(tmp_out, out_path, overwrite = TRUE)
-          } else {
-            stop("Neither quarto nor report_template.Rmd available.")
-          }
-        }
-      })
+          },
+          args = list(assets_dir = assets_dir, output_format = fmt,
+                       output_file = out_path),
+          wd = tempdir(),
+          show = TRUE
+        )
+        message("[glmnetUI S9] callr::r() returned: ", result)
+      } else {
+        message("[glmnetUI S9] callr not available, rendering in-process")
+        render_report(
+          output_format = fmt,
+          output_file   = out_path,
+          assets_dir    = assets_dir
+        )
+      }
 
+      message("[glmnetUI S9] Output file exists: ", file.exists(out_path))
+      if (file.exists(out_path)) {
+        message("[glmnetUI S9] Output file size: ", file.size(out_path), " bytes")
+      }
+
+      session$sendCustomMessage("report_timer", list(action = "stop"))
       shiny::showNotification(paste0("Report saved to: ", out_path),
                               type = "message", duration = 8)
       session$sendCustomMessage("btn_done", list(id = "export_report_btn"))
     }, error = function(e) {
+      message("[glmnetUI S9] ====== ERROR: ", e$message, " ======")
+      message("[glmnetUI S9] Error class: ", paste(class(e), collapse = ", "))
+      if (!is.null(e$parent)) {
+        message("[glmnetUI S9] Parent error: ", e$parent$message)
+      }
+      # Print full traceback for callr errors
+      if (inherits(e, "callr_status_error") ||
+          inherits(e, "rlib_error_3_0")) {
+        message("[glmnetUI S9] callr stderr:\n",
+                paste(e$stderr, collapse = "\n"))
+      }
+      session$sendCustomMessage("report_timer", list(action = "stop"))
       shiny::showNotification(paste("Report error:", e$message),
                               type = "error", duration = 10)
     })

@@ -1,0 +1,3317 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.25">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>glmnetUI Model Report</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="glmnet_report_files/libs/clipboard/clipboard.min.js"></script>
+<script src="glmnet_report_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="glmnet_report_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="glmnet_report_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="glmnet_report_files/libs/quarto-html/popper.min.js"></script>
+<script src="glmnet_report_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="glmnet_report_files/libs/quarto-html/anchor.min.js"></script>
+<link href="glmnet_report_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="glmnet_report_files/libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="glmnet_report_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="glmnet_report_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="glmnet_report_files/libs/bootstrap/bootstrap-c43b963cde5223c0eb3c773033cfb9df.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap');
+body { font-family: 'Roboto Condensed', sans-serif; }
+</style>
+
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#dataset-description" id="toc-dataset-description" class="nav-link active" data-scroll-target="#dataset-description">Dataset Description</a></li>
+  <li><a href="#model-specification" id="toc-model-specification" class="nav-link" data-scroll-target="#model-specification">Model Specification</a></li>
+  <li><a href="#results-summary" id="toc-results-summary" class="nav-link" data-scroll-target="#results-summary">Results Summary</a></li>
+  <li><a href="#model-equation" id="toc-model-equation" class="nav-link" data-scroll-target="#model-equation">Model Equation</a></li>
+  <li><a href="#coefficients" id="toc-coefficients" class="nav-link" data-scroll-target="#coefficients">Coefficients</a></li>
+  <li><a href="#variable-importance" id="toc-variable-importance" class="nav-link" data-scroll-target="#variable-importance">Variable Importance</a></li>
+  <li><a href="#contributions" id="toc-contributions" class="nav-link" data-scroll-target="#contributions">Contributions</a>
+  <ul class="collapse">
+  <li><a href="#sale_age" id="toc-sale_age" class="nav-link" data-scroll-target="#sale_age">sale_age</a></li>
+  <li><a href="#living_sqft" id="toc-living_sqft" class="nav-link" data-scroll-target="#living_sqft">living_sqft</a></li>
+  <li><a href="#beds_total" id="toc-beds_total" class="nav-link" data-scroll-target="#beds_total">beds_total</a></li>
+  <li><a href="#baths_total" id="toc-baths_total" class="nav-link" data-scroll-target="#baths_total">baths_total</a></li>
+  <li><a href="#lot_size" id="toc-lot_size" class="nav-link" data-scroll-target="#lot_size">lot_size</a></li>
+  <li><a href="#area_id" id="toc-area_id" class="nav-link" data-scroll-target="#area_id">area_id</a></li>
+  <li><a href="#age" id="toc-age" class="nav-link" data-scroll-target="#age">age</a></li>
+  <li><a href="#latitude" id="toc-latitude" class="nav-link" data-scroll-target="#latitude">latitude</a></li>
+  <li><a href="#longitude" id="toc-longitude" class="nav-link" data-scroll-target="#longitude">longitude</a></li>
+  <li><a href="#garage_spaces" id="toc-garage_spaces" class="nav-link" data-scroll-target="#garage_spaces">garage_spaces</a></li>
+  <li><a href="#living_sqftsale_age" id="toc-living_sqftsale_age" class="nav-link" data-scroll-target="#living_sqftsale_age">living_sqft:sale_age</a></li>
+  <li><a href="#beds_totalliving_sqft" id="toc-beds_totalliving_sqft" class="nav-link" data-scroll-target="#beds_totalliving_sqft">beds_total:living_sqft</a></li>
+  <li><a href="#baths_totalliving_sqft" id="toc-baths_totalliving_sqft" class="nav-link" data-scroll-target="#baths_totalliving_sqft">baths_total:living_sqft</a></li>
+  <li><a href="#living_sqftlot_size" id="toc-living_sqftlot_size" class="nav-link" data-scroll-target="#living_sqftlot_size">living_sqft:lot_size</a></li>
+  </ul></li>
+  <li><a href="#correlation-matrix" id="toc-correlation-matrix" class="nav-link" data-scroll-target="#correlation-matrix">Correlation Matrix</a></li>
+  <li><a href="#anova-decomposition" id="toc-anova-decomposition" class="nav-link" data-scroll-target="#anova-decomposition">ANOVA Decomposition</a></li>
+  <li><a href="#diagnostics" id="toc-diagnostics" class="nav-link" data-scroll-target="#diagnostics">Diagnostics</a>
+  <ul class="collapse">
+  <li><a href="#coefficient-path" id="toc-coefficient-path" class="nav-link" data-scroll-target="#coefficient-path">Coefficient Path</a></li>
+  <li><a href="#cross-validation-error" id="toc-cross-validation-error" class="nav-link" data-scroll-target="#cross-validation-error">Cross-Validation Error</a></li>
+  <li><a href="#actual-vs-predicted" id="toc-actual-vs-predicted" class="nav-link" data-scroll-target="#actual-vs-predicted">Actual vs Predicted</a></li>
+  <li><a href="#residuals-vs-fitted" id="toc-residuals-vs-fitted" class="nav-link" data-scroll-target="#residuals-vs-fitted">Residuals vs Fitted</a></li>
+  <li><a href="#normal-q-q-plot" id="toc-normal-q-q-plot" class="nav-link" data-scroll-target="#normal-q-q-plot">Normal Q-Q Plot</a></li>
+  </ul></li>
+  <li><a href="#model-output" id="toc-model-output" class="nav-link" data-scroll-target="#model-output">Model Output</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="../../../../../../../private/var/folders/s5/0hkkd8z54f5b5mlv34b31t_40000gv/T/RtmpNA140R/glmnet_report.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li><li><a href="glmnet_report.docx"><i class="bi bi-file-word"></i>MS Word</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">glmnetUI Model Report</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="dataset-description" class="level2">
+<h2 class="anchored" data-anchor-id="dataset-description">Dataset Description</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 58%">
+<col style="width: 41%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Data file</td>
+<td>Appraisal_1.csv</td>
+</tr>
+<tr class="even">
+<td>Observations</td>
+<td>1488</td>
+</tr>
+<tr class="odd">
+<td>Response variable</td>
+<td>sale_price</td>
+</tr>
+<tr class="even">
+<td>Predictors</td>
+<td>sale_age, living_sqft, beds_total, baths_total, lot_size, area_id, age, latitude, longitude, garage_spaces</td>
+</tr>
+<tr class="odd">
+<td>Purpose</td>
+<td>appraisal</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="model-specification" class="level2">
+<h2 class="anchored" data-anchor-id="model-specification">Model Specification</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Parameter</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Alpha</td>
+<td>0.2</td>
+</tr>
+<tr class="even">
+<td>Lambda</td>
+<td>8838.9</td>
+</tr>
+<tr class="odd">
+<td>Lambda selection</td>
+<td>cv</td>
+</tr>
+<tr class="even">
+<td>Family</td>
+<td>gaussian</td>
+</tr>
+<tr class="odd">
+<td>Standardize</td>
+<td>TRUE</td>
+</tr>
+<tr class="even">
+<td>Relaxed</td>
+<td>TRUE</td>
+</tr>
+<tr class="odd">
+<td>Non-zero coefficients</td>
+<td>0</td>
+</tr>
+<tr class="even">
+<td>Total predictors in model</td>
+<td>-1</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="results-summary" class="level2">
+<h2 class="anchored" data-anchor-id="results-summary">Results Summary</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>R²</td>
+<td>0.8221</td>
+</tr>
+<tr class="even">
+<td>Adjusted R²</td>
+<td>0.8222</td>
+</tr>
+<tr class="odd">
+<td>Generalized R²</td>
+<td>0.8128</td>
+</tr>
+<tr class="even">
+<td>CV R²</td>
+<td>0.7814</td>
+</tr>
+<tr class="odd">
+<td>RMSE</td>
+<td>483732.58</td>
+</tr>
+<tr class="even">
+<td>MAE</td>
+<td>343181.74</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="model-equation" class="level2">
+<h2 class="anchored" data-anchor-id="model-equation">Model Equation</h2>
+<p><span class="math display">
+\begin{array}{rl}
+\text{sale\_price} \;=\; &amp; -440,303,665.05 \\
+&amp; + \; 152.9219 \cdot \text{sale\_age} \\
+&amp; + \; 1,274.33 \cdot \text{living\_sqft} \\
+&amp; + \; 573,469.06 \cdot \text{beds\_total} \\
+&amp; - \; 545,184.58 \cdot \text{baths\_total} \\
+&amp; + \; 69.7208 \cdot \text{lot\_size} \\
+&amp; + \; 49,106.04 \cdot \text{area\_id451} \\
+&amp; - \; 334,261.75 \cdot \text{area\_id453} \\
+&amp; + \; 297,395.74 \cdot \text{area\_id460} \\
+&amp; - \; 314,100.20 \cdot \text{area\_id461} \\
+&amp; + \; 200,928.99 \cdot \text{area\_id462} \\
+&amp; + \; 465,297.42 \cdot \text{area\_id463} \\
+&amp; - \; 41,266.82 \cdot \text{area\_id464} \\
+&amp; + \; 171,693.55 \cdot \text{area\_id466} \\
+&amp; + \; 54,597.57 \cdot \text{area\_id469} \\
+&amp; + \; 172,569.75 \cdot \text{area\_id470} \\
+&amp; - \; 692,975.65 \cdot \text{area\_id471} \\
+&amp; - \; 163,995.18 \cdot \text{area\_id472} \\
+&amp; - \; 1,423.52 \cdot \text{age} \\
+&amp; - \; 9,975,476.93 \cdot \text{latitude} \\
+&amp; - \; 6,721,944.16 \cdot \text{longitude} \\
+&amp; - \; 53,249.47 \cdot \text{garage\_spaces} \\
+&amp; - \; 0.163865 \cdot \text{sale\_age} \times \text{living\_sqft} \\
+&amp; - \; 225.1969 \cdot \text{living\_sqft} \times \text{beds\_total} \\
+&amp; + \; 278.9807 \cdot \text{living\_sqft} \times \text{baths\_total} \\
+&amp; - \; 0.017410 \cdot \text{living\_sqft} \times \text{lot\_size}
+\end{array}
+</span></p>
+</section>
+<section id="coefficients" class="level2">
+<h2 class="anchored" data-anchor-id="coefficients">Coefficients</h2>
+<div class="cell">
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;"></th>
+<th style="text-align: left;">variable</th>
+<th style="text-align: right;">coefficient</th>
+<th style="text-align: left;">sign_warning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">1</td>
+<td style="text-align: left;">(Intercept)</td>
+<td style="text-align: right;">-4.403037e+08</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">2</td>
+<td style="text-align: left;">sale_age</td>
+<td style="text-align: right;">1.529219e+02</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">3</td>
+<td style="text-align: left;">living_sqft</td>
+<td style="text-align: right;">1.274332e+03</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">4</td>
+<td style="text-align: left;">beds_total</td>
+<td style="text-align: right;">5.734691e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">5</td>
+<td style="text-align: left;">baths_total</td>
+<td style="text-align: right;">-5.451846e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">6</td>
+<td style="text-align: left;">lot_size</td>
+<td style="text-align: right;">6.972080e+01</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">7</td>
+<td style="text-align: left;">area_id451</td>
+<td style="text-align: right;">4.910604e+04</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">9</td>
+<td style="text-align: left;">area_id453</td>
+<td style="text-align: right;">-3.342617e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">10</td>
+<td style="text-align: left;">area_id460</td>
+<td style="text-align: right;">2.973957e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">11</td>
+<td style="text-align: left;">area_id461</td>
+<td style="text-align: right;">-3.141002e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">12</td>
+<td style="text-align: left;">area_id462</td>
+<td style="text-align: right;">2.009290e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">13</td>
+<td style="text-align: left;">area_id463</td>
+<td style="text-align: right;">4.652974e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">14</td>
+<td style="text-align: left;">area_id464</td>
+<td style="text-align: right;">-4.126682e+04</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">16</td>
+<td style="text-align: left;">area_id466</td>
+<td style="text-align: right;">1.716935e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">18</td>
+<td style="text-align: left;">area_id469</td>
+<td style="text-align: right;">5.459757e+04</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">19</td>
+<td style="text-align: left;">area_id470</td>
+<td style="text-align: right;">1.725697e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">20</td>
+<td style="text-align: left;">area_id471</td>
+<td style="text-align: right;">-6.929756e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">21</td>
+<td style="text-align: left;">area_id472</td>
+<td style="text-align: right;">-1.639952e+05</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">23</td>
+<td style="text-align: left;">age</td>
+<td style="text-align: right;">-1.423517e+03</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">24</td>
+<td style="text-align: left;">latitude</td>
+<td style="text-align: right;">-9.975477e+06</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">25</td>
+<td style="text-align: left;">longitude</td>
+<td style="text-align: right;">-6.721944e+06</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">26</td>
+<td style="text-align: left;">garage_spaces</td>
+<td style="text-align: right;">-5.324947e+04</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">27</td>
+<td style="text-align: left;">sale_age:living_sqft</td>
+<td style="text-align: right;">-1.639000e-01</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">28</td>
+<td style="text-align: left;">living_sqft:beds_total</td>
+<td style="text-align: right;">-2.251969e+02</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">29</td>
+<td style="text-align: left;">living_sqft:baths_total</td>
+<td style="text-align: right;">2.789807e+02</td>
+<td style="text-align: left;">OK</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">30</td>
+<td style="text-align: left;">living_sqft:lot_size</td>
+<td style="text-align: right;">-1.740000e-02</td>
+<td style="text-align: left;">OK</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section id="variable-importance" class="level2">
+<h2 class="anchored" data-anchor-id="variable-importance">Variable Importance</h2>
+<p><img src="plots/importance.png" class="img-fluid"></p>
+<div class="cell">
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Variable</th>
+<th style="text-align: right;">Importance</th>
+<th style="text-align: right;">Relative</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">living_sqft</td>
+<td style="text-align: right;">4026084.68</td>
+<td style="text-align: right;">100.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">area_id</td>
+<td style="text-align: right;">723478.57</td>
+<td style="text-align: right;">18.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">beds_total</td>
+<td style="text-align: right;">611813.08</td>
+<td style="text-align: right;">15.2</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">baths_total</td>
+<td style="text-align: right;">522353.69</td>
+<td style="text-align: right;">13.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">sale_age</td>
+<td style="text-align: right;">447899.72</td>
+<td style="text-align: right;">11.1</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">lot_size</td>
+<td style="text-align: right;">391925.33</td>
+<td style="text-align: right;">9.7</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">longitude</td>
+<td style="text-align: right;">138253.16</td>
+<td style="text-align: right;">3.4</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">latitude</td>
+<td style="text-align: right;">77692.60</td>
+<td style="text-align: right;">1.9</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">age</td>
+<td style="text-align: right;">44060.24</td>
+<td style="text-align: right;">1.1</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">garage_spaces</td>
+<td style="text-align: right;">34778.82</td>
+<td style="text-align: right;">0.9</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section id="contributions" class="level2">
+<h2 class="anchored" data-anchor-id="contributions">Contributions</h2>
+<section id="sale_age" class="level3">
+<h3 class="anchored" data-anchor-id="sale_age">sale_age</h3>
+<p><img src="plots/contrib_sale_age.png" class="img-fluid"></p>
+</section>
+<section id="living_sqft" class="level3">
+<h3 class="anchored" data-anchor-id="living_sqft">living_sqft</h3>
+<p><img src="plots/contrib_living_sqft.png" class="img-fluid"></p>
+</section>
+<section id="beds_total" class="level3">
+<h3 class="anchored" data-anchor-id="beds_total">beds_total</h3>
+<p><img src="plots/contrib_beds_total.png" class="img-fluid"></p>
+</section>
+<section id="baths_total" class="level3">
+<h3 class="anchored" data-anchor-id="baths_total">baths_total</h3>
+<p><img src="plots/contrib_baths_total.png" class="img-fluid"></p>
+</section>
+<section id="lot_size" class="level3">
+<h3 class="anchored" data-anchor-id="lot_size">lot_size</h3>
+<p><img src="plots/contrib_lot_size.png" class="img-fluid"></p>
+</section>
+<section id="area_id" class="level3">
+<h3 class="anchored" data-anchor-id="area_id">area_id</h3>
+<p><img src="plots/contrib_area_id.png" class="img-fluid"></p>
+</section>
+<section id="age" class="level3">
+<h3 class="anchored" data-anchor-id="age">age</h3>
+<p><img src="plots/contrib_age.png" class="img-fluid"></p>
+</section>
+<section id="latitude" class="level3">
+<h3 class="anchored" data-anchor-id="latitude">latitude</h3>
+<p><img src="plots/contrib_latitude.png" class="img-fluid"></p>
+</section>
+<section id="longitude" class="level3">
+<h3 class="anchored" data-anchor-id="longitude">longitude</h3>
+<p><img src="plots/contrib_longitude.png" class="img-fluid"></p>
+</section>
+<section id="garage_spaces" class="level3">
+<h3 class="anchored" data-anchor-id="garage_spaces">garage_spaces</h3>
+<p><img src="plots/contrib_garage_spaces.png" class="img-fluid"></p>
+</section>
+<section id="living_sqftsale_age" class="level3">
+<h3 class="anchored" data-anchor-id="living_sqftsale_age">living_sqft:sale_age</h3>
+<p><img src="plots/contrib_living_sqft_sale_age_scatter.png" class="img-fluid"></p>
+<p><img src="plots/contrib_living_sqft_sale_age_heatmap.png" class="img-fluid"></p>
+<p><img src="plots/contrib_living_sqft_sale_age_3d.png" class="img-fluid"></p>
+</section>
+<section id="beds_totalliving_sqft" class="level3">
+<h3 class="anchored" data-anchor-id="beds_totalliving_sqft">beds_total:living_sqft</h3>
+<p><img src="plots/contrib_beds_total_living_sqft_scatter.png" class="img-fluid"></p>
+<p><img src="plots/contrib_beds_total_living_sqft_heatmap.png" class="img-fluid"></p>
+<p><img src="plots/contrib_beds_total_living_sqft_3d.png" class="img-fluid"></p>
+</section>
+<section id="baths_totalliving_sqft" class="level3">
+<h3 class="anchored" data-anchor-id="baths_totalliving_sqft">baths_total:living_sqft</h3>
+<p><img src="plots/contrib_baths_total_living_sqft_scatter.png" class="img-fluid"></p>
+<p><img src="plots/contrib_baths_total_living_sqft_heatmap.png" class="img-fluid"></p>
+<p><img src="plots/contrib_baths_total_living_sqft_3d.png" class="img-fluid"></p>
+</section>
+<section id="living_sqftlot_size" class="level3">
+<h3 class="anchored" data-anchor-id="living_sqftlot_size">living_sqft:lot_size</h3>
+<p><img src="plots/contrib_living_sqft_lot_size_scatter.png" class="img-fluid"></p>
+<p><img src="plots/contrib_living_sqft_lot_size_heatmap.png" class="img-fluid"></p>
+<p><img src="plots/contrib_living_sqft_lot_size_3d.png" class="img-fluid"></p>
+</section>
+</section>
+<section id="correlation-matrix" class="level2">
+<h2 class="anchored" data-anchor-id="correlation-matrix">Correlation Matrix</h2>
+<p><img src="plots/correlation.png" class="img-fluid"></p>
+</section>
+<section id="anova-decomposition" class="level2">
+<h2 class="anchored" data-anchor-id="anova-decomposition">ANOVA Decomposition</h2>
+<div class="cell">
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Variable</th>
+<th style="text-align: right;">Sum of Squares</th>
+<th style="text-align: right;">% of Total</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">sale_age</td>
+<td style="text-align: right;">2.074861e+14</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">living_sqft</td>
+<td style="text-align: right;">9.028460e+15</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">beds_total</td>
+<td style="text-align: right;">5.723268e+15</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">baths_total</td>
+<td style="text-align: right;">2.841483e+15</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">lot_size</td>
+<td style="text-align: right;">5.537208e+14</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">area_id</td>
+<td style="text-align: right;">1.289931e+14</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">age</td>
+<td style="text-align: right;">1.817871e+13</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">latitude</td>
+<td style="text-align: right;">2.106767e+20</td>
+<td style="text-align: right;">17.5</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">longitude</td>
+<td style="text-align: right;">9.917190e+20</td>
+<td style="text-align: right;">82.5</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">garage_spaces</td>
+<td style="text-align: right;">1.234012e+13</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section id="diagnostics" class="level2">
+<h2 class="anchored" data-anchor-id="diagnostics">Diagnostics</h2>
+<section id="coefficient-path" class="level3">
+<h3 class="anchored" data-anchor-id="coefficient-path">Coefficient Path</h3>
+<p><img src="plots/coef_path.png" class="img-fluid"></p>
+</section>
+<section id="cross-validation-error" class="level3">
+<h3 class="anchored" data-anchor-id="cross-validation-error">Cross-Validation Error</h3>
+<p><img src="plots/cv_error.png" class="img-fluid"></p>
+</section>
+<section id="actual-vs-predicted" class="level3">
+<h3 class="anchored" data-anchor-id="actual-vs-predicted">Actual vs Predicted</h3>
+<p><img src="plots/actual_vs_predicted.png" class="img-fluid"></p>
+</section>
+<section id="residuals-vs-fitted" class="level3">
+<h3 class="anchored" data-anchor-id="residuals-vs-fitted">Residuals vs Fitted</h3>
+<p><img src="plots/residuals_vs_fitted.png" class="img-fluid"></p>
+</section>
+<section id="normal-q-q-plot" class="level3">
+<h3 class="anchored" data-anchor-id="normal-q-q-plot">Normal Q-Q Plot</h3>
+<p><img src="plots/qq.png" class="img-fluid"></p>
+</section>
+</section>
+<section id="model-output" class="level2">
+<h2 class="anchored" data-anchor-id="model-output">Model Output</h2>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>== glmnet Model ==</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$lambda
+ [1] 4717075.4485 4199211.7234 3738201.6232 3327803.4774 2962460.8570
+ [6] 2637227.3449 2347699.5662 2089957.5699 1860511.7567 1656255.6324
+[11] 1474423.7494 1312554.2640 1168455.6063 1040176.8074  925981.0855
+[16]  824322.3311  733824.1744  653261.3501  581543.1086  517698.4481
+[21]  460862.9683  410267.1667  365226.0208  325129.7133  289435.3755
+[26]  257659.7376  229372.5853  204190.9356  181773.8512  161817.8245
+[31]  144052.6684  128237.8585  114159.2762  101626.3098   90469.2741
+[36]   80537.1126   71695.3525   63824.2844   56817.3408   50579.6539
+[41]   45026.7709   40083.5107   35682.9459   31765.4967   28278.1244
+[46]   25173.6129   22409.9300   19949.6577   17759.4863   15809.7626
+[51]   14074.0891   12528.9665   11153.4750    9928.9917    8838.9382
+[56]    7868.5561    7004.7073    6235.6961    5551.1108    4941.6825
+[61]    4399.1604    3916.1989    3486.2593    3103.5207    2762.8009
+[66]    2459.4870    2189.4725    1949.1014    1735.1195    1544.6295
+[71]    1375.0525    1224.0925    1089.7056     970.0724     863.5731
+[76]     768.7658     684.3669     609.2337     542.3490     482.8073
+[81]     429.8023     382.6165     340.6110     303.2171     269.9284
+
+$cvm
+ [1] 1.314106e+12 1.262477e+12 1.177431e+12 1.085163e+12 9.976271e+11
+ [6] 9.193741e+11 8.505694e+11 7.905440e+11 7.385618e+11 6.933300e+11
+[11] 6.508284e+11 6.131574e+11 5.810496e+11 5.538483e+11 5.304109e+11
+[16] 5.093875e+11 4.902985e+11 4.720302e+11 4.557563e+11 4.416788e+11
+[21] 4.297018e+11 4.194912e+11 4.102790e+11 4.022870e+11 3.943273e+11
+[26] 3.863411e+11 3.788112e+11 3.720860e+11 3.660719e+11 3.608948e+11
+[31] 3.558965e+11 3.513529e+11 3.473105e+11 3.435031e+11 3.397280e+11
+[36] 3.366145e+11 3.345340e+11 3.327344e+11 3.310513e+11 3.288252e+11
+[41] 3.260051e+11 3.237799e+11 3.219907e+11 3.204116e+11 3.190262e+11
+[46] 3.175640e+11 3.150624e+11 3.109104e+11 3.067948e+11 3.031675e+11
+[51] 3.000766e+11 2.972975e+11 2.943297e+11 2.909638e+11 2.876220e+11
+[56] 2.845488e+11 2.817231e+11 2.791400e+11 2.767890e+11 2.746612e+11
+[61] 2.727470e+11 2.710285e+11 2.694880e+11 2.681183e+11 2.669032e+11
+[66] 2.658324e+11 2.648938e+11 2.640675e+11 2.633440e+11 2.627161e+11
+[71] 2.621669e+11 2.616893e+11 2.612754e+11 2.608747e+11 2.605443e+11
+[76] 2.602913e+11 2.600476e+11 2.598314e+11 2.596533e+11 2.594992e+11
+[81] 2.593991e+11 2.592825e+11 2.591767e+11 2.591631e+11 2.591646e+11
+
+$cvsd
+ [1] 157931989577 158410362033 153502379603 145963735663 138485765530
+ [6] 131356441020 124701019133 118525042415 112831709996 107573255635
+[11] 103123952465  99290286535  95879639644  92902407680  90303907849
+[16]  88157061766  86426309849  84772321150  83092414748  81355424171
+[21]  79606621339  78021548840  76540859828  75125625551  73882732975
+[26]  72552276315  71089363893  69718513483  68449832729  67322441515
+[31]  66309964894  65399084844  64518885586  63489211482  62241021413
+[36]  61150409861  60284088448  59463332657  58740967637  58055791151
+[41]  57252310451  56608627169  56063537417  55616952419  55281598534
+[46]  55025211735  54639243538  54190945775  53790753334  53642857370
+[51]  53777613401  54009082948  53998104425  53519982570  52881821743
+[56]  52282525541  51705095496  51145919090  50597759951  50065988874
+[61]  49555798940  49063644501  48588022677  48132454543  47698724122
+[66]  47289637854  46906221719  46546700210  46210075002  45899162828
+[71]  45612086657  45347622930  45104978201  44847803273  44628566004
+[76]  44463717992  44297226117  44145610778  44010043415  43887890557
+[81]  43809897739  43713062863  43619090541  43598947278  43596646457
+
+$cvup
+ [1] 1.472038e+12 1.420888e+12 1.330934e+12 1.231127e+12 1.136113e+12
+ [6] 1.050731e+12 9.752704e+11 9.090690e+11 8.513935e+11 8.009032e+11
+[11] 7.539523e+11 7.124477e+11 6.769292e+11 6.467507e+11 6.207148e+11
+[16] 5.975445e+11 5.767248e+11 5.568025e+11 5.388487e+11 5.230342e+11
+[21] 5.093084e+11 4.975128e+11 4.868198e+11 4.774126e+11 4.682100e+11
+[26] 4.588934e+11 4.499005e+11 4.418045e+11 4.345217e+11 4.282172e+11
+[31] 4.222064e+11 4.167520e+11 4.118294e+11 4.069923e+11 4.019690e+11
+[36] 3.977649e+11 3.948180e+11 3.921978e+11 3.897922e+11 3.868810e+11
+[41] 3.832574e+11 3.803886e+11 3.780543e+11 3.760286e+11 3.743078e+11
+[46] 3.725892e+11 3.697016e+11 3.651013e+11 3.605856e+11 3.568103e+11
+[51] 3.538542e+11 3.513066e+11 3.483279e+11 3.444838e+11 3.405038e+11
+[56] 3.368313e+11 3.334282e+11 3.302860e+11 3.273868e+11 3.247272e+11
+[61] 3.223028e+11 3.200922e+11 3.180760e+11 3.162508e+11 3.146019e+11
+[66] 3.131221e+11 3.118001e+11 3.106142e+11 3.095541e+11 3.086152e+11
+[71] 3.077790e+11 3.070369e+11 3.063804e+11 3.057225e+11 3.051728e+11
+[76] 3.047550e+11 3.043449e+11 3.039770e+11 3.036633e+11 3.033871e+11
+[81] 3.032090e+11 3.029956e+11 3.027958e+11 3.027620e+11 3.027612e+11
+
+$cvlo
+ [1] 1.156174e+12 1.104067e+12 1.023929e+12 9.391997e+11 8.591414e+11
+ [6] 7.880177e+11 7.258684e+11 6.720190e+11 6.257301e+11 5.857567e+11
+[11] 5.477044e+11 5.138671e+11 4.851700e+11 4.609459e+11 4.401070e+11
+[16] 4.212304e+11 4.038722e+11 3.872579e+11 3.726639e+11 3.603233e+11
+[21] 3.500951e+11 3.414697e+11 3.337381e+11 3.271614e+11 3.204446e+11
+[26] 3.137889e+11 3.077218e+11 3.023675e+11 2.976221e+11 2.935723e+11
+[31] 2.895865e+11 2.859538e+11 2.827916e+11 2.800139e+11 2.774869e+11
+[36] 2.754641e+11 2.742499e+11 2.732711e+11 2.723103e+11 2.707694e+11
+[41] 2.687528e+11 2.671713e+11 2.659272e+11 2.647946e+11 2.637446e+11
+[46] 2.625388e+11 2.604231e+11 2.567194e+11 2.530041e+11 2.495246e+11
+[51] 2.462990e+11 2.432885e+11 2.403316e+11 2.374438e+11 2.347402e+11
+[56] 2.322663e+11 2.300181e+11 2.279941e+11 2.261912e+11 2.245952e+11
+[61] 2.231912e+11 2.219649e+11 2.208999e+11 2.199859e+11 2.192045e+11
+[66] 2.185428e+11 2.179876e+11 2.175208e+11 2.171339e+11 2.168169e+11
+[71] 2.165548e+11 2.163417e+11 2.161704e+11 2.160269e+11 2.159157e+11
+[76] 2.158276e+11 2.157504e+11 2.156858e+11 2.156432e+11 2.156114e+11
+[81] 2.155892e+11 2.155695e+11 2.155576e+11 2.155641e+11 2.155679e+11
+
+$nzero
+ s0  s1  s2  s3  s4  s5  s6  s7  s8  s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 
+  0   2   4   5   5   5   5   5   5   5   6   6   6   6   7   7   9   9  10  10 
+s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33 s34 s35 s36 s37 s38 s39 
+ 10  11  11  11  13  15  16  16  16  18  18  19  18  20  20  21  21  21  22  22 
+s40 s41 s42 s43 s44 s45 s46 s47 s48 s49 s50 s51 s52 s53 s54 s55 s56 s57 s58 s59 
+ 20  22  21  21  22  25  25  26  26  25  26  26  26  26  25  25  25  27  27  28 
+s60 s61 s62 s63 s64 s65 s66 s67 s68 s69 s70 s71 s72 s73 s74 s75 s76 s77 s78 s79 
+ 28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28 
+s80 s81 s82 s83 s84 
+ 28  28  28  28  28 
+
+$call
+cv.glmnet(...)
+
+$name
+                 mse 
+"Mean-Squared Error" 
+
+$glmnet.fit
+$a0
+          s0           s1           s2           s3           s4           s5 
+   2631678.1    2563264.1    2464274.3    2342234.4    2209722.7    2082302.0 
+          s6           s7           s8           s9          s10          s11 
+   1960352.7    1844197.0    1734036.8    1629956.9    1543188.9    1463186.9 
+         s12          s13          s14          s15          s16          s17 
+   1389275.0    1321121.8    1257740.3    1199410.1    1151353.2    1120778.9 
+         s18          s19          s20          s21          s22          s23 
+   1091974.6    1067781.4    1045593.7    1026321.8    1006283.0     988784.0 
+         s24          s25          s26          s27          s28          s29 
+    971759.7     951921.0     934650.0     919314.2     904206.9     889327.9 
+         s30          s31          s32          s33          s34          s35 
+    858986.9     828761.7     801408.9     783615.7     768238.5    -820075.8 
+         s36          s37          s38          s39          s40          s41 
+ -15873865.1  -27900810.0  -38803719.4  -48465517.2  -57487746.4  -64323325.8 
+         s42          s43          s44          s45          s46          s47 
+ -66800504.1  -66523474.4  -68886499.3  -92278954.1 -118506707.2 -146443078.2 
+         s48          s49          s50          s51          s52          s53 
+-168739066.7 -182119257.2 -196735478.2 -222185771.6 -245821311.8 -267524405.6 
+         s54          s55          s56          s57          s58          s59 
+-286190080.8 -302992893.6 -318190755.3 -331941662.7 -345418728.7 -357820612.5 
+         s60          s61          s62          s63          s64          s65 
+-369941436.2 -380401185.6 -389749459.7 -398123285.1 -405590488.6 -412202003.7 
+         s66          s67          s68          s69          s70          s71 
+-418092782.5 -423353653.0 -428004501.7 -432117139.6 -435777672.8 -439008335.3 
+         s72          s73          s74          s75          s76          s77 
+-441876023.1 -444422448.4 -446679850.5 -448670769.7 -450426577.8 -451983663.4 
+         s78          s79          s80          s81          s82          s83 
+-453352929.1 -454556540.1 -455634667.9 -456585321.8 -457422457.2 -458159804.9 
+         s84 
+-458429442.5 
+
+$beta</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>29 x 85 sparse Matrix of class "dgCMatrix"</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                                                         
+sale_age                .  .            .            .            .      
+living_sqft             . 30.0824977   52.826900    73.305608    92.16686
+beds_total              .  .         4123.601227 17108.384891 28615.64796
+baths_total             .  .            .          645.955141 11415.66217
+lot_size                .  .            .            .            .      
+area_id451              .  .            .            .            .      
+area_id452              .  .            .            .            .      
+area_id453              .  .            .            .            .      
+area_id460              .  .            .            .            .      
+area_id461              .  .            .            .            .      
+area_id462              .  .            .            .            .      
+area_id463              .  .            .            .            .      
+area_id464              .  .            .            .            .      
+area_id465              .  .            .            .            .      
+area_id466              .  .            .            .            .      
+area_id467              .  .            .            .            .      
+area_id469              .  .            .            .            .      
+area_id470              .  .            .            .            .      
+area_id471              .  .            .            .            .      
+area_id472              .  .            .            .            .      
+area_id480              .  .            .            .            .      
+age                     .  .            .            .            .      
+latitude                .  .            .            .            .      
+longitude               .  .            .            .            .      
+garage_spaces           .  .            .            .            .      
+sale_age:living_sqft    .  .            .            .            .      
+living_sqft:beds_total  .  .            2.343946     4.674382     6.68108
+living_sqft:baths_total .  0.9346802    4.541754     7.718559    10.42124
+living_sqft:lot_size    .  .            .            .            .      
+                                                                        
+sale_age                    .            .           .           .      
+living_sqft               110.804084   129.21994   147.41105   165.38987
+beds_total              39701.954166 50331.33831 60478.90747 70131.39425
+baths_total             21505.595348 30867.98894 39457.88434 47241.16644
+lot_size                    .            .           .           .      
+area_id451                  .            .           .           .      
+area_id452                  .            .           .           .      
+area_id453                  .            .           .           .      
+area_id460                  .            .           .           .      
+area_id461                  .            .           .           .      
+area_id462                  .            .           .           .      
+area_id463                  .            .           .           .      
+area_id464                  .            .           .           .      
+area_id465                  .            .           .           .      
+area_id466                  .            .           .           .      
+area_id467                  .            .           .           .      
+area_id469                  .            .           .           .      
+area_id470                  .            .           .           .      
+area_id471                  .            .           .           .      
+area_id472                  .            .           .           .      
+area_id480                  .            .           .           .      
+age                         .            .           .           .      
+latitude                    .            .           .           .      
+longitude                   .            .           .           .      
+garage_spaces               .            .           .           .      
+sale_age:living_sqft        .            .           .           .      
+living_sqft:beds_total      8.553983    10.28083    11.84978    13.25005
+living_sqft:baths_total    13.007928    15.46702    17.79152    19.97718
+living_sqft:lot_size        .            .           .           .      
+                                                                           
+sale_age                    .            .            .             .      
+living_sqft               183.18569    200.21121    216.99082     233.71463
+beds_total              79287.03832  86235.93344  92387.37197   97861.71055
+baths_total             54194.20386  60638.41737  66399.69436   71462.53079
+lot_size                    .            .            .             .      
+area_id451                  .            .            .             .      
+area_id452                  .            .            .             .      
+area_id453                  .            .            .             .      
+area_id460                  .            .            .             .      
+area_id461                  .       -43004.16703 -86176.45606 -128624.71218
+area_id462                  .            .            .             .      
+area_id463                  .            .            .             .      
+area_id464                  .            .            .             .      
+area_id465                  .            .            .             .      
+area_id466                  .            .            .             .      
+area_id467                  .            .            .             .      
+area_id469                  .            .            .             .      
+area_id470                  .            .            .             .      
+area_id471                  .            .            .             .      
+area_id472                  .            .            .             .      
+area_id480                  .            .            .             .      
+age                         .            .            .             .      
+latitude                    .            .            .             .      
+longitude                   .            .            .             .      
+garage_spaces               .            .            .             .      
+sale_age:living_sqft        .            .            .             .      
+living_sqft:beds_total     14.47168     15.38024     16.10883      16.63148
+living_sqft:baths_total    22.02226     23.90792     25.67157      27.31924
+living_sqft:lot_size        .            .            .             .      
+                                                                              
+sale_age                      .             .             .      -5.517815e+00
+living_sqft                 250.47669     267.44749     283.8956  3.004745e+02
+beds_total               102665.46588  106731.72873  109807.3498  1.122543e+05
+baths_total               75861.31092   79516.43593   82058.5988  8.416218e+04
+lot_size                      .             .             .       4.844259e-01
+area_id451                    .             .             .       .           
+area_id452                    .             .             .       .           
+area_id453                    .             .             .       .           
+area_id460                    .             .             .       .           
+area_id461              -170162.95815 -210014.54581 -246722.0005 -2.804903e+05
+area_id462                    .             .             .       .           
+area_id463                    .             .             .       .           
+area_id464                    .             .             .       .           
+area_id465                    .             .             .       .           
+area_id466                    .          5087.31171   24569.4456  4.378850e+04
+area_id467                    .             .             .       .           
+area_id469                    .             .             .       .           
+area_id470                    .             .             .       .           
+area_id471                    .             .             .       .           
+area_id472                    .             .             .       .           
+area_id480                    .             .             .       .           
+age                           .             .             .       .           
+latitude                      .             .             .       .           
+longitude                     .             .             .       .           
+garage_spaces                 .             .             .       .           
+sale_age:living_sqft          .             .             .       .           
+living_sqft:beds_total       16.94692      17.02943      16.9177  1.651480e+01
+living_sqft:baths_total      28.85522      30.26507      31.5951  3.275386e+01
+living_sqft:lot_size          .             .             .       .           
+                                                                               
+sale_age                -2.037068e+01 -3.456552e+01 -4.804707e+01 -6.079424e+01
+living_sqft              3.167109e+02  3.333883e+02  3.487157e+02  3.648274e+02
+beds_total               1.139159e+05  1.153065e+05  1.162400e+05  1.165624e+05
+baths_total              8.588786e+04  8.678764e+04  8.543300e+04  8.382382e+04
+lot_size                 1.189907e+00  1.838241e+00  2.412669e+00  2.926483e+00
+area_id451               .            -1.554751e+05 -6.478685e+05 -1.108847e+06
+area_id452               .             .             .             .           
+area_id453               .             .             .             .           
+area_id460               .             .             .             .           
+area_id461              -3.117709e+05 -3.409007e+05 -3.670130e+05 -3.915794e+05
+area_id462               .             .             .             .           
+area_id463               .             .             .             .           
+area_id464               .             .             .             .           
+area_id465               .             .             .             .           
+area_id466               6.243224e+04  7.970365e+04  9.505903e+04  1.094275e+05
+area_id467               .             .             .             .           
+area_id469               .             .             .             .           
+area_id470               .             .             .             .           
+area_id471               .             .             .             .           
+area_id472               .             .             .             .           
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude                .             .             .             .           
+garage_spaces            .             .             .             .           
+sale_age:living_sqft     .             .             .             .           
+living_sqft:beds_total   1.597508e+01  1.540027e+01  1.516398e+01  1.482384e+01
+living_sqft:baths_total  3.378748e+01  3.483475e+01  3.630171e+01  3.761727e+01
+living_sqft:lot_size     .             .             .             .           
+                                                                               
+sale_age                -7.275120e+01 -8.383904e+01 -9.416330e+01 -1.041477e+02
+living_sqft              3.801675e+02  3.961285e+02  4.116477e+02  4.270796e+02
+beds_total               1.166728e+05  1.168679e+05  1.170671e+05  1.166349e+05
+baths_total              8.152954e+04  7.863427e+04  7.509269e+04  7.175137e+04
+lot_size                 3.403382e+00  3.891994e+00  4.320860e+00  5.331792e+00
+area_id451              -1.543694e+06 -1.938979e+06 -2.307142e+06 -2.679839e+06
+area_id452               .             .             .             .           
+area_id453               .             .             .             .           
+area_id460               6.614769e+03  3.099836e+04  5.363611e+04  7.096614e+04
+area_id461              -4.138905e+05 -4.328133e+05 -4.501161e+05 -4.657394e+05
+area_id462               .             .             .             .           
+area_id463               .             .             .             .           
+area_id464               .             .             .             .           
+area_id465               .             .             .             .           
+area_id466               1.234322e+05  1.383094e+05  1.521312e+05  1.614546e+05
+area_id467               .             .             .             .           
+area_id469               .             .             .             .           
+area_id470               .             .             .             1.236866e+04
+area_id471               .             .             .            -3.445134e+04
+area_id472               .             .             .             .           
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude                .             .             .             .           
+garage_spaces            .             .             .             .           
+sale_age:living_sqft     .             .             .             .           
+living_sqft:beds_total   1.440006e+01  1.373323e+01  1.293543e+01  1.217737e+01
+living_sqft:baths_total  3.895376e+01  4.014822e+01  4.141869e+01  4.282147e+01
+living_sqft:lot_size     .             .             .             .           
+                                                                               
+sale_age                -1.135435e+02 -1.220564e+02 -1.298550e+02 -1.369940e+02
+living_sqft              4.446872e+02  4.609784e+02  4.774101e+02  4.939509e+02
+beds_total               1.165128e+05  1.161866e+05  1.157039e+05  1.156410e+05
+baths_total              6.806873e+04  6.433693e+04  6.018919e+04  5.567633e+04
+lot_size                 6.242419e+00  7.089259e+00  7.853874e+00  8.558369e+00
+area_id451              -3.006872e+06 -3.308210e+06 -3.580446e+06 -3.821602e+06
+area_id452               .             .             .             .           
+area_id453               .            -3.824998e+04 -8.491342e+04 -1.273892e+05
+area_id460               8.803962e+04  1.036727e+05  1.175022e+05  1.300728e+05
+area_id461              -4.786026e+05 -4.903459e+05 -5.013551e+05 -5.111143e+05
+area_id462               .             .             .             .           
+area_id463               9.332361e+03  3.917603e+04  6.637914e+04  9.132060e+04
+area_id464              -3.681936e+03 -1.865636e+04 -3.233111e+04 -4.455399e+04
+area_id465               .             .             .             .           
+area_id466               1.711178e+05  1.799984e+05  1.878136e+05  1.948430e+05
+area_id467               .             .             .             .           
+area_id469               .             .             .             .           
+area_id470               3.923905e+04  6.403884e+04  8.658441e+04  1.071456e+05
+area_id471              -6.585201e+04 -9.514679e+04 -1.226775e+05 -1.483504e+05
+area_id472               .             .             .             .           
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude                .             .             .             .           
+garage_spaces            .             .             .             .           
+sale_age:living_sqft     .             .             .             .           
+living_sqft:beds_total   1.093973e+01  9.654676e+00  8.205237e+00  6.532478e+00
+living_sqft:baths_total  4.421351e+01  4.571015e+01  4.727556e+01  4.888585e+01
+living_sqft:lot_size     .             .             .             .           
+                                                                               
+sale_age                -1.413723e+02 -1.318378e+02 -1.218850e+02 -1.101504e+02
+living_sqft              5.112333e+02  5.339067e+02  5.566216e+02  5.772172e+02
+beds_total               1.161240e+05  1.178237e+05  1.196764e+05  1.198953e+05
+baths_total              5.069638e+04  4.560095e+04  4.025037e+04  3.478755e+04
+lot_size                 9.187156e+00  9.813897e+00  1.036702e+01  1.079387e+01
+area_id451              -4.036810e+06 -4.234360e+06 -4.405706e+06 -4.586760e+06
+area_id452               .             .             .             .           
+area_id453              -1.673781e+05 -2.041817e+05 -2.373912e+05 -2.665072e+05
+area_id460               1.400865e+05  1.482573e+05  1.556747e+05  1.634840e+05
+area_id461              -5.212258e+05 -5.308219e+05 -5.393005e+05 -5.458701e+05
+area_id462               .             .             .             .           
+area_id463               1.126930e+05  1.312011e+05  1.481205e+05  1.649701e+05
+area_id464              -5.697873e+04 -6.966530e+04 -8.091371e+04 -8.962675e+04
+area_id465              -7.682955e+03 -1.829943e+04 -2.766134e+04 -3.451986e+04
+area_id466               1.998310e+05  2.037776e+05  2.074031e+05  2.122013e+05
+area_id467               .             .             .             .           
+area_id469               .             .             .             .           
+area_id470               1.245666e+05  1.396031e+05  1.532833e+05  1.673545e+05
+area_id471              -1.731893e+05 -1.960761e+05 -2.169022e+05 -2.338839e+05
+area_id472               .             .             1.028730e+03  7.295030e+03
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude                .             .             .             .           
+garage_spaces            .             .             .             .           
+sale_age:living_sqft    -1.373111e-03 -9.509347e-03 -1.750607e-02 -2.600567e-02
+living_sqft:beds_total   4.719251e+00  2.957538e+00  1.052369e+00  .           
+living_sqft:baths_total  5.063938e+01  5.258376e+01  5.455091e+01  5.630805e+01
+living_sqft:lot_size     .             .             .             .           
+                                                                               
+sale_age                -9.745835e+01 -8.391695e+01 -6.903904e+01 -5.385779e+01
+living_sqft              5.958982e+02  6.160396e+02  6.351891e+02  6.541188e+02
+beds_total               1.182092e+05  1.162662e+05  1.147057e+05  1.131561e+05
+baths_total              2.989586e+04  2.509018e+04  2.031376e+04  1.575631e+04
+lot_size                 1.119208e+01  1.148166e+01  1.176663e+01  1.201051e+01
+area_id451              -4.782887e+06 -4.961208e+06 -5.126284e+06 -5.280813e+06
+area_id452               .             .             .             .           
+area_id453              -2.921933e+05 -3.166047e+05 -3.388490e+05 -3.593288e+05
+area_id460               1.692288e+05  1.720463e+05  1.742617e+05  1.761264e+05
+area_id461              -5.509456e+05 -5.569025e+05 -5.623763e+05 -5.668367e+05
+area_id462               .             .             .             .           
+area_id463               1.792283e+05  1.899962e+05  1.994249e+05  2.092615e+05
+area_id464              -9.851417e+04 -1.083806e+05 -1.176694e+05 -1.258914e+05
+area_id465              -4.122815e+04 -4.901171e+04 -5.613883e+04 -6.276654e+04
+area_id466               2.160015e+05  2.173649e+05  2.183678e+05  2.163831e+05
+area_id467              -1.745726e+03 -9.909272e+03 -1.764881e+04 -2.691299e+04
+area_id469               .             .             .             .           
+area_id470               1.808876e+05  1.918116e+05  2.013040e+05  2.059543e+05
+area_id471              -2.487189e+05 -2.633692e+05 -2.768948e+05 -2.939598e+05
+area_id472               1.391122e+04  1.861236e+04  2.259107e+04  2.067766e+04
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude                .             .            -1.294265e+04 -1.367665e+05
+garage_spaces           -4.073337e+03 -9.319129e+03 -1.410241e+04 -1.844521e+04
+sale_age:living_sqft    -3.466271e-02 -4.345913e-02 -5.255734e-02 -6.154055e-02
+living_sqft:beds_total   .             .             .             .           
+living_sqft:baths_total  5.759031e+01  5.866392e+01  5.976649e+01  6.076655e+01
+living_sqft:lot_size     .             .             .             .           
+                                                                               
+sale_age                -3.792364e+01 -2.050416e+01 -4.508459e+00  .           
+living_sqft              6.727869e+02  6.927069e+02  7.166371e+02  7.345446e+02
+beds_total               1.117651e+05  1.101853e+05  1.061100e+05  1.004365e+05
+baths_total              1.135610e+04  6.811988e+03  2.043793e+02  .           
+lot_size                 1.222827e+01  1.310633e+01  1.676727e+01  2.042397e+01
+area_id451              -5.420726e+06 -5.527476e+06 -5.542022e+06 -5.521681e+06
+area_id452               .             .             .             .           
+area_id453              -3.778212e+05 -3.935373e+05 -4.031836e+05 -4.117212e+05
+area_id460               1.774109e+05  1.782772e+05  1.795716e+05  1.805172e+05
+area_id461              -5.710724e+05 -5.738386e+05 -5.712816e+05 -5.698041e+05
+area_id462               .             .             .             .           
+area_id463               2.175866e+05  2.247626e+05  2.313578e+05  2.374948e+05
+area_id464              -1.335501e+05 -1.406335e+05 -1.460480e+05 -1.507592e+05
+area_id465              -6.875299e+04 -7.402343e+04 -7.773047e+04 -8.197565e+04
+area_id466               2.148434e+05  2.128872e+05  2.100726e+05  2.068065e+05
+area_id467              -3.510642e+04 -4.265884e+04 -4.882891e+04 -5.418816e+04
+area_id469               .             .             .             .           
+area_id470               2.105507e+05  2.138597e+05  2.146093e+05  2.151754e+05
+area_id471              -3.086773e+05 -3.229344e+05 -3.397572e+05 -3.569286e+05
+area_id472               1.967627e+04  1.784153e+04  1.326781e+04  8.652504e+03
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude               -2.356557e+05 -3.252479e+05 -4.045541e+05 -4.786839e+05
+garage_spaces           -2.242744e+04 -2.587368e+04 -2.844528e+04 -3.081663e+04
+sale_age:living_sqft    -7.065094e-02 -8.018032e-02 -8.888554e-02 -9.293388e-02
+living_sqft:beds_total   .             .             .             .           
+living_sqft:baths_total  6.168487e+01  6.276831e+01  6.495427e+01  6.601890e+01
+living_sqft:lot_size     .            -2.258756e-04 -1.309765e-03 -2.361106e-03
+                                                                               
+sale_age                 .             .             .             .           
+living_sqft              7.507200e+02  7.660063e+02  7.804789e+02  7.942708e+02
+beds_total               9.428937e+04  8.793328e+04  8.182781e+04  7.589910e+04
+baths_total              .             .             .             .           
+lot_size                 2.415981e+01  2.752907e+01  3.103543e+01  3.451459e+01
+area_id451              -5.486286e+06 -5.457590e+06 -5.411008e+06 -5.357600e+06
+area_id452               .             .             .             .           
+area_id453              -4.198153e+05 -4.279222e+05 -4.330722e+05 -4.361835e+05
+area_id460               1.802927e+05  1.790524e+05  1.795720e+05  1.812249e+05
+area_id461              -5.689528e+05 -5.688161e+05 -5.669720e+05 -5.636790e+05
+area_id462               .             .             .             4.219485e+03
+area_id463               2.439851e+05  2.522628e+05  2.594247e+05  2.672973e+05
+area_id464              -1.537280e+05 -1.543985e+05 -1.546537e+05 -1.534329e+05
+area_id465              -8.611171e+04 -8.924290e+04 -9.083339e+04 -9.085373e+04
+area_id466               2.031569e+05  1.995554e+05  1.982050e+05  1.980021e+05
+area_id467              -5.805211e+04 -6.010710e+04 -6.075099e+04 -5.997052e+04
+area_id469               .             .             .             .           
+area_id470               2.154734e+05  2.163394e+05  2.185616e+05  2.212829e+05
+area_id471              -3.761705e+05 -3.970154e+05 -4.126897e+05 -4.266235e+05
+area_id472               2.284544e+03  .             .             .           
+area_id480               .             .             .             .           
+age                     -1.465945e+01 -4.333431e+01 -7.250724e+01 -1.033932e+02
+latitude                -2.077139e+05 -6.523588e+05 -9.387077e+05 -1.209091e+06
+longitude               -5.993827e+05 -7.578173e+05 -8.443888e+05 -9.477306e+05
+garage_spaces           -3.305796e+04 -3.558702e+04 -3.777915e+04 -3.973733e+04
+sale_age:living_sqft    -9.501599e-02 -9.695043e-02 -9.866093e-02 -1.001967e-01
+living_sqft:beds_total   .             .             .             .           
+living_sqft:baths_total  6.688391e+01  6.768179e+01  6.849502e+01  6.927311e+01
+living_sqft:lot_size    -3.437927e-03 -4.419857e-03 -5.432095e-03 -6.432029e-03
+                                                                               
+sale_age                 7.048063e+00  2.427623e+01  4.046705e+01  5.474817e+01
+living_sqft              8.163171e+02  8.472292e+02  8.789680e+02  9.069740e+02
+beds_total               7.449069e+04  7.927706e+04  9.242903e+04  1.088961e+05
+baths_total              .             .            -1.504663e+04 -3.727491e+04
+lot_size                 3.733806e+01  4.012225e+01  4.292535e+01  4.549194e+01
+area_id451              -5.238043e+06 -5.024550e+06 -4.788678e+06 -4.571556e+06
+area_id452               .             .             .             .           
+area_id453              -4.290866e+05 -4.153088e+05 -3.979639e+05 -3.838609e+05
+area_id460               1.926618e+05  2.094361e+05  2.294002e+05  2.459039e+05
+area_id461              -5.495615e+05 -5.294454e+05 -5.038914e+05 -4.812735e+05
+area_id462               2.754395e+04  5.641393e+04  8.703066e+04  1.111899e+05
+area_id463               2.910169e+05  3.204401e+05  3.509146e+05  3.751197e+05
+area_id464              -1.384021e+05 -1.179855e+05 -9.515961e+04 -7.719802e+04
+area_id465              -7.922896e+04 -6.132385e+04 -4.067843e+04 -2.373309e+04
+area_id466               2.033188e+05  2.127218e+05  2.244157e+05  2.339269e+05
+area_id467              -5.002293e+04 -3.467548e+04 -1.738478e+04 -3.683456e+03
+area_id469               1.337769e+03  1.933360e+04  3.864721e+04  5.444833e+04
+area_id470               2.281903e+05  2.379473e+05  2.485262e+05  2.569184e+05
+area_id471              -4.418609e+05 -4.543110e+05 -4.638444e+05 -4.716413e+05
+area_id472               .             .             .             .           
+area_id480               .             .             .             .           
+age                     -1.325907e+02 -1.654754e+02 -2.390818e+02 -3.196363e+02
+latitude                -1.892299e+06 -2.692439e+06 -3.452030e+06 -4.045869e+06
+longitude               -1.352223e+06 -1.816102e+06 -2.281494e+06 -2.649069e+06
+garage_spaces           -4.167611e+04 -4.283542e+04 -4.387127e+04 -4.486397e+04
+sale_age:living_sqft    -1.042458e-01 -1.120800e-01 -1.192654e-01 -1.255641e-01
+living_sqft:beds_total  -2.320349e+00 -7.195025e+00 -1.450311e+01 -2.260382e+01
+living_sqft:baths_total  7.056458e+01  7.270045e+01  7.854092e+01  8.641929e+01
+living_sqft:lot_size    -7.237920e-03 -7.994654e-03 -8.794355e-03 -9.554285e-03
+                                                                               
+sale_age                 6.777947e+01  7.960589e+01  9.018028e+01  9.963482e+01
+living_sqft              9.334651e+02  9.587716e+02  9.829258e+02  1.005866e+03
+beds_total               1.259780e+05  1.438324e+05  1.623065e+05  1.812021e+05
+baths_total             -5.965469e+04 -8.231425e+04 -1.050346e+05 -1.277034e+05
+lot_size                 4.781716e+01  5.000671e+01  5.211503e+01  5.405300e+01
+area_id451              -4.352477e+06 -4.134412e+06 -3.925477e+06 -3.714943e+06
+area_id452               .             .             .             .           
+area_id453              -3.758212e+05 -3.714190e+05 -3.701460e+05 -3.685921e+05
+area_id460               2.557464e+05  2.614973e+05  2.638799e+05  2.662215e+05
+area_id461              -4.660773e+05 -4.547111e+05 -4.456367e+05 -4.367597e+05
+area_id462               1.243938e+05  1.336777e+05  1.439485e+05  1.532676e+05
+area_id463               3.886615e+05  3.981572e+05  4.081144e+05  4.171323e+05
+area_id464              -6.829601e+04 -6.316001e+04 -5.852319e+04 -5.428230e+04
+area_id465              -1.429020e+04 -8.844105e+03 -5.813423e+03 -2.971312e+03
+area_id466               2.382366e+05  2.382326e+05  2.331107e+05  2.282740e+05
+area_id467               .             .             .             .           
+area_id469               6.305358e+04  6.726068e+04  6.799732e+04  6.851568e+04
+area_id470               2.602828e+05  2.592043e+05  2.526145e+05  2.463345e+05
+area_id471              -4.790753e+05 -4.906723e+05 -5.121966e+05 -5.319794e+05
+area_id472               .            -5.190385e+03 -2.195617e+04 -3.737473e+04
+area_id480               .             .             .             .           
+age                     -3.899809e+02 -4.579308e+02 -5.297686e+02 -5.975316e+02
+latitude                -4.380587e+06 -4.727688e+06 -5.336969e+06 -5.894211e+06
+longitude               -2.862819e+06 -3.090637e+06 -3.489134e+06 -3.856538e+06
+garage_spaces           -4.597037e+04 -4.693520e+04 -4.754847e+04 -4.810389e+04
+sale_age:living_sqft    -1.312758e-01 -1.364181e-01 -1.409727e-01 -1.450081e-01
+living_sqft:beds_total  -3.086415e+01 -3.935466e+01 -4.801091e+01 -5.676541e+01
+living_sqft:baths_total  9.446553e+01  1.026872e+02  1.109607e+02  1.192836e+02
+living_sqft:lot_size    -1.025884e-02 -1.092367e-02 -1.155172e-02 -1.213369e-02
+                                                                               
+sale_age                 1.079799e+02  1.152270e+02  1.215236e+02  1.269584e+02
+living_sqft              1.027427e+03  1.047774e+03  1.066875e+03  1.084741e+03
+beds_total               2.006816e+05  2.203597e+05  2.401946e+05  2.600597e+05
+baths_total             -1.505587e+05 -1.731544e+05 -1.955333e+05 -2.176047e+05
+lot_size                 5.582363e+01  5.741981e+01  5.885920e+01  6.014941e+01
+area_id451              -3.503327e+06 -3.293514e+06 -3.085655e+06 -2.880922e+06
+area_id452               .             .             .             .           
+area_id453              -3.667526e+05 -3.658541e+05 -3.648715e+05 -3.637005e+05
+area_id460               2.686022e+05  2.697817e+05  2.708849e+05  2.720621e+05
+area_id461              -4.280063e+05 -4.207175e+05 -4.137535e+05 -4.069780e+05
+area_id462               1.616167e+05  1.677298e+05  1.729173e+05  1.774247e+05
+area_id463               4.252226e+05  4.311541e+05  4.361979e+05  4.405927e+05
+area_id464              -5.047053e+04 -4.823446e+04 -4.645411e+04 -4.494885e+04
+area_id465              -2.872279e+02  .             .             .           
+area_id466               2.238108e+05  2.187056e+05  2.138886e+05  2.094796e+05
+area_id467               .             .             .             .           
+area_id469               6.888486e+04  6.818239e+04  6.732064e+04  6.644600e+04
+area_id470               2.404673e+05  2.341028e+05  2.280938e+05  2.225548e+05
+area_id471              -5.498748e+05 -5.668427e+05 -5.821847e+05 -5.958978e+05
+area_id472              -5.131497e+04 -6.468464e+04 -7.679428e+04 -8.762101e+04
+area_id480               .             .             .             .           
+age                     -6.614768e+02 -7.210313e+02 -7.770033e+02 -8.295863e+02
+latitude                -6.395978e+06 -6.845792e+06 -7.246767e+06 -7.602685e+06
+longitude               -4.190813e+06 -4.483963e+06 -4.746619e+06 -4.982079e+06
+garage_spaces           -4.860505e+04 -4.903878e+04 -4.942983e+04 -4.978547e+04
+sale_age:living_sqft    -1.485274e-01 -1.515613e-01 -1.541604e-01 -1.563651e-01
+living_sqft:beds_total  -6.565980e+01 -7.455461e+01 -8.343201e+01 -9.224230e+01
+living_sqft:baths_total  1.277473e+02  1.361597e+02  1.445395e+02  1.528474e+02
+living_sqft:lot_size    -1.267038e-02 -1.315952e-02 -1.360554e-02 -1.401023e-02
+                                                                               
+sale_age                 1.316381e+02  1.357083e+02  1.391878e+02  1.421002e+02
+living_sqft              1.101463e+03  1.117010e+03  1.131489e+03  1.144900e+03
+beds_total               2.796601e+05  2.991501e+05  3.179840e+05  3.362827e+05
+baths_total             -2.390839e+05 -2.602118e+05 -2.804168e+05 -2.998475e+05
+lot_size                 6.129882e+01  6.231831e+01  6.322283e+01  6.402633e+01
+area_id451              -2.681114e+06 -2.487364e+06 -2.301121e+06 -2.122960e+06
+area_id452              -3.562302e+03 -1.517656e+04 -2.570618e+04 -3.579007e+04
+area_id453              -3.624113e+05 -3.620065e+05 -3.615509e+05 -3.614113e+05
+area_id460               2.732672e+05  2.735716e+05  2.739126e+05  2.739320e+05
+area_id461              -4.004709e+05 -3.950968e+05 -3.900496e+05 -3.855351e+05
+area_id462               1.813376e+05  1.838823e+05  1.859990e+05  1.877630e+05
+area_id463               4.444120e+05  4.468467e+05  4.488581e+05  4.504929e+05
+area_id464              -4.368041e+04 -4.360727e+04 -4.368871e+04 -4.403344e+04
+area_id465               .             .             .             .           
+area_id466               2.054342e+05  2.006103e+05  1.961302e+05  1.914900e+05
+area_id467              -1.537869e+01 -2.223924e+03 -4.354567e+03 -6.700398e+03
+area_id469               6.556048e+04  6.349603e+04  6.144747e+04  5.910390e+04
+area_id470               2.174470e+05  2.115566e+05  2.060502e+05  2.004247e+05
+area_id471              -6.081622e+05 -6.203088e+05 -6.312491e+05 -6.419841e+05
+area_id472              -9.731273e+04 -1.072106e+05 -1.161924e+05 -1.250776e+05
+area_id480               .             .            -8.065036e+03 -1.679944e+04
+age                     -8.787575e+02 -9.250490e+02 -9.686794e+02 -1.009874e+03
+latitude                -7.918917e+06 -8.198152e+06 -8.442954e+06 -8.680368e+06
+longitude               -5.193310e+06 -5.390817e+06 -5.568789e+06 -5.742166e+06
+garage_spaces           -5.011467e+04 -5.045280e+04 -5.074530e+04 -5.100495e+04
+sale_age:living_sqft    -1.582266e-01 -1.597894e-01 -1.610991e-01 -1.621543e-01
+living_sqft:beds_total  -1.008795e+02 -1.093990e+02 -1.175987e+02 -1.255263e+02
+living_sqft:baths_total  1.609643e+02  1.689902e+02  1.766833e+02  1.841078e+02
+living_sqft:lot_size    -1.437543e-02 -1.470433e-02 -1.499977e-02 -1.526498e-02
+                                                                               
+sale_age                 1.445344e+02  1.465433e+02  1.482084e+02  1.495686e+02
+living_sqft              1.157288e+03  1.168700e+03  1.179210e+03  1.188856e+03
+beds_total               3.539731e+05  3.709878e+05  3.870959e+05  4.023642e+05
+baths_total             -3.184949e+05 -3.363041e+05 -3.530554e+05 -3.688465e+05
+lot_size                 6.473065e+01  6.534711e+01  6.588539e+01  6.635506e+01
+area_id451              -1.952059e+06 -1.789279e+06 -1.635896e+06 -1.491474e+06
+area_id452              -4.460831e+04 -5.252827e+04 -5.965334e+04 -6.604383e+04
+area_id453              -3.609672e+05 -3.604437e+05 -3.598819e+05 -3.592859e+05
+area_id460               2.742206e+05  2.745762e+05  2.749637e+05  2.753838e+05
+area_id461              -3.810777e+05 -3.768358e+05 -3.728603e+05 -3.691229e+05
+area_id462               1.891863e+05  1.903215e+05  1.912441e+05  1.919672e+05
+area_id463               4.518341e+05  4.529097e+05  4.537840e+05  4.544735e+05
+area_id464              -4.438226e+04 -4.479450e+04 -4.522864e+04 -4.568864e+04
+area_id465               .             .             .             .           
+area_id466               1.875168e+05  1.839208e+05  1.806656e+05  1.777297e+05
+area_id467              -8.716287e+03 -1.057886e+04 -1.228690e+04 -1.385387e+04
+area_id469               5.709228e+04  5.521995e+04  5.348840e+04  5.189054e+04
+area_id470               1.955531e+05  1.911301e+05  1.871177e+05  1.834891e+05
+area_id471              -6.510660e+05 -6.590809e+05 -6.661834e+05 -6.724408e+05
+area_id472              -1.325906e+05 -1.392347e+05 -1.451348e+05 -1.503440e+05
+area_id480              -2.451441e+04 -3.154662e+04 -3.793960e+04 -4.374508e+04
+age                     -1.047940e+03 -1.083248e+03 -1.115806e+03 -1.145829e+03
+latitude                -8.878227e+06 -9.050350e+06 -9.201251e+06 -9.332352e+06
+longitude               -5.889591e+06 -6.019881e+06 -6.135567e+06 -6.237648e+06
+garage_spaces           -5.124481e+04 -5.146399e+04 -5.166493e+04 -5.184841e+04
+sale_age:living_sqft    -1.630033e-01 -1.636691e-01 -1.641921e-01 -1.645890e-01
+living_sqft:beds_total  -1.331499e+02 -1.404478e+02 -1.473385e+02 -1.538485e+02
+living_sqft:baths_total  1.912495e+02  1.980859e+02  2.045263e+02  2.106077e+02
+living_sqft:lot_size    -1.550169e-02 -1.571243e-02 -1.589949e-02 -1.606556e-02
+                                                                               
+sale_age                 1.506428e+02  1.515040e+02  1.522050e+02  1.527451e+02
+living_sqft              1.197666e+03  1.205709e+03  1.213046e+03  1.219726e+03
+beds_total               4.169629e+05  4.306003e+05  4.431755e+05  4.549890e+05
+baths_total             -3.838787e+05 -3.978609e+05 -4.107026e+05 -4.227293e+05
+lot_size                 6.676376e+01  6.711836e+01  6.742676e+01  6.769488e+01
+area_id451              -1.354949e+06 -1.227957e+06 -1.110905e+06 -1.001748e+06
+area_id452              -7.174697e+04 -7.685461e+04 -8.143636e+04 -8.552226e+04
+area_id453              -3.586488e+05 -3.580160e+05 -3.574078e+05 -3.567991e+05
+area_id460               2.758483e+05  2.763164e+05  2.767682e+05  2.772272e+05
+area_id461              -3.655719e+05 -3.622769e+05 -3.592574e+05 -3.564327e+05
+area_id462               1.924861e+05  1.928835e+05  1.932004e+05  1.934035e+05
+area_id463               4.549800e+05  4.553721e+05  4.556848e+05  4.558946e+05
+area_id464              -4.619157e+04 -4.668644e+04 -4.715245e+04 -4.762511e+04
+area_id465               .             .             .             .           
+area_id466               1.750951e+05  1.727278e+05  1.705998e+05  1.686949e+05
+area_id467              -1.529800e+04 -1.661196e+04 -1.779945e+04 -1.888534e+04
+area_id469               5.041537e+04  4.906711e+04  4.784141e+04  4.671913e+04
+area_id470               1.802200e+05  1.772767e+05  1.746277e+05  1.722486e+05
+area_id471              -6.778935e+05 -6.826938e+05 -6.869436e+05 -6.906461e+05
+area_id472              -1.548935e+05 -1.589063e+05 -1.624651e+05 -1.655732e+05
+area_id480              -4.901801e+04 -5.378679e+04 -5.808766e+04 -6.197727e+04
+age                     -1.173597e+03 -1.199021e+03 -1.222170e+03 -1.243421e+03
+latitude                -9.444229e+06 -9.541596e+06 -9.627161e+06 -9.700124e+06
+longitude               -6.326721e+06 -6.405363e+06 -6.475161e+06 -6.536030e+06
+garage_spaces           -5.201494e+04 -5.216682e+04 -5.230546e+04 -5.243113e+04
+sale_age:living_sqft    -1.648656e-01 -1.650598e-01 -1.651967e-01 -1.652716e-01
+living_sqft:beds_total  -1.600427e+02 -1.658169e+02 -1.711378e+02 -1.761204e+02
+living_sqft:baths_total  2.164082e+02  2.218098e+02  2.267743e+02  2.314295e+02
+living_sqft:lot_size    -1.621301e-02 -1.634328e-02 -1.645838e-02 -1.656044e-02
+                                                                               
+sale_age                 1.531509e+02  1.534664e+02  1.536931e+02  1.538597e+02
+living_sqft              1.225779e+03  1.231251e+03  1.236214e+03  1.240672e+03
+beds_total               4.660019e+05  4.760475e+05  4.854013e+05  4.938811e+05
+baths_total             -4.339119e+05 -4.440874e+05 -4.535417e+05 -4.620997e+05
+lot_size                 6.792708e+01  6.812876e+01  6.830402e+01  6.845641e+01
+area_id451              -9.006502e+05 -8.084968e+05 -7.232194e+05 -6.459883e+05
+area_id452              -8.916180e+04 -9.241335e+04 -9.530939e+04 -9.788878e+04
+area_id453              -3.562041e+05 -3.556486e+05 -3.551092e+05 -3.546119e+05
+area_id460               2.776835e+05  2.781129e+05  2.785334e+05  2.789254e+05
+area_id461              -3.538095e+05 -3.514256e+05 -3.492124e+05 -3.472104e+05
+area_id462               1.935228e+05  1.936078e+05  1.936283e+05  1.936323e+05
+area_id463               4.560284e+05  4.561276e+05  4.561682e+05  4.561916e+05
+area_id464              -4.809042e+04 -4.851828e+04 -4.893955e+04 -4.932301e+04
+area_id465               .             .             .             .           
+area_id466               1.669942e+05  1.654753e+05  1.641178e+05  1.629111e+05
+area_id467              -1.987295e+04 -2.075908e+04 -2.156729e+04 -2.228900e+04
+area_id469               4.569794e+04  4.477895e+04  4.394053e+04  4.319103e+04
+area_id470               1.701185e+05  1.682136e+05  1.665060e+05  1.649859e+05
+area_id471              -6.938719e+05 -6.967179e+05 -6.991926e+05 -7.013701e+05
+area_id472              -1.682865e+05 -1.706833e+05 -1.727729e+05 -1.746127e+05
+area_id480              -6.548595e+04 -6.863469e+04 -7.147619e+04 -7.401747e+04
+age                     -1.262840e+03 -1.280395e+03 -1.296443e+03 -1.310886e+03
+latitude                -9.762512e+06 -9.817223e+06 -9.863627e+06 -9.904235e+06
+longitude               -6.589191e+06 -6.636252e+06 -6.677200e+06 -6.713365e+06
+garage_spaces           -5.254486e+04 -5.264788e+04 -5.274099e+04 -5.282485e+04
+sale_age:living_sqft    -1.652971e-01 -1.652958e-01 -1.652641e-01 -1.652178e-01
+living_sqft:beds_total  -1.807526e+02 -1.849761e+02 -1.888982e+02 -1.924523e+02
+living_sqft:baths_total  2.357629e+02  2.397081e+02  2.433771e+02  2.467000e+02
+living_sqft:lot_size    -1.665061e-02 -1.673015e-02 -1.680066e-02 -1.686284e-02
+                                                                               
+sale_age                 1.539820e+02  1.540681e+02  1.541147e+02  1.541373e+02
+living_sqft              1.244688e+03  1.248296e+03  1.251561e+03  1.254450e+03
+beds_total               5.015767e+05  5.085494e+05  5.150133e+05  5.207859e+05
+baths_total             -4.698544e+05 -4.768731e+05 -4.833703e+05 -4.891753e+05
+lot_size                 6.858970e+01  6.870652e+01  6.880833e+01  6.889766e+01
+area_id451              -5.759450e+05 -5.125483e+05 -4.541381e+05 -4.020447e+05
+area_id452              -1.001895e+05 -1.022385e+05 -1.040626e+05 -1.056753e+05
+area_id453              -3.541527e+05 -3.537297e+05 -3.533255e+05 -3.529620e+05
+area_id460               2.792888e+05  2.796253e+05  2.799478e+05  2.802431e+05
+area_id461              -3.453976e+05 -3.437574e+05 -3.422400e+05 -3.408837e+05
+area_id462               1.936200e+05  1.935946e+05  1.935354e+05  1.934796e+05
+area_id463               4.561980e+05  4.561907e+05  4.561531e+05  4.561180e+05
+area_id464              -4.967470e+04 -4.999716e+04 -5.031162e+04 -5.059159e+04
+area_id465               .             .             .             .           
+area_id466               1.618351e+05  1.608775e+05  1.600210e+05  1.592689e+05
+area_id467              -2.293610e+04 -2.351563e+04 -2.404515e+04 -2.451209e+04
+area_id469               4.251778e+04  4.191428e+04  4.136315e+04  4.087868e+04
+area_id470               1.636284e+05  1.624183e+05  1.613328e+05  1.603773e+05
+area_id471              -7.032893e+05 -7.049780e+05 -7.064448e+05 -7.077291e+05
+area_id472              -1.762361e+05 -1.776659e+05 -1.789117e+05 -1.800012e+05
+area_id480              -7.629381e+04 -7.833032e+04 -8.016780e+04 -8.179659e+04
+age                     -1.323905e+03 -1.335624e+03 -1.346316e+03 -1.355831e+03
+latitude                -9.939706e+06 -9.970611e+06 -9.996632e+06 -1.001937e+07
+longitude               -6.745296e+06 -6.773434e+06 -6.797865e+06 -6.819346e+06
+garage_spaces           -5.290038e+04 -5.296821e+04 -5.302929e+04 -5.308348e+04
+sale_age:living_sqft    -1.651628e-01 -1.651017e-01 -1.650300e-01 -1.649573e-01
+living_sqft:beds_total  -1.956763e+02 -1.985960e+02 -2.012956e+02 -2.037061e+02
+living_sqft:baths_total  2.497122e+02  2.524397e+02  2.549663e+02  2.572250e+02
+living_sqft:lot_size    -1.691793e-02 -1.696677e-02 -1.701017e-02 -1.704854e-02
+                                                                               
+sale_age                 1.541396e+02  1.541227e+02  1.541017e+02  1.540776e+02
+living_sqft              1.257063e+03  1.259399e+03  1.261431e+03  1.263267e+03
+beds_total               5.260927e+05  5.309339e+05  5.351609e+05  5.389937e+05
+baths_total             -4.945048e+05 -4.993660e+05 -5.036211e+05 -5.074755e+05
+lot_size                 6.897595e+01  6.904440e+01  6.910569e+01  6.916036e+01
+area_id451              -3.543403e+05 -3.110432e+05 -2.732305e+05 -2.389528e+05
+area_id452              -1.071151e+05 -1.083904e+05 -1.095114e+05 -1.105171e+05
+area_id453              -3.526211e+05 -3.523045e+05 -3.520302e+05 -3.517795e+05
+area_id460               2.805193e+05  2.807781e+05  2.810078e+05  2.812154e+05
+area_id461              -3.396395e+05 -3.385048e+05 -3.375109e+05 -3.366114e+05
+area_id462               1.934073e+05  1.933246e+05  1.932583e+05  1.931917e+05
+area_id463               4.560670e+05  4.560067e+05  4.559609e+05  4.559129e+05
+area_id464              -5.085830e+04 -5.110896e+04 -5.132441e+04 -5.152285e+04
+area_id465               .             .             .             .           
+area_id466               1.585934e+05  1.579951e+05  1.574758e+05  1.570065e+05
+area_id467              -2.493784e+04 -2.532151e+04 -2.565434e+04 -2.595655e+04
+area_id469               4.043646e+04  4.003918e+04  3.969678e+04  3.938466e+04
+area_id470               1.595178e+05  1.587541e+05  1.580893e+05  1.574883e+05
+area_id471              -7.088551e+05 -7.098316e+05 -7.106898e+05 -7.114567e+05
+area_id472              -1.809591e+05 -1.817911e+05 -1.825193e+05 -1.831713e+05
+area_id480              -8.326566e+04 -8.458060e+04 -8.573362e+04 -8.677270e+04
+age                     -1.364479e+03 -1.372282e+03 -1.379121e+03 -1.385295e+03
+latitude                -1.003879e+07 -1.005520e+07 -1.006979e+07 -1.008266e+07
+longitude               -6.838163e+06 -6.854502e+06 -6.868917e+06 -6.881765e+06
+garage_spaces           -5.313225e+04 -5.317575e+04 -5.321362e+04 -5.324760e+04
+sale_age:living_sqft    -1.648820e-01 -1.648046e-01 -1.647342e-01 -1.646680e-01
+living_sqft:beds_total  -2.059182e+02 -2.079324e+02 -2.096926e+02 -2.112879e+02
+living_sqft:baths_total  2.592996e+02  2.611931e+02  2.628513e+02  2.643537e+02
+living_sqft:lot_size    -1.708270e-02 -1.711301e-02 -1.713997e-02 -1.716414e-02
+                                                                               
+sale_age                 1.540494e+02  1.540193e+02  1.539904e+02  1.542034e+02
+living_sqft              1.264897e+03  1.266333e+03  1.267587e+03  1.267052e+03
+beds_total               5.424433e+05  5.455224e+05  5.482460e+05  5.493322e+05
+baths_total             -5.109475e+05 -5.140525e+05 -5.168073e+05 -5.183974e+05
+lot_size                 6.920915e+01  6.925309e+01  6.929317e+01  6.940250e+01
+area_id451              -2.081985e+05 -1.808316e+05 -1.566907e+05 -1.541544e+05
+area_id452              -1.114083e+05 -1.121958e+05 -1.128905e+05 -1.131544e+05
+area_id453              -3.515526e+05 -3.513500e+05 -3.511722e+05 -3.512683e+05
+area_id460               2.814046e+05  2.815753e+05  2.817272e+05  2.817263e+05
+area_id461              -3.358014e+05 -3.350774e+05 -3.344353e+05 -3.341052e+05
+area_id462               1.931242e+05  1.930591e+05  1.929991e+05  1.927602e+05
+area_id463               4.558637e+05  4.558166e+05  4.557739e+05  4.556299e+05
+area_id464              -5.170556e+04 -5.187174e+04 -5.202125e+04 -5.236292e+04
+area_id465               .             .             .             .           
+area_id466               1.565907e+05  1.562242e+05  1.559020e+05  1.557435e+05
+area_id467              -2.622770e+04 -2.646954e+04 -2.668441e+04 -2.695735e+04
+area_id469               3.910550e+04  3.885776e+04  3.863907e+04  3.845570e+04
+area_id470               1.569545e+05  1.564824e+05  1.560659e+05  1.558046e+05
+area_id471              -7.121287e+05 -7.127182e+05 -7.132378e+05 -7.135713e+05
+area_id472              -1.837427e+05 -1.842433e+05 -1.846835e+05 -1.849638e+05
+area_id480              -8.769956e+04 -8.852298e+04 -8.925213e+04 -8.976021e+04
+age                     -1.390823e+03 -1.395742e+03 -1.400094e+03 -1.402441e+03
+latitude                -1.009372e+07 -1.010330e+07 -1.011168e+07 -1.011173e+07
+longitude               -6.893007e+06 -6.902854e+06 -6.911511e+06 -6.913749e+06
+garage_spaces           -5.327758e+04 -5.330377e+04 -5.332639e+04 -5.329746e+04
+sale_age:living_sqft    -1.646053e-01 -1.645470e-01 -1.644941e-01 -1.645625e-01
+living_sqft:beds_total  -2.127223e+02 -2.140016e+02 -2.151328e+02 -2.154802e+02
+living_sqft:baths_total  2.657078e+02  2.669194e+02  2.679951e+02  2.686372e+02
+living_sqft:lot_size    -1.718577e-02 -1.720519e-02 -1.722270e-02 -1.725407e-02
+
+$df
+ [1]  0  2  4  5  5  5  5  5  5  5  6  6  6  6  7  7  9  9 10 10 10 11 11 11 13
+[26] 15 16 16 16 18 18 19 18 20 20 21 21 21 22 22 20 22 21 21 22 25 25 26 26 25
+[51] 26 26 26 26 25 25 25 27 27 28 28 28 28 28 28 28 28 28 28 28 28 28 28 28 28
+[76] 28 28 28 28 28 28 28 28 28 28
+
+$dim
+[1] 29 85
+
+$lambda
+ [1] 4717075.4485 4199211.7234 3738201.6232 3327803.4774 2962460.8570
+ [6] 2637227.3449 2347699.5662 2089957.5699 1860511.7567 1656255.6324
+[11] 1474423.7494 1312554.2640 1168455.6063 1040176.8074  925981.0855
+[16]  824322.3311  733824.1744  653261.3501  581543.1086  517698.4481
+[21]  460862.9683  410267.1667  365226.0208  325129.7133  289435.3755
+[26]  257659.7376  229372.5853  204190.9356  181773.8512  161817.8245
+[31]  144052.6684  128237.8585  114159.2762  101626.3098   90469.2741
+[36]   80537.1126   71695.3525   63824.2844   56817.3408   50579.6539
+[41]   45026.7709   40083.5107   35682.9459   31765.4967   28278.1244
+[46]   25173.6129   22409.9300   19949.6577   17759.4863   15809.7626
+[51]   14074.0891   12528.9665   11153.4750    9928.9917    8838.9382
+[56]    7868.5561    7004.7073    6235.6961    5551.1108    4941.6825
+[61]    4399.1604    3916.1989    3486.2593    3103.5207    2762.8009
+[66]    2459.4870    2189.4725    1949.1014    1735.1195    1544.6295
+[71]    1375.0525    1224.0925    1089.7056     970.0724     863.5731
+[76]     768.7658     684.3669     609.2337     542.3490     482.8073
+[81]     429.8023     382.6165     340.6110     303.2171     269.9284
+
+$dev.ratio
+ [1] 0.0000000 0.0415155 0.1097836 0.1801436 0.2474375 0.3071552 0.3597380
+ [8] 0.4056858 0.4455546 0.4799315 0.5136603 0.5426726 0.5675088 0.5887209
+[15] 0.6072412 0.6240056 0.6394798 0.6542641 0.6678742 0.6812622 0.6927777
+[22] 0.7027440 0.7117901 0.7194488 0.7275759 0.7351441 0.7422282 0.7482960
+[29] 0.7534498 0.7580933 0.7629059 0.7670988 0.7707053 0.7738255 0.7766413
+[36] 0.7790960 0.7812481 0.7831308 0.7850273 0.7875224 0.7893706 0.7909794
+[43] 0.7924077 0.7936633 0.7947835 0.7962734 0.7982166 0.8005252 0.8027678
+[50] 0.8047757 0.8066359 0.8083946 0.8099940 0.8114537 0.8127695 0.8139567
+[57] 0.8150240 0.8159746 0.8168279 0.8175767 0.8182369 0.8188140 0.8193166
+[64] 0.8197486 0.8201200 0.8204410 0.8207130 0.8209410 0.8211350 0.8212987
+[71] 0.8214343 0.8215487 0.8216429 0.8217206 0.8217847 0.8218386 0.8218826
+[78] 0.8219194 0.8219500 0.8219745 0.8219949 0.8220117 0.8220256 0.8220370
+[85] 0.8220418
+
+$nulldev
+[1] 1.956818e+15
+
+$npasses
+[1] 2549
+
+$jerr
+[1] 0
+
+$offset
+[1] FALSE
+
+$call
+glmnet(...)
+
+$nobs
+[1] 1488
+
+$relaxed
+$a0
+           s0            s1            s2            s3            s4 
+ 2.631678e+06  3.607086e+05 -6.857587e+05 -4.658534e+05 -4.658534e+05 
+           s5            s6            s7            s8            s9 
+-4.658534e+05 -4.658534e+05 -4.658534e+05 -4.658534e+05 -4.658534e+05 
+          s10           s11           s12           s13           s14 
+-1.831007e+05 -1.831007e+05 -1.831007e+05 -1.831007e+05 -1.411230e+05 
+          s15           s16           s17           s18           s19 
+-1.411230e+05  1.230078e+05  1.230078e+05  7.848249e+04  7.848249e+04 
+          s20           s21           s22           s23           s24 
+ 7.848249e+04 -1.352889e+04 -1.352889e+04 -1.352889e+04 -3.871283e+04 
+          s25           s26           s27           s28           s29 
+-3.716604e+04 -5.151955e+03 -5.151955e+03 -5.151955e+03 -4.153422e+05 
+          s30           s31           s32           s33           s34 
+-4.153422e+05 -4.167257e+05  1.967549e+05  2.976915e+05  2.976915e+05 
+          s35           s36           s37           s38           s39 
+-1.597114e+08 -1.597114e+08 -1.597114e+08 -1.637094e+08 -1.637094e+08 
+          s40           s41           s42           s43           s44 
+-1.597421e+08 -3.168001e+08 -4.352962e+07 -4.352962e+07 -3.018079e+08 
+          s45           s46           s47           s48           s49 
+-5.497612e+08 -5.497612e+08 -4.568224e+08 -4.568224e+08 -2.938588e+08 
+          s50           s51           s52           s53           s54 
+-4.582023e+08 -4.582023e+08 -4.582023e+08 -4.582023e+08 -4.403052e+08 
+          s55           s56           s57           s58           s59 
+-4.403052e+08 -4.403052e+08 -4.549828e+08 -4.549828e+08 -4.641597e+08 
+          s60           s61           s62           s63           s64 
+-4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 
+          s65           s66           s67           s68           s69 
+-4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 
+          s70           s71           s72           s73           s74 
+-4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 
+          s75           s76           s77           s78           s79 
+-4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 
+          s80           s81           s82           s83           s84 
+-4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 -4.641597e+08 
+
+$beta
+29 x 85 sparse Matrix of class "dgCMatrix"</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                                                           
+sale_age                .    .            .             .            .     
+living_sqft             . 1037.75276   1193.55995    1131.3825    1131.3825
+beds_total              .    .       480279.16912  943094.7729  943094.7729
+baths_total             .    .            .       -744834.9116 -744834.9116
+lot_size                .    .            .             .            .     
+area_id451              .    .            .             .            .     
+area_id452              .    .            .             .            .     
+area_id453              .    .            .             .            .     
+area_id460              .    .            .             .            .     
+area_id461              .    .            .             .            .     
+area_id462              .    .            .             .            .     
+area_id463              .    .            .             .            .     
+area_id464              .    .            .             .            .     
+area_id465              .    .            .             .            .     
+area_id466              .    .            .             .            .     
+area_id467              .    .            .             .            .     
+area_id469              .    .            .             .            .     
+area_id470              .    .            .             .            .     
+area_id471              .    .            .             .            .     
+area_id472              .    .            .             .            .     
+area_id480              .    .            .             .            .     
+age                     .    .            .             .            .     
+latitude                .    .            .             .            .     
+longitude               .    .            .             .            .     
+garage_spaces           .    .            .             .            .     
+sale_age:living_sqft    .    .            .             .            .     
+living_sqft:beds_total  .    .         -167.56359    -330.6921    -330.6921
+living_sqft:baths_total .   16.24216     92.54589     341.7623     341.7623
+living_sqft:lot_size    .    .            .             .            .     
+                                                                           
+sale_age                      .            .            .            .     
+living_sqft                1131.3825    1131.3825    1131.3825    1131.3825
+beds_total               943094.7729  943094.7729  943094.7729  943094.7729
+baths_total             -744834.9116 -744834.9116 -744834.9116 -744834.9116
+lot_size                      .            .            .            .     
+area_id451                    .            .            .            .     
+area_id452                    .            .            .            .     
+area_id453                    .            .            .            .     
+area_id460                    .            .            .            .     
+area_id461                    .            .            .            .     
+area_id462                    .            .            .            .     
+area_id463                    .            .            .            .     
+area_id464                    .            .            .            .     
+area_id465                    .            .            .            .     
+area_id466                    .            .            .            .     
+area_id467                    .            .            .            .     
+area_id469                    .            .            .            .     
+area_id470                    .            .            .            .     
+area_id471                    .            .            .            .     
+area_id472                    .            .            .            .     
+area_id480                    .            .            .            .     
+age                           .            .            .            .     
+latitude                      .            .            .            .     
+longitude                     .            .            .            .     
+garage_spaces                 .            .            .            .     
+sale_age:living_sqft          .            .            .            .     
+living_sqft:beds_total     -330.6921    -330.6921    -330.6921    -330.6921
+living_sqft:baths_total     341.7623     341.7623     341.7623     341.7623
+living_sqft:lot_size          .            .            .            .     
+                                                                           
+sale_age                      .            .            .            .     
+living_sqft                1131.3825    1095.1097    1095.1097    1095.1097
+beds_total               943094.7729  764286.4033  764286.4033  764286.4033
+baths_total             -744834.9116 -596189.2709 -596189.2709 -596189.2709
+lot_size                      .            .            .            .     
+area_id451                    .            .            .            .     
+area_id452                    .            .            .            .     
+area_id453                    .            .            .            .     
+area_id460                    .            .            .            .     
+area_id461                    .      -520571.2418 -520571.2418 -520571.2418
+area_id462                    .            .            .            .     
+area_id463                    .            .            .            .     
+area_id464                    .            .            .            .     
+area_id465                    .            .            .            .     
+area_id466                    .            .            .            .     
+area_id467                    .            .            .            .     
+area_id469                    .            .            .            .     
+area_id470                    .            .            .            .     
+area_id471                    .            .            .            .     
+area_id472                    .            .            .            .     
+area_id480                    .            .            .            .     
+age                           .            .            .            .     
+latitude                      .            .            .            .     
+longitude                     .            .            .            .     
+garage_spaces                 .            .            .            .     
+sale_age:living_sqft          .            .            .            .     
+living_sqft:beds_total     -330.6921    -289.7224    -289.7224    -289.7224
+living_sqft:baths_total     341.7623     299.6183     299.6183     299.6183
+living_sqft:lot_size          .            .            .            .     
+                                                                            
+sale_age                      .            .            .      -1.857730e+02
+living_sqft                1095.1097    1068.1729    1068.1729  1.077846e+03
+beds_total               764286.4033  747598.8176  747598.8176  7.351268e+05
+baths_total             -596189.2709 -609229.3689 -609229.3689 -5.936664e+05
+lot_size                      .            .            .      -2.512035e+00
+area_id451                    .            .            .       .           
+area_id452                    .            .            .       .           
+area_id453                    .            .            .       .           
+area_id460                    .            .            .       .           
+area_id461              -520571.2418 -482407.3000 -482407.3000 -4.887659e+05
+area_id462                    .            .            .       .           
+area_id463                    .            .            .       .           
+area_id464                    .            .            .       .           
+area_id465                    .            .            .       .           
+area_id466                    .       220732.3260  220732.3260  2.126202e+05
+area_id467                    .            .            .       .           
+area_id469                    .            .            .       .           
+area_id470                    .            .            .       .           
+area_id471                    .            .            .       .           
+area_id472                    .            .            .       .           
+area_id480                    .            .            .       .           
+age                           .            .            .       .           
+latitude                      .            .            .       .           
+longitude                     .            .            .       .           
+garage_spaces                 .            .            .       .           
+sale_age:living_sqft          .            .            .       .           
+living_sqft:beds_total     -289.7224    -284.7531    -284.7531 -2.784029e+02
+living_sqft:baths_total     299.6183     300.4666     300.4666  2.920431e+02
+living_sqft:lot_size          .            .            .       .           
+                                                                               
+sale_age                -1.857730e+02    -185.37552    -185.37552    -185.37552
+living_sqft              1.077846e+03    1102.31144    1102.31144    1102.31144
+beds_total               7.351268e+05  756795.13035  756795.13035  756795.13035
+baths_total             -5.936664e+05 -604776.28777 -604776.28777 -604776.28777
+lot_size                -2.512035e+00      -2.74397      -2.74397      -2.74397
+area_id451               .             571575.19532  571575.19532  571575.19532
+area_id452               .                  .             .             .      
+area_id453               .                  .             .             .      
+area_id460               .                  .             .             .      
+area_id461              -4.887659e+05 -485020.18797 -485020.18797 -485020.18797
+area_id462               .                  .             .             .      
+area_id463               .                  .             .             .      
+area_id464               .                  .             .             .      
+area_id465               .                  .             .             .      
+area_id466               2.126202e+05  211529.92805  211529.92805  211529.92805
+area_id467               .                  .             .             .      
+area_id469               .                  .             .             .      
+area_id470               .                  .             .             .      
+area_id471               .                  .             .             .      
+area_id472               .                  .             .             .      
+area_id480               .                  .             .             .      
+age                      .                  .             .             .      
+latitude                 .                  .             .             .      
+longitude                .                  .             .             .      
+garage_spaces            .                  .             .             .      
+sale_age:living_sqft     .                  .             .             .      
+living_sqft:beds_total  -2.784029e+02    -288.80430    -288.80430    -288.80430
+living_sqft:baths_total  2.920431e+02     297.05603     297.05603     297.05603
+living_sqft:lot_size     .                  .             .             .      
+                                                                               
+sale_age                -1.829786e+02 -1.829786e+02 -1.829786e+02 -1.911652e+02
+living_sqft              1.100315e+03  1.100315e+03  1.100315e+03  1.114574e+03
+beds_total               7.984646e+05  7.984646e+05  7.984646e+05  7.585461e+05
+baths_total             -6.236697e+05 -6.236697e+05 -6.236697e+05 -5.817078e+05
+lot_size                -4.508731e-01 -4.508731e-01 -4.508731e-01  8.420354e+00
+area_id451               9.984677e+05  9.984677e+05  9.984677e+05  4.786282e+05
+area_id452               .             .             .             .           
+area_id453               .             .             .             .           
+area_id460               3.299321e+05  3.299321e+05  3.299321e+05  2.863512e+05
+area_id461              -4.264161e+05 -4.264161e+05 -4.264161e+05 -4.216016e+05
+area_id462               .             .             .             .           
+area_id463               .             .             .             .           
+area_id464               .             .             .             .           
+area_id465               .             .             .             .           
+area_id466               2.576994e+05  2.576994e+05  2.576994e+05  2.215379e+05
+area_id467               .             .             .             .           
+area_id469               .             .             .             .           
+area_id470               .             .             .             2.571670e+05
+area_id471               .             .             .            -3.878888e+05
+area_id472               .             .             .             .           
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude                .             .             .             .           
+garage_spaces            .             .             .             .           
+sale_age:living_sqft     .             .             .             .           
+living_sqft:beds_total  -3.004176e+02 -3.004176e+02 -3.004176e+02 -2.901412e+02
+living_sqft:baths_total  3.027735e+02  3.027735e+02  3.027735e+02  2.917085e+02
+living_sqft:lot_size     .             .             .             .           
+                                                                               
+sale_age                -1.895135e+02 -1.890030e+02 -1.890030e+02 -1.890030e+02
+living_sqft              1.095293e+03  1.087788e+03  1.087788e+03  1.087788e+03
+beds_total               7.553910e+05  7.449932e+05  7.449932e+05  7.449932e+05
+baths_total             -5.755195e+05 -5.713498e+05 -5.713498e+05 -5.713498e+05
+lot_size                 8.783668e+00  8.552552e+00  8.552552e+00  8.552552e+00
+area_id451               3.828125e+05  2.983391e+05  2.983391e+05  2.983391e+05
+area_id452               .             .             .             .           
+area_id453               .            -4.038444e+05 -4.038444e+05 -4.038444e+05
+area_id460               2.968194e+05  2.877198e+05  2.877198e+05  2.877198e+05
+area_id461              -4.119044e+05 -4.265940e+05 -4.265940e+05 -4.265940e+05
+area_id462               .             .             .             .           
+area_id463               2.962161e+05  2.884161e+05  2.884161e+05  2.884161e+05
+area_id464              -1.450071e+05 -1.537520e+05 -1.537520e+05 -1.537520e+05
+area_id465               .             .             .             .           
+area_id466               2.325999e+05  2.258839e+05  2.258839e+05  2.258839e+05
+area_id467               .             .             .             .           
+area_id469               .             .             .             .           
+area_id470               2.684808e+05  2.618257e+05  2.618257e+05  2.618257e+05
+area_id471              -3.783586e+05 -3.831546e+05 -3.831546e+05 -3.831546e+05
+area_id472               .             .             .             .           
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude                .             .             .             .           
+garage_spaces            .             .             .             .           
+sale_age:living_sqft     .             .             .             .           
+living_sqft:beds_total  -2.878277e+02 -2.850250e+02 -2.850250e+02 -2.850250e+02
+living_sqft:baths_total  2.920642e+02  2.912353e+02  2.912353e+02  2.912353e+02
+living_sqft:lot_size     .             .             .             .           
+                                                                               
+sale_age                 1.610564e+02  1.610564e+02  1.604802e+02  2.593432e+02
+living_sqft              1.278860e+03  1.278860e+03  1.265745e+03  9.786130e+02
+beds_total               6.728426e+05  6.728426e+05  6.763325e+05  9.521243e+04
+baths_total             -4.883266e+05 -4.883266e+05 -4.973139e+05 -2.677494e+04
+lot_size                 9.357120e+00  9.357120e+00  8.285926e+00  1.367626e+01
+area_id451              -3.606059e+05 -3.606059e+05 -2.885715e+05 -6.427919e+06
+area_id452               .             .             .             .           
+area_id453              -4.229635e+05 -4.229635e+05 -3.991697e+05 -5.149679e+05
+area_id460               2.546547e+05  2.546547e+05  2.872463e+05  2.120139e+05
+area_id461              -4.637564e+05 -4.637564e+05 -4.407903e+05 -6.002040e+05
+area_id462               .             .             .             .           
+area_id463               2.692265e+05  2.692265e+05  2.995559e+05  3.108771e+05
+area_id464              -1.805919e+05 -1.805919e+05 -1.528294e+05 -1.596257e+05
+area_id465              -8.583739e+04 -8.583739e+04 -5.546606e+04 -7.632677e+04
+area_id466               2.081193e+05  2.081193e+05  2.417569e+05  2.463146e+05
+area_id467               .             .             .             .           
+area_id469               .             .             .             .           
+area_id470               2.360926e+05  2.360926e+05  2.703888e+05  2.801542e+05
+area_id471              -3.932995e+05 -3.932995e+05 -3.489135e+05 -3.904665e+05
+area_id472               .             .             9.766783e+04  4.680936e+04
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude                .             .             .             .           
+garage_spaces            .             .             .             .           
+sale_age:living_sqft    -1.687507e-01 -1.687507e-01 -1.680495e-01 -2.215495e-01
+living_sqft:beds_total  -2.486838e+02 -2.486838e+02 -2.513772e+02  .           
+living_sqft:baths_total  2.546025e+02  2.546025e+02  2.603886e+02  6.126531e+01
+living_sqft:lot_size     .             .             .             .           
+                                                                               
+sale_age                 2.584853e+02  2.584853e+02  2.582511e+02  2.582511e+02
+living_sqft              9.908547e+02  9.908547e+02  9.884661e+02  9.884661e+02
+beds_total               9.250315e+04  9.250315e+04  9.312587e+04  9.312587e+04
+baths_total             -2.590718e+04 -2.590718e+04 -2.655366e+04 -2.655366e+04
+lot_size                 1.350559e+01  1.350559e+01  1.361147e+01  1.361147e+01
+area_id451              -6.438435e+06 -6.438435e+06 -6.511006e+06 -6.511006e+06
+area_id452               .             .             .             .           
+area_id453              -5.261502e+05 -5.261502e+05 -5.371417e+05 -5.371417e+05
+area_id460               1.716818e+05  1.716818e+05  1.660513e+05  1.660513e+05
+area_id461              -6.125907e+05 -6.125907e+05 -6.137377e+05 -6.137377e+05
+area_id462               .             .             .             .           
+area_id463               2.692942e+05  2.692942e+05  2.771304e+05  2.771304e+05
+area_id464              -2.008357e+05 -2.008357e+05 -2.060238e+05 -2.060238e+05
+area_id465              -1.113759e+05 -1.113759e+05 -1.206476e+05 -1.206476e+05
+area_id466               2.116648e+05  2.116648e+05  1.779987e+05  1.779987e+05
+area_id467              -9.335079e+04 -9.335079e+04 -1.216900e+05 -1.216900e+05
+area_id469               .             .             .             .           
+area_id470               2.662486e+05  2.662486e+05  2.219938e+05  2.219938e+05
+area_id471              -4.048157e+05 -4.048157e+05 -4.598045e+05 -4.598045e+05
+area_id472               3.905689e+04  3.905689e+04 -2.116881e+04 -2.116881e+04
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude                .             .            -1.317715e+06 -1.317715e+06
+garage_spaces           -5.755460e+04 -5.755460e+04 -5.851200e+04 -5.851200e+04
+sale_age:living_sqft    -2.210390e-01 -2.210390e-01 -2.209896e-01 -2.209896e-01
+living_sqft:beds_total   .             .             .             .           
+living_sqft:baths_total  6.136336e+01  6.136336e+01  6.183974e+01  6.183974e+01
+living_sqft:lot_size     .             .             .             .           
+                                                                               
+sale_age                 2.582511e+02  2.354606e+02  2.354606e+02  .           
+living_sqft              9.884661e+02  1.029631e+03  1.029631e+03  9.659032e+02
+beds_total               9.312587e+04  3.672620e+04  3.672620e+04  3.271661e+03
+baths_total             -2.655366e+04 -1.319901e+05 -1.319901e+05  .           
+lot_size                 1.361147e+01  9.009306e+01  9.009306e+01  8.446019e+01
+area_id451              -6.511006e+06 -4.933950e+06 -4.933950e+06 -4.335682e+06
+area_id452               .             .             .             .           
+area_id453              -5.371417e+05 -4.258970e+05 -4.258970e+05 -4.412349e+05
+area_id460               1.660513e+05  1.854647e+05  1.854647e+05  1.765308e+05
+area_id461              -6.137377e+05 -4.658744e+05 -4.658744e+05 -5.098735e+05
+area_id462               .             .             .             .           
+area_id463               2.771304e+05  2.869399e+05  2.869399e+05  2.831501e+05
+area_id464              -2.060238e+05 -1.858856e+05 -1.858856e+05 -1.835104e+05
+area_id465              -1.206476e+05 -9.147735e+04 -9.147735e+04 -1.210463e+05
+area_id466               1.779987e+05  1.644350e+05  1.644350e+05  1.493048e+05
+area_id467              -1.216900e+05 -1.045766e+05 -1.045766e+05 -1.022962e+05
+area_id469               .             .             .             .           
+area_id470               2.219938e+05  1.679729e+05  1.679729e+05  1.724845e+05
+area_id471              -4.598045e+05 -5.836081e+05 -5.836081e+05 -6.031326e+05
+area_id472              -2.116881e+04 -9.308967e+04 -9.308967e+04 -9.637673e+04
+area_id480               .             .             .             .           
+age                      .             .             .             .           
+latitude                 .             .             .             .           
+longitude               -1.317715e+06 -1.349715e+06 -1.349715e+06 -1.318663e+06
+garage_spaces           -5.851200e+04 -4.352338e+04 -4.352338e+04 -4.746495e+04
+sale_age:living_sqft    -2.209896e-01 -2.092579e-01 -2.092579e-01 -1.140284e-01
+living_sqft:beds_total   .             .             .             .           
+living_sqft:baths_total  6.183974e+01  1.131178e+02  1.131178e+02  7.924150e+01
+living_sqft:lot_size     .            -2.239167e-02 -2.239167e-02 -2.042362e-02
+                                                                               
+sale_age                 .             .             .             .           
+living_sqft              9.578897e+02  9.568705e+02  9.568705e+02  9.511500e+02
+beds_total              -2.039651e+01  1.084070e+03  1.084070e+03 -1.724925e+03
+baths_total              .             .             .             .           
+lot_size                 8.425979e+01  8.250010e+01  8.250010e+01  8.227117e+01
+area_id451              -4.655222e+06 -4.309877e+06 -4.309877e+06 -4.379183e+06
+area_id452               .             .             .             .           
+area_id453              -5.602357e+05 -4.309369e+05 -4.309369e+05 -3.219232e+05
+area_id460               6.883608e+04  1.960632e+05  1.960632e+05  3.120871e+05
+area_id461              -6.057510e+05 -5.064120e+05 -5.064120e+05 -3.746391e+05
+area_id462               .             .             .             2.474205e+05
+area_id463               3.063650e+05  3.226074e+05  3.226074e+05  5.148919e+05
+area_id464              -1.946223e+05 -1.435631e+05 -1.435631e+05  1.895563e+04
+area_id465              -1.878000e+05 -8.686761e+04 -8.686761e+04  4.297551e+04
+area_id466               2.247947e+04  1.936884e+05  1.936884e+05  2.692931e+05
+area_id467              -1.612685e+05 -4.998036e+04 -4.998036e+04  6.235665e+04
+area_id469               .             .             .             .           
+area_id470               5.297067e+04  2.310308e+05  2.310308e+05  2.986876e+05
+area_id471              -8.823243e+05 -5.688239e+05 -5.688239e+05 -5.866625e+05
+area_id472              -3.206879e+05  .             .             .           
+area_id480               .             .             .             .           
+age                     -4.912766e+02 -3.736826e+02 -3.736826e+02 -4.161544e+02
+latitude                -9.955711e+06 -2.590672e+06 -2.590672e+06 -7.244246e+06
+longitude               -5.705343e+06 -1.166657e+06 -1.166657e+06 -4.738001e+06
+garage_spaces           -4.841939e+04 -5.447839e+04 -5.447839e+04 -5.651700e+04
+sale_age:living_sqft    -1.133631e-01 -1.136017e-01 -1.136017e-01 -1.132705e-01
+living_sqft:beds_total   .             .             .             .           
+living_sqft:baths_total  7.891462e+01  7.929934e+01  7.929934e+01  7.996417e+01
+living_sqft:lot_size    -2.022744e-02 -1.999740e-02 -1.999740e-02 -1.986607e-02
+                                                                               
+sale_age                 2.220716e+02  2.220716e+02  1.538572e+02  1.538572e+02
+living_sqft              1.261224e+03  1.261224e+03  1.274084e+03  1.274084e+03
+beds_total               1.842610e+05  1.842610e+05  5.744024e+05  5.744024e+05
+baths_total              .             .            -5.463185e+05 -5.463185e+05
+lot_size                 6.636189e+01  6.636189e+01  6.974138e+01  6.974138e+01
+area_id451              -1.728939e+06 -1.728939e+06  2.202037e+05  2.202037e+05
+area_id452               .             .             .             .           
+area_id453              -1.480685e+05 -1.480685e+05 -1.685711e+05 -1.685711e+05
+area_id460               4.789334e+05  4.789334e+05  4.643559e+05  4.643559e+05
+area_id461              -1.998817e+05 -1.998817e+05 -1.474467e+05 -1.474467e+05
+area_id462               5.052611e+05  5.052611e+05  3.692549e+05  3.692549e+05
+area_id463               7.634139e+05  7.634139e+05  6.328968e+05  6.328968e+05
+area_id464               2.296244e+05  2.296244e+05  1.248133e+05  1.248133e+05
+area_id465               2.354387e+05  2.354387e+05  1.804290e+05  1.804290e+05
+area_id466               3.692724e+05  3.692724e+05  3.357181e+05  3.357181e+05
+area_id467               2.263257e+05  2.263257e+05  1.515702e+05  1.515702e+05
+area_id469               2.850747e+05  2.850747e+05  2.174301e+05  2.174301e+05
+area_id470               3.896034e+05  3.896034e+05  3.351762e+05  3.351762e+05
+area_id471              -5.775783e+05 -5.775783e+05 -5.303654e+05 -5.303654e+05
+area_id472               .             .             .             .           
+area_id480               .             .             .             .           
+age                     -5.040675e+02 -5.040675e+02 -1.434926e+03 -1.434926e+03
+latitude                -1.407635e+07 -1.407635e+07 -9.934497e+06 -9.934497e+06
+longitude               -8.894314e+06 -8.894314e+06 -6.843878e+06 -6.843878e+06
+garage_spaces           -5.320004e+04 -5.320004e+04 -5.347872e+04 -5.347872e+04
+sale_age:living_sqft    -2.009567e-01 -2.009567e-01 -1.640859e-01 -1.640859e-01
+living_sqft:beds_total  -8.560754e+01 -8.560754e+01 -2.256135e+02 -2.256135e+02
+living_sqft:baths_total  9.918849e+01  9.918849e+01  2.795399e+02  2.795399e+02
+living_sqft:lot_size    -1.503085e-02 -1.503085e-02 -1.741859e-02 -1.741859e-02
+                                                                               
+sale_age                 1.539835e+02  1.543751e+02  1.543751e+02  1.543751e+02
+living_sqft              1.273174e+03  1.274043e+03  1.274043e+03  1.274043e+03
+beds_total               5.807283e+05  5.736843e+05  5.736843e+05  5.736843e+05
+baths_total             -5.534118e+05 -5.458963e+05 -5.458963e+05 -5.458963e+05
+lot_size                 6.852146e+01  6.979398e+01  6.979398e+01  6.979398e+01
+area_id451               2.512289e+05  5.937137e+04  5.937137e+04  5.937137e+04
+area_id452               .             .             .             .           
+area_id453              -2.768607e+05 -3.178491e+05 -3.178491e+05 -3.178491e+05
+area_id460               3.542725e+05  3.146653e+05  3.146653e+05  3.146653e+05
+area_id461              -2.720375e+05 -2.964352e+05 -2.964352e+05 -2.964352e+05
+area_id462               1.878694e+05  2.208771e+05  2.208771e+05  2.208771e+05
+area_id463               4.585229e+05  4.844881e+05  4.844881e+05  4.844881e+05
+area_id464              -2.914004e+04 -2.385055e+04 -2.385055e+04 -2.385055e+04
+area_id465               5.530361e+04  3.127323e+04  3.127323e+04  3.127323e+04
+area_id466               2.514693e+05  1.859234e+05  1.859234e+05  1.859234e+05
+area_id467               .             .             .             .           
+area_id469               1.047307e+05  6.830888e+04  6.830888e+04  6.830888e+04
+area_id470               2.555808e+05  1.855498e+05  1.855498e+05  1.855498e+05
+area_id471              -5.316256e+05 -6.815412e+05 -6.815412e+05 -6.815412e+05
+area_id472               .            -1.528978e+05 -1.528978e+05 -1.528978e+05
+area_id480               .             .             .             .           
+age                     -1.357332e+03 -1.431083e+03 -1.431083e+03 -1.431083e+03
+latitude                -5.758424e+06 -1.001333e+07 -1.001333e+07 -1.001333e+07
+longitude               -4.205863e+06 -6.880953e+06 -6.880953e+06 -6.880953e+06
+garage_spaces           -5.650852e+04 -5.360340e+04 -5.360340e+04 -5.360340e+04
+sale_age:living_sqft    -1.641027e-01 -1.642663e-01 -1.642663e-01 -1.642663e-01
+living_sqft:beds_total  -2.275580e+02 -2.253077e+02 -2.253077e+02 -2.253077e+02
+living_sqft:baths_total  2.823721e+02  2.793627e+02  2.793627e+02  2.793627e+02
+living_sqft:lot_size    -1.726431e-02 -1.742941e-02 -1.742941e-02 -1.742941e-02
+                                                                               
+sale_age                 1.543751e+02  1.529223e+02  1.529223e+02  1.529223e+02
+living_sqft              1.274043e+03  1.274334e+03  1.274334e+03  1.274334e+03
+beds_total               5.736843e+05  5.734726e+05  5.734726e+05  5.734726e+05
+baths_total             -5.458963e+05 -5.451883e+05 -5.451883e+05 -5.451883e+05
+lot_size                 6.979398e+01  6.972096e+01  6.972096e+01  6.972096e+01
+area_id451               5.937137e+04  4.913946e+04  4.913946e+04  4.913946e+04
+area_id452               .             .             .             .           
+area_id453              -3.178491e+05 -3.342614e+05 -3.342614e+05 -3.342614e+05
+area_id460               3.146653e+05  2.973960e+05  2.973960e+05  2.973960e+05
+area_id461              -2.964352e+05 -3.140991e+05 -3.140991e+05 -3.140991e+05
+area_id462               2.208771e+05  2.009293e+05  2.009293e+05  2.009293e+05
+area_id463               4.844881e+05  4.652978e+05  4.652978e+05  4.652978e+05
+area_id464              -2.385055e+04 -4.126675e+04 -4.126675e+04 -4.126675e+04
+area_id465               3.127323e+04  .             .             .           
+area_id466               1.859234e+05  1.716931e+05  1.716931e+05  1.716931e+05
+area_id467               .             .             .             .           
+area_id469               6.830888e+04  5.459743e+04  5.459743e+04  5.459743e+04
+area_id470               1.855498e+05  1.725691e+05  1.725691e+05  1.725691e+05
+area_id471              -6.815412e+05 -6.929769e+05 -6.929769e+05 -6.929769e+05
+area_id472              -1.528978e+05 -1.639962e+05 -1.639962e+05 -1.639962e+05
+area_id480               .             .             .             .           
+age                     -1.431083e+03 -1.423525e+03 -1.423525e+03 -1.423525e+03
+latitude                -1.001333e+07 -9.975508e+06 -9.975508e+06 -9.975508e+06
+longitude               -6.880953e+06 -6.721967e+06 -6.721967e+06 -6.721967e+06
+garage_spaces           -5.360340e+04 -5.324951e+04 -5.324951e+04 -5.324951e+04
+sale_age:living_sqft    -1.642663e-01 -1.638651e-01 -1.638651e-01 -1.638651e-01
+living_sqft:beds_total  -2.253077e+02 -2.251984e+02 -2.251984e+02 -2.251984e+02
+living_sqft:baths_total  2.793627e+02  2.789822e+02  2.789822e+02  2.789822e+02
+living_sqft:lot_size    -1.742941e-02 -1.741038e-02 -1.741038e-02 -1.741038e-02
+                                                                               
+sale_age                 1.543247e+02  1.543247e+02  1.541802e+02  1.541802e+02
+living_sqft              1.274363e+03  1.274363e+03  1.274185e+03  1.274185e+03
+beds_total               5.735245e+05  5.735245e+05  5.737552e+05  5.737552e+05
+baths_total             -5.456790e+05 -5.456790e+05 -5.457954e+05 -5.457954e+05
+lot_size                 6.976538e+01  6.976538e+01  6.981627e+01  6.981627e+01
+area_id451               3.124894e+04  3.124894e+04  2.709582e+04  2.709582e+04
+area_id452              -1.139697e+05 -1.139697e+05 -1.178402e+05 -1.178402e+05
+area_id453              -3.467075e+05 -3.467075e+05 -3.498067e+05 -3.498067e+05
+area_id460               2.854620e+05  2.854620e+05  2.829202e+05  2.829202e+05
+area_id461              -3.255068e+05 -3.255068e+05 -3.278458e+05 -3.278458e+05
+area_id462               1.914453e+05  1.914453e+05  1.915413e+05  1.915413e+05
+area_id463               4.551904e+05  4.551904e+05  4.548789e+05  4.548789e+05
+area_id464              -5.283832e+04 -5.283832e+04 -5.418446e+04 -5.418446e+04
+area_id465               .             .             .             .           
+area_id466               1.573046e+05  1.573046e+05  1.531776e+05  1.531776e+05
+area_id467              -2.618467e+04 -2.618467e+04 -2.915570e+04 -2.915570e+04
+area_id469               3.990915e+04  3.990915e+04  3.647514e+04  3.647514e+04
+area_id470               1.572704e+05  1.572704e+05  1.525682e+05  1.525682e+05
+area_id471              -7.097744e+05 -7.097744e+05 -7.171188e+05 -7.171188e+05
+area_id472              -1.808998e+05 -1.808998e+05 -1.877637e+05 -1.877637e+05
+area_id480               .             .            -9.539489e+04 -9.539489e+04
+age                     -1.426233e+03 -1.426233e+03 -1.435376e+03 -1.435376e+03
+latitude                -1.002550e+07 -1.002550e+07 -1.015516e+07 -1.015516e+07
+longitude               -6.858458e+06 -6.858458e+06 -6.974319e+06 -6.974319e+06
+garage_spaces           -5.369730e+04 -5.369730e+04 -5.345384e+04 -5.345384e+04
+sale_age:living_sqft    -1.642234e-01 -1.642234e-01 -1.641897e-01 -1.641897e-01
+living_sqft:beds_total  -2.252826e+02 -2.252826e+02 -2.253771e+02 -2.253771e+02
+living_sqft:baths_total  2.792683e+02  2.792683e+02  2.793271e+02  2.793271e+02
+living_sqft:lot_size    -1.742396e-02 -1.742396e-02 -1.743014e-02 -1.743014e-02
+                                                                               
+sale_age                 1.541802e+02  1.541802e+02  1.541802e+02  1.541802e+02
+living_sqft              1.274185e+03  1.274185e+03  1.274185e+03  1.274185e+03
+beds_total               5.737552e+05  5.737552e+05  5.737552e+05  5.737552e+05
+baths_total             -5.457954e+05 -5.457954e+05 -5.457954e+05 -5.457954e+05
+lot_size                 6.981627e+01  6.981627e+01  6.981627e+01  6.981627e+01
+area_id451               2.709582e+04  2.709582e+04  2.709582e+04  2.709582e+04
+area_id452              -1.178402e+05 -1.178402e+05 -1.178402e+05 -1.178402e+05
+area_id453              -3.498067e+05 -3.498067e+05 -3.498067e+05 -3.498067e+05
+area_id460               2.829202e+05  2.829202e+05  2.829202e+05  2.829202e+05
+area_id461              -3.278458e+05 -3.278458e+05 -3.278458e+05 -3.278458e+05
+area_id462               1.915413e+05  1.915413e+05  1.915413e+05  1.915413e+05
+area_id463               4.548789e+05  4.548789e+05  4.548789e+05  4.548789e+05
+area_id464              -5.418446e+04 -5.418446e+04 -5.418446e+04 -5.418446e+04
+area_id465               .             .             .             .           
+area_id466               1.531776e+05  1.531776e+05  1.531776e+05  1.531776e+05
+area_id467              -2.915570e+04 -2.915570e+04 -2.915570e+04 -2.915570e+04
+area_id469               3.647514e+04  3.647514e+04  3.647514e+04  3.647514e+04
+area_id470               1.525682e+05  1.525682e+05  1.525682e+05  1.525682e+05
+area_id471              -7.171188e+05 -7.171188e+05 -7.171188e+05 -7.171188e+05
+area_id472              -1.877637e+05 -1.877637e+05 -1.877637e+05 -1.877637e+05
+area_id480              -9.539489e+04 -9.539489e+04 -9.539489e+04 -9.539489e+04
+age                     -1.435376e+03 -1.435376e+03 -1.435376e+03 -1.435376e+03
+latitude                -1.015516e+07 -1.015516e+07 -1.015516e+07 -1.015516e+07
+longitude               -6.974319e+06 -6.974319e+06 -6.974319e+06 -6.974319e+06
+garage_spaces           -5.345384e+04 -5.345384e+04 -5.345384e+04 -5.345384e+04
+sale_age:living_sqft    -1.641897e-01 -1.641897e-01 -1.641897e-01 -1.641897e-01
+living_sqft:beds_total  -2.253771e+02 -2.253771e+02 -2.253771e+02 -2.253771e+02
+living_sqft:baths_total  2.793271e+02  2.793271e+02  2.793271e+02  2.793271e+02
+living_sqft:lot_size    -1.743014e-02 -1.743014e-02 -1.743014e-02 -1.743014e-02
+                                                                               
+sale_age                 1.541802e+02  1.541802e+02  1.541802e+02  1.541802e+02
+living_sqft              1.274185e+03  1.274185e+03  1.274185e+03  1.274185e+03
+beds_total               5.737552e+05  5.737552e+05  5.737552e+05  5.737552e+05
+baths_total             -5.457954e+05 -5.457954e+05 -5.457954e+05 -5.457954e+05
+lot_size                 6.981627e+01  6.981627e+01  6.981627e+01  6.981627e+01
+area_id451               2.709582e+04  2.709582e+04  2.709582e+04  2.709582e+04
+area_id452              -1.178402e+05 -1.178402e+05 -1.178402e+05 -1.178402e+05
+area_id453              -3.498067e+05 -3.498067e+05 -3.498067e+05 -3.498067e+05
+area_id460               2.829202e+05  2.829202e+05  2.829202e+05  2.829202e+05
+area_id461              -3.278458e+05 -3.278458e+05 -3.278458e+05 -3.278458e+05
+area_id462               1.915413e+05  1.915413e+05  1.915413e+05  1.915413e+05
+area_id463               4.548789e+05  4.548789e+05  4.548789e+05  4.548789e+05
+area_id464              -5.418446e+04 -5.418446e+04 -5.418446e+04 -5.418446e+04
+area_id465               .             .             .             .           
+area_id466               1.531776e+05  1.531776e+05  1.531776e+05  1.531776e+05
+area_id467              -2.915570e+04 -2.915570e+04 -2.915570e+04 -2.915570e+04
+area_id469               3.647514e+04  3.647514e+04  3.647514e+04  3.647514e+04
+area_id470               1.525682e+05  1.525682e+05  1.525682e+05  1.525682e+05
+area_id471              -7.171188e+05 -7.171188e+05 -7.171188e+05 -7.171188e+05
+area_id472              -1.877637e+05 -1.877637e+05 -1.877637e+05 -1.877637e+05
+area_id480              -9.539489e+04 -9.539489e+04 -9.539489e+04 -9.539489e+04
+age                     -1.435376e+03 -1.435376e+03 -1.435376e+03 -1.435376e+03
+latitude                -1.015516e+07 -1.015516e+07 -1.015516e+07 -1.015516e+07
+longitude               -6.974319e+06 -6.974319e+06 -6.974319e+06 -6.974319e+06
+garage_spaces           -5.345384e+04 -5.345384e+04 -5.345384e+04 -5.345384e+04
+sale_age:living_sqft    -1.641897e-01 -1.641897e-01 -1.641897e-01 -1.641897e-01
+living_sqft:beds_total  -2.253771e+02 -2.253771e+02 -2.253771e+02 -2.253771e+02
+living_sqft:baths_total  2.793271e+02  2.793271e+02  2.793271e+02  2.793271e+02
+living_sqft:lot_size    -1.743014e-02 -1.743014e-02 -1.743014e-02 -1.743014e-02
+                                                                               
+sale_age                 1.541802e+02  1.541802e+02  1.541802e+02  1.541802e+02
+living_sqft              1.274185e+03  1.274185e+03  1.274185e+03  1.274185e+03
+beds_total               5.737552e+05  5.737552e+05  5.737552e+05  5.737552e+05
+baths_total             -5.457954e+05 -5.457954e+05 -5.457954e+05 -5.457954e+05
+lot_size                 6.981627e+01  6.981627e+01  6.981627e+01  6.981627e+01
+area_id451               2.709582e+04  2.709582e+04  2.709582e+04  2.709582e+04
+area_id452              -1.178402e+05 -1.178402e+05 -1.178402e+05 -1.178402e+05
+area_id453              -3.498067e+05 -3.498067e+05 -3.498067e+05 -3.498067e+05
+area_id460               2.829202e+05  2.829202e+05  2.829202e+05  2.829202e+05
+area_id461              -3.278458e+05 -3.278458e+05 -3.278458e+05 -3.278458e+05
+area_id462               1.915413e+05  1.915413e+05  1.915413e+05  1.915413e+05
+area_id463               4.548789e+05  4.548789e+05  4.548789e+05  4.548789e+05
+area_id464              -5.418446e+04 -5.418446e+04 -5.418446e+04 -5.418446e+04
+area_id465               .             .             .             .           
+area_id466               1.531776e+05  1.531776e+05  1.531776e+05  1.531776e+05
+area_id467              -2.915570e+04 -2.915570e+04 -2.915570e+04 -2.915570e+04
+area_id469               3.647514e+04  3.647514e+04  3.647514e+04  3.647514e+04
+area_id470               1.525682e+05  1.525682e+05  1.525682e+05  1.525682e+05
+area_id471              -7.171188e+05 -7.171188e+05 -7.171188e+05 -7.171188e+05
+area_id472              -1.877637e+05 -1.877637e+05 -1.877637e+05 -1.877637e+05
+area_id480              -9.539489e+04 -9.539489e+04 -9.539489e+04 -9.539489e+04
+age                     -1.435376e+03 -1.435376e+03 -1.435376e+03 -1.435376e+03
+latitude                -1.015516e+07 -1.015516e+07 -1.015516e+07 -1.015516e+07
+longitude               -6.974319e+06 -6.974319e+06 -6.974319e+06 -6.974319e+06
+garage_spaces           -5.345384e+04 -5.345384e+04 -5.345384e+04 -5.345384e+04
+sale_age:living_sqft    -1.641897e-01 -1.641897e-01 -1.641897e-01 -1.641897e-01
+living_sqft:beds_total  -2.253771e+02 -2.253771e+02 -2.253771e+02 -2.253771e+02
+living_sqft:baths_total  2.793271e+02  2.793271e+02  2.793271e+02  2.793271e+02
+living_sqft:lot_size    -1.743014e-02 -1.743014e-02 -1.743014e-02 -1.743014e-02
+                                                                               
+sale_age                 1.541802e+02  1.541802e+02  1.541802e+02  1.541802e+02
+living_sqft              1.274185e+03  1.274185e+03  1.274185e+03  1.274185e+03
+beds_total               5.737552e+05  5.737552e+05  5.737552e+05  5.737552e+05
+baths_total             -5.457954e+05 -5.457954e+05 -5.457954e+05 -5.457954e+05
+lot_size                 6.981627e+01  6.981627e+01  6.981627e+01  6.981627e+01
+area_id451               2.709582e+04  2.709582e+04  2.709582e+04  2.709582e+04
+area_id452              -1.178402e+05 -1.178402e+05 -1.178402e+05 -1.178402e+05
+area_id453              -3.498067e+05 -3.498067e+05 -3.498067e+05 -3.498067e+05
+area_id460               2.829202e+05  2.829202e+05  2.829202e+05  2.829202e+05
+area_id461              -3.278458e+05 -3.278458e+05 -3.278458e+05 -3.278458e+05
+area_id462               1.915413e+05  1.915413e+05  1.915413e+05  1.915413e+05
+area_id463               4.548789e+05  4.548789e+05  4.548789e+05  4.548789e+05
+area_id464              -5.418446e+04 -5.418446e+04 -5.418446e+04 -5.418446e+04
+area_id465               .             .             .             .           
+area_id466               1.531776e+05  1.531776e+05  1.531776e+05  1.531776e+05
+area_id467              -2.915570e+04 -2.915570e+04 -2.915570e+04 -2.915570e+04
+area_id469               3.647514e+04  3.647514e+04  3.647514e+04  3.647514e+04
+area_id470               1.525682e+05  1.525682e+05  1.525682e+05  1.525682e+05
+area_id471              -7.171188e+05 -7.171188e+05 -7.171188e+05 -7.171188e+05
+area_id472              -1.877637e+05 -1.877637e+05 -1.877637e+05 -1.877637e+05
+area_id480              -9.539489e+04 -9.539489e+04 -9.539489e+04 -9.539489e+04
+age                     -1.435376e+03 -1.435376e+03 -1.435376e+03 -1.435376e+03
+latitude                -1.015516e+07 -1.015516e+07 -1.015516e+07 -1.015516e+07
+longitude               -6.974319e+06 -6.974319e+06 -6.974319e+06 -6.974319e+06
+garage_spaces           -5.345384e+04 -5.345384e+04 -5.345384e+04 -5.345384e+04
+sale_age:living_sqft    -1.641897e-01 -1.641897e-01 -1.641897e-01 -1.641897e-01
+living_sqft:beds_total  -2.253771e+02 -2.253771e+02 -2.253771e+02 -2.253771e+02
+living_sqft:baths_total  2.793271e+02  2.793271e+02  2.793271e+02  2.793271e+02
+living_sqft:lot_size    -1.743014e-02 -1.743014e-02 -1.743014e-02 -1.743014e-02
+                                                                               
+sale_age                 1.541802e+02  1.541802e+02  1.541802e+02  1.541802e+02
+living_sqft              1.274185e+03  1.274185e+03  1.274185e+03  1.274185e+03
+beds_total               5.737552e+05  5.737552e+05  5.737552e+05  5.737552e+05
+baths_total             -5.457954e+05 -5.457954e+05 -5.457954e+05 -5.457954e+05
+lot_size                 6.981627e+01  6.981627e+01  6.981627e+01  6.981627e+01
+area_id451               2.709582e+04  2.709582e+04  2.709582e+04  2.709582e+04
+area_id452              -1.178402e+05 -1.178402e+05 -1.178402e+05 -1.178402e+05
+area_id453              -3.498067e+05 -3.498067e+05 -3.498067e+05 -3.498067e+05
+area_id460               2.829202e+05  2.829202e+05  2.829202e+05  2.829202e+05
+area_id461              -3.278458e+05 -3.278458e+05 -3.278458e+05 -3.278458e+05
+area_id462               1.915413e+05  1.915413e+05  1.915413e+05  1.915413e+05
+area_id463               4.548789e+05  4.548789e+05  4.548789e+05  4.548789e+05
+area_id464              -5.418446e+04 -5.418446e+04 -5.418446e+04 -5.418446e+04
+area_id465               .             .             .             .           
+area_id466               1.531776e+05  1.531776e+05  1.531776e+05  1.531776e+05
+area_id467              -2.915570e+04 -2.915570e+04 -2.915570e+04 -2.915570e+04
+area_id469               3.647514e+04  3.647514e+04  3.647514e+04  3.647514e+04
+area_id470               1.525682e+05  1.525682e+05  1.525682e+05  1.525682e+05
+area_id471              -7.171188e+05 -7.171188e+05 -7.171188e+05 -7.171188e+05
+area_id472              -1.877637e+05 -1.877637e+05 -1.877637e+05 -1.877637e+05
+area_id480              -9.539489e+04 -9.539489e+04 -9.539489e+04 -9.539489e+04
+age                     -1.435376e+03 -1.435376e+03 -1.435376e+03 -1.435376e+03
+latitude                -1.015516e+07 -1.015516e+07 -1.015516e+07 -1.015516e+07
+longitude               -6.974319e+06 -6.974319e+06 -6.974319e+06 -6.974319e+06
+garage_spaces           -5.345384e+04 -5.345384e+04 -5.345384e+04 -5.345384e+04
+sale_age:living_sqft    -1.641897e-01 -1.641897e-01 -1.641897e-01 -1.641897e-01
+living_sqft:beds_total  -2.253771e+02 -2.253771e+02 -2.253771e+02 -2.253771e+02
+living_sqft:baths_total  2.793271e+02  2.793271e+02  2.793271e+02  2.793271e+02
+living_sqft:lot_size    -1.743014e-02 -1.743014e-02 -1.743014e-02 -1.743014e-02
+                                                                               
+sale_age                 1.541802e+02  1.541802e+02  1.541802e+02  1.541802e+02
+living_sqft              1.274185e+03  1.274185e+03  1.274185e+03  1.274185e+03
+beds_total               5.737552e+05  5.737552e+05  5.737552e+05  5.737552e+05
+baths_total             -5.457954e+05 -5.457954e+05 -5.457954e+05 -5.457954e+05
+lot_size                 6.981627e+01  6.981627e+01  6.981627e+01  6.981627e+01
+area_id451               2.709582e+04  2.709582e+04  2.709582e+04  2.709582e+04
+area_id452              -1.178402e+05 -1.178402e+05 -1.178402e+05 -1.178402e+05
+area_id453              -3.498067e+05 -3.498067e+05 -3.498067e+05 -3.498067e+05
+area_id460               2.829202e+05  2.829202e+05  2.829202e+05  2.829202e+05
+area_id461              -3.278458e+05 -3.278458e+05 -3.278458e+05 -3.278458e+05
+area_id462               1.915413e+05  1.915413e+05  1.915413e+05  1.915413e+05
+area_id463               4.548789e+05  4.548789e+05  4.548789e+05  4.548789e+05
+area_id464              -5.418446e+04 -5.418446e+04 -5.418446e+04 -5.418446e+04
+area_id465               .             .             .             .           
+area_id466               1.531776e+05  1.531776e+05  1.531776e+05  1.531776e+05
+area_id467              -2.915570e+04 -2.915570e+04 -2.915570e+04 -2.915570e+04
+area_id469               3.647514e+04  3.647514e+04  3.647514e+04  3.647514e+04
+area_id470               1.525682e+05  1.525682e+05  1.525682e+05  1.525682e+05
+area_id471              -7.171188e+05 -7.171188e+05 -7.171188e+05 -7.171188e+05
+area_id472              -1.877637e+05 -1.877637e+05 -1.877637e+05 -1.877637e+05
+area_id480              -9.539489e+04 -9.539489e+04 -9.539489e+04 -9.539489e+04
+age                     -1.435376e+03 -1.435376e+03 -1.435376e+03 -1.435376e+03
+latitude                -1.015516e+07 -1.015516e+07 -1.015516e+07 -1.015516e+07
+longitude               -6.974319e+06 -6.974319e+06 -6.974319e+06 -6.974319e+06
+garage_spaces           -5.345384e+04 -5.345384e+04 -5.345384e+04 -5.345384e+04
+sale_age:living_sqft    -1.641897e-01 -1.641897e-01 -1.641897e-01 -1.641897e-01
+living_sqft:beds_total  -2.253771e+02 -2.253771e+02 -2.253771e+02 -2.253771e+02
+living_sqft:baths_total  2.793271e+02  2.793271e+02  2.793271e+02  2.793271e+02
+living_sqft:lot_size    -1.743014e-02 -1.743014e-02 -1.743014e-02 -1.743014e-02
+
+$df
+ [1]  0  2  4  5  5  5  5  5  5  5  6  6  6  6  7  7  9  9 10 10 10 11 11 11 13
+[26] 15 16 16 16 18 18 19 18 20 20 21 21 21 22 22 20 22 21 21 22 25 25 26 26 25
+[51] 26 26 26 26 25 25 25 27 27 28 28 28 28 28 28 28 28 28 28 28 28 28 28 28 28
+[76] 28 28 28 28 28 28 28 28 28 28
+
+$dim
+[1] 29 85
+
+$lambda
+ [1] 4717075.4485 4199211.7234 3738201.6232 3327803.4774 2962460.8570
+ [6] 2637227.3449 2347699.5662 2089957.5699 1860511.7567 1656255.6324
+[11] 1474423.7494 1312554.2640 1168455.6063 1040176.8074  925981.0855
+[16]  824322.3311  733824.1744  653261.3501  581543.1086  517698.4481
+[21]  460862.9683  410267.1667  365226.0208  325129.7133  289435.3755
+[26]  257659.7376  229372.5853  204190.9356  181773.8512  161817.8245
+[31]  144052.6684  128237.8585  114159.2762  101626.3098   90469.2741
+[36]   80537.1126   71695.3525   63824.2844   56817.3408   50579.6539
+[41]   45026.7709   40083.5107   35682.9459   31765.4967   28278.1244
+[46]   25173.6129   22409.9300   19949.6577   17759.4863   15809.7626
+[51]   14074.0891   12528.9665   11153.4750    9928.9917    8838.9382
+[56]    7868.5561    7004.7073    6235.6961    5551.1108    4941.6825
+[61]    4399.1604    3916.1989    3486.2593    3103.5207    2762.8009
+[66]    2459.4870    2189.4725    1949.1014    1735.1195    1544.6295
+[71]    1375.0525    1224.0925    1089.7056     970.0724     863.5731
+[76]     768.7658     684.3669     609.2337     542.3490     482.8073
+[81]     429.8023     382.6165     340.6110     303.2171     269.9284
+
+$dev.ratio
+ [1] 0.0000000 0.6774823 0.7203678 0.7492176 0.7492176 0.7492176 0.7492176
+ [8] 0.7492176 0.7492176 0.7492176 0.7626452 0.7626452 0.7626452 0.7626452
+[15] 0.7688900 0.7688900 0.7834361 0.7834361 0.7835340 0.7835340 0.7835340
+[22] 0.7888868 0.7888868 0.7888868 0.7994588 0.8026242 0.8034215 0.8034215
+[29] 0.8034215 0.8118770 0.8118770 0.8122626 0.7932064 0.7943621 0.7943621
+[36] 0.7945664 0.7945664 0.7945664 0.8058883 0.8058883 0.8010572 0.8021962
+[43] 0.8010925 0.8010925 0.8017180 0.8100321 0.8100321 0.8220874 0.8220874
+[50] 0.8218146 0.8220910 0.8220910 0.8220910 0.8220910 0.8220643 0.8220643
+[57] 0.8220643 0.8220880 0.8220880 0.8221014 0.8221014 0.8221014 0.8221014
+[64] 0.8221014 0.8221014 0.8221014 0.8221014 0.8221014 0.8221014 0.8221014
+[71] 0.8221014 0.8221014 0.8221014 0.8221014 0.8221014 0.8221014 0.8221014
+[78] 0.8221014 0.8221014 0.8221014 0.8221014 0.8221014 0.8221014 0.8221014
+[85] 0.8221014
+
+$nulldev
+[1] 1.956818e+15
+
+$npasses
+[1] 2549
+
+$jerr
+[1] 0
+
+$offset
+[1] FALSE
+
+$call
+glmnet(x = x, y = ..1, family = "gaussian", weights = ..2, offset = ..3, 
+    alpha = 0.2, nlambda = 100L, lambda.min.ratio = 1e-05, lambda = ..4, 
+    standardize = TRUE, intercept = TRUE, thresh = 1e-07, penalty.factor = c(1, 
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+    1, 1, 1, 1, 1, 1, 1, 1, 1), lower.limits = c(-Inf, -Inf, 
+    -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, 
+    -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, 
+    -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf), upper.limits = c(Inf, 
+    Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, 
+    Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, 
+    Inf, Inf, Inf, Inf), maxit = 100000L, trace.it = ..5)
+
+$nobs
+[1] 1488
+
+attr(,"class")
+[1] "elnet"  "glmnet"
+
+attr(,"class")
+[1] "relaxed" "elnet"   "glmnet" 
+
+$lambda.min
+[1] 303.2171
+
+$lambda.1se
+[1] 14074.09
+
+$index
+    Lambda
+min     84
+1se     51
+
+$relaxed
+$relaxed$statlist
+$relaxed$statlist$`g:0`
+$relaxed$statlist$`g:0`$lambda
+ [1] 4717075.4485 4199211.7234 3738201.6232 3327803.4774 2962460.8570
+ [6] 2637227.3449 2347699.5662 2089957.5699 1860511.7567 1656255.6324
+[11] 1474423.7494 1312554.2640 1168455.6063 1040176.8074  925981.0855
+[16]  824322.3311  733824.1744  653261.3501  581543.1086  517698.4481
+[21]  460862.9683  410267.1667  365226.0208  325129.7133  289435.3755
+[26]  257659.7376  229372.5853  204190.9356  181773.8512  161817.8245
+[31]  144052.6684  128237.8585  114159.2762  101626.3098   90469.2741
+[36]   80537.1126   71695.3525   63824.2844   56817.3408   50579.6539
+[41]   45026.7709   40083.5107   35682.9459   31765.4967   28278.1244
+[46]   25173.6129   22409.9300   19949.6577   17759.4863   15809.7626
+[51]   14074.0891   12528.9665   11153.4750    9928.9917    8838.9382
+[56]    7868.5561    7004.7073    6235.6961    5551.1108    4941.6825
+[61]    4399.1604    3916.1989    3486.2593    3103.5207    2762.8009
+[66]    2459.4870    2189.4725    1949.1014    1735.1195    1544.6295
+[71]    1375.0525    1224.0925    1089.7056     970.0724     863.5731
+[76]     768.7658     684.3669     609.2337     542.3490     482.8073
+[81]     429.8023     382.6165     340.6110     303.2171     269.9284
+
+$relaxed$statlist$`g:0`$cvm
+ [1] 1.219757e+12 4.872848e+11 3.720116e+11 3.474935e+11 3.371375e+11
+ [6] 3.370716e+11 3.370716e+11 3.370716e+11 3.370716e+11 3.294038e+11
+[11] 3.205359e+11 3.205359e+11 3.206789e+11 3.212620e+11 3.192778e+11
+[16] 3.116965e+11 2.995076e+11 2.949856e+11 2.958436e+11 2.980970e+11
+[21] 2.976485e+11 2.937273e+11 2.898130e+11 2.881103e+11 2.780027e+11
+[26] 2.735838e+11 2.720208e+11 2.711853e+11 2.734113e+11 2.754612e+11
+[31] 2.863733e+11 2.855797e+11 2.948190e+11 2.918241e+11 2.958813e+11
+[36] 3.286360e+11 3.308345e+11 3.444766e+11 3.310316e+11 3.181011e+11
+[41] 3.215799e+11 3.227483e+11 3.211041e+11 3.212663e+11 3.202043e+11
+[46] 3.063950e+11 2.792176e+11 2.598338e+11 2.606860e+11 2.670334e+11
+[51] 2.755367e+11 2.754803e+11 2.646554e+11 2.582877e+11 2.581728e+11
+[56] 2.581733e+11 2.581776e+11 2.582060e+11 2.582164e+11 2.582204e+11
+[61] 2.582235e+11 2.582120e+11 2.581947e+11 2.581851e+11 2.581851e+11
+[66] 2.581851e+11 2.581851e+11 2.581851e+11 2.581851e+11 2.581851e+11
+[71] 2.581851e+11 2.581851e+11 2.581851e+11 2.581851e+11 2.581851e+11
+[76] 2.581851e+11 2.581851e+11 2.581851e+11 2.581851e+11 2.581851e+11
+[81] 2.581851e+11 2.581851e+11 2.582857e+11 2.582961e+11 2.581888e+11
+
+$relaxed$statlist$`g:0`$cvsd
+ [1] 178234869020 107297001780  54578242466  46322649390  40507320496
+ [6]  40498027606  40498027630  40498027623  40498027587  41163150587
+[11]  43723964204  43723958437  43958623355  44994808770  45366573059
+[16]  46056678303  44788416201  42584696137  42317570697  41772458150
+[21]  41783124706  41909136059  41621107465  41346646758  41014262813
+[26]  40209633490  40153104768  40128927946  39750615989  46150996740
+[31]  56946803890  56833234418  57024215260  50474240891  44121926502
+[36]  51228975968  52602357679  64080740441  63053817080  63232357097
+[41]  63678452606  63428495791  63274753235  63254526193  62672742235
+[46]  62554235336  51088514787  43785932233  44020100614  49614380264
+[51]  57554448234  57585618642  48604799362  42687870537  42718475236
+[56]  42718171574  42717649360  42714222240  42710969423  42722779564
+[61]  42735622849  42738398312  42729914047  42720829767  42720826776
+[66]  42720823857  42720821035  42720818315  42720815706  42720813244
+[71]  42720810926  42720808749  42720806722  42720804531  42720802632
+[76]  42720801196  42720799737  42720798394  42720797176  42720796069
+[81]  42720795376  42720794491  42733889328  42735255689  42721271870
+
+$relaxed$statlist$`g:0`$cvup
+ [1] 1.397992e+12 5.945818e+11 4.265898e+11 3.938161e+11 3.776449e+11
+ [6] 3.775697e+11 3.775696e+11 3.775696e+11 3.775696e+11 3.705670e+11
+[11] 3.642598e+11 3.642598e+11 3.646376e+11 3.662568e+11 3.646444e+11
+[16] 3.577532e+11 3.442961e+11 3.375703e+11 3.381611e+11 3.398694e+11
+[21] 3.394317e+11 3.356364e+11 3.314341e+11 3.294570e+11 3.190170e+11
+[26] 3.137934e+11 3.121739e+11 3.113143e+11 3.131619e+11 3.216122e+11
+[31] 3.433201e+11 3.424129e+11 3.518432e+11 3.422984e+11 3.400032e+11
+[36] 3.798650e+11 3.834369e+11 4.085574e+11 3.940854e+11 3.813334e+11
+[41] 3.852584e+11 3.861768e+11 3.843789e+11 3.845209e+11 3.828770e+11
+[46] 3.689493e+11 3.303062e+11 3.036197e+11 3.047061e+11 3.166477e+11
+[51] 3.330911e+11 3.330659e+11 3.132602e+11 3.009756e+11 3.008912e+11
+[56] 3.008915e+11 3.008952e+11 3.009202e+11 3.009273e+11 3.009432e+11
+[61] 3.009591e+11 3.009504e+11 3.009246e+11 3.009059e+11 3.009059e+11
+[66] 3.009059e+11 3.009059e+11 3.009059e+11 3.009059e+11 3.009059e+11
+[71] 3.009059e+11 3.009059e+11 3.009059e+11 3.009059e+11 3.009059e+11
+[76] 3.009059e+11 3.009059e+11 3.009059e+11 3.009059e+11 3.009059e+11
+[81] 3.009059e+11 3.009059e+11 3.010195e+11 3.010313e+11 3.009100e+11
+
+$relaxed$statlist$`g:0`$cvlo
+ [1] 1.041522e+12 3.799878e+11 3.174334e+11 3.011708e+11 2.966302e+11
+ [6] 2.965736e+11 2.965736e+11 2.965736e+11 2.965736e+11 2.882407e+11
+[11] 2.768119e+11 2.768119e+11 2.767203e+11 2.762672e+11 2.739112e+11
+[16] 2.656398e+11 2.547192e+11 2.524009e+11 2.535260e+11 2.563245e+11
+[21] 2.558654e+11 2.518182e+11 2.481919e+11 2.467637e+11 2.369884e+11
+[26] 2.333741e+11 2.318677e+11 2.310564e+11 2.336607e+11 2.293102e+11
+[31] 2.294265e+11 2.287464e+11 2.377948e+11 2.413499e+11 2.517593e+11
+[36] 2.774070e+11 2.782322e+11 2.803959e+11 2.679778e+11 2.548687e+11
+[41] 2.579015e+11 2.593198e+11 2.578294e+11 2.580118e+11 2.575316e+11
+[46] 2.438408e+11 2.281291e+11 2.160479e+11 2.166659e+11 2.174190e+11
+[51] 2.179822e+11 2.178947e+11 2.160506e+11 2.155999e+11 2.154543e+11
+[56] 2.154551e+11 2.154599e+11 2.154917e+11 2.155054e+11 2.154977e+11
+[61] 2.154879e+11 2.154736e+11 2.154648e+11 2.154643e+11 2.154643e+11
+[66] 2.154643e+11 2.154643e+11 2.154643e+11 2.154643e+11 2.154643e+11
+[71] 2.154643e+11 2.154643e+11 2.154643e+11 2.154643e+11 2.154643e+11
+[76] 2.154643e+11 2.154643e+11 2.154643e+11 2.154643e+11 2.154643e+11
+[81] 2.154643e+11 2.154643e+11 2.155518e+11 2.155608e+11 2.154675e+11
+
+$relaxed$statlist$`g:0`$nzero
+ s0  s1  s2  s3  s4  s5  s6  s7  s8  s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 
+  0   2   4   5   5   5   5   5   5   5   6   6   6   6   7   7   9   9  10  10 
+s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33 s34 s35 s36 s37 s38 s39 
+ 10  11  11  11  13  15  16  16  16  18  18  19  18  20  20  21  21  21  22  22 
+s40 s41 s42 s43 s44 s45 s46 s47 s48 s49 s50 s51 s52 s53 s54 s55 s56 s57 s58 s59 
+ 20  22  21  21  22  25  25  26  26  25  26  26  26  26  25  25  25  27  27  28 
+s60 s61 s62 s63 s64 s65 s66 s67 s68 s69 s70 s71 s72 s73 s74 s75 s76 s77 s78 s79 
+ 28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28 
+s80 s81 s82 s83 s84 
+ 28  28  28  28  28 
+
+
+$relaxed$statlist$`g:0.25`
+$relaxed$statlist$`g:0.25`$lambda
+ [1] 4717075.4485 4199211.7234 3738201.6232 3327803.4774 2962460.8570
+ [6] 2637227.3449 2347699.5662 2089957.5699 1860511.7567 1656255.6324
+[11] 1474423.7494 1312554.2640 1168455.6063 1040176.8074  925981.0855
+[16]  824322.3311  733824.1744  653261.3501  581543.1086  517698.4481
+[21]  460862.9683  410267.1667  365226.0208  325129.7133  289435.3755
+[26]  257659.7376  229372.5853  204190.9356  181773.8512  161817.8245
+[31]  144052.6684  128237.8585  114159.2762  101626.3098   90469.2741
+[36]   80537.1126   71695.3525   63824.2844   56817.3408   50579.6539
+[41]   45026.7709   40083.5107   35682.9459   31765.4967   28278.1244
+[46]   25173.6129   22409.9300   19949.6577   17759.4863   15809.7626
+[51]   14074.0891   12528.9665   11153.4750    9928.9917    8838.9382
+[56]    7868.5561    7004.7073    6235.6961    5551.1108    4941.6825
+[61]    4399.1604    3916.1989    3486.2593    3103.5207    2762.8009
+[66]    2459.4870    2189.4725    1949.1014    1735.1195    1544.6295
+[71]    1375.0525    1224.0925    1089.7056     970.0724     863.5731
+[76]     768.7658     684.3669     609.2337     542.3490     482.8073
+[81]     429.8023     382.6165     340.6110     303.2171     269.9284
+
+$relaxed$statlist$`g:0.25`$cvm
+ [1] 1.241565e+12 5.473710e+11 4.249893e+11 3.959309e+11 3.779638e+11
+ [6] 3.729299e+11 3.685180e+11 3.646615e+11 3.613148e+11 3.531440e+11
+[11] 3.414733e+11 3.390583e+11 3.374360e+11 3.363010e+11 3.321658e+11
+[16] 3.246560e+11 3.110190e+11 3.057312e+11 3.048979e+11 3.062440e+11
+[21] 3.051745e+11 3.011237e+11 2.962818e+11 2.946164e+11 2.849239e+11
+[26] 2.802799e+11 2.785654e+11 2.774487e+11 2.791417e+11 2.814581e+11
+[31] 2.898775e+11 2.893039e+11 2.968451e+11 2.951103e+11 3.010952e+11
+[36] 3.255880e+11 3.261174e+11 3.332266e+11 3.238399e+11 3.125996e+11
+[41] 3.153349e+11 3.166583e+11 3.157139e+11 3.162590e+11 3.152164e+11
+[46] 3.028869e+11 2.800104e+11 2.629657e+11 2.635307e+11 2.689762e+11
+[51] 2.755052e+11 2.755905e+11 2.670827e+11 2.613635e+11 2.610570e+11
+[56] 2.608537e+11 2.606617e+11 2.604944e+11 2.603325e+11 2.601670e+11
+[61] 2.600095e+11 2.598492e+11 2.596915e+11 2.595498e+11 2.594271e+11
+[66] 2.593142e+11 2.592108e+11 2.591157e+11 2.590283e+11 2.589496e+11
+[71] 2.588775e+11 2.588125e+11 2.587537e+11 2.586914e+11 2.586394e+11
+[76] 2.586005e+11 2.585594e+11 2.585219e+11 2.584909e+11 2.584635e+11
+[81] 2.584474e+11 2.584258e+11 2.584812e+11 2.584893e+11 2.584108e+11
+
+$relaxed$statlist$`g:0.25`$cvsd
+ [1] 173318272191 126965939120  71511697303  58995207337  48754672500
+ [6]  48207812961  47703910028  47237012598  46806581715  47932457146
+[11]  51021851280  50615681596  50739635302  51419408324  51481284652
+[16]  51960346052  51198471316  49027179193  48603031044  47921048874
+[21]  47688725810  47574009304  46975787982  46271685278  45674176958
+[26]  44457779294  44155239174  43947043604  43535450198  49831389774
+[31]  58507163644  58194166210  58112635098  52721720952  47522942624
+[36]  52999295970  52966646645  59001536186  58579890606  57899549051
+[41]  58489510306  58498302833  58515063909  58751100797  58535501045
+[46]  58181207957  50589761767  45217030371  45512673638  50382150018
+[51]  56571624400  56705271135  49809364804  44643192334  44606462662
+[56]  44542499118  44472788910  44395214982  44311943210  44240492449
+[61]  44168131807  44084835493  43990659801  43897037828  43814222968
+[66]  43734165360  43657455508  43584093244  43514212409  43448656189
+[71]  43387269077  43329954359  43276772973  43219623699  43170322191
+[76]  43133100063  43095341850  43060682052  43029375405  43000979981
+[81]  42983100970  42960466827  42948193842  42944412900  42933060996
+
+$relaxed$statlist$`g:0.25`$cvup
+ [1] 1.414883e+12 6.743370e+11 4.965010e+11 4.549261e+11 4.267184e+11
+ [6] 4.211377e+11 4.162219e+11 4.118985e+11 4.081214e+11 4.010765e+11
+[11] 3.924951e+11 3.896740e+11 3.881756e+11 3.877204e+11 3.836470e+11
+[16] 3.766163e+11 3.622174e+11 3.547584e+11 3.535010e+11 3.541650e+11
+[21] 3.528632e+11 3.486977e+11 3.432576e+11 3.408881e+11 3.305980e+11
+[26] 3.247376e+11 3.227206e+11 3.213958e+11 3.226771e+11 3.312895e+11
+[31] 3.483847e+11 3.474981e+11 3.549577e+11 3.478320e+11 3.486181e+11
+[36] 3.785873e+11 3.790841e+11 3.922282e+11 3.824198e+11 3.704991e+11
+[41] 3.738244e+11 3.751566e+11 3.742290e+11 3.750101e+11 3.737519e+11
+[46] 3.610681e+11 3.306002e+11 3.081827e+11 3.090434e+11 3.193583e+11
+[51] 3.320768e+11 3.322958e+11 3.168921e+11 3.060067e+11 3.056635e+11
+[56] 3.053962e+11 3.051345e+11 3.048897e+11 3.046444e+11 3.044075e+11
+[61] 3.041777e+11 3.039341e+11 3.036821e+11 3.034468e+11 3.032413e+11
+[66] 3.030484e+11 3.028683e+11 3.026998e+11 3.025425e+11 3.023982e+11
+[71] 3.022648e+11 3.021425e+11 3.020305e+11 3.019110e+11 3.018097e+11
+[76] 3.017336e+11 3.016547e+11 3.015826e+11 3.015203e+11 3.014645e+11
+[81] 3.014305e+11 3.013863e+11 3.014294e+11 3.014337e+11 3.013438e+11
+
+$relaxed$statlist$`g:0.25`$cvlo
+ [1] 1.068246e+12 4.204051e+11 3.534776e+11 3.369357e+11 3.292091e+11
+ [6] 3.247220e+11 3.208141e+11 3.174245e+11 3.145083e+11 3.052115e+11
+[11] 2.904514e+11 2.884426e+11 2.866963e+11 2.848816e+11 2.806845e+11
+[16] 2.726956e+11 2.598205e+11 2.567040e+11 2.562949e+11 2.583230e+11
+[21] 2.574858e+11 2.535497e+11 2.493060e+11 2.483447e+11 2.392497e+11
+[26] 2.358221e+11 2.344101e+11 2.335017e+11 2.356062e+11 2.316267e+11
+[31] 2.313704e+11 2.311097e+11 2.387324e+11 2.423885e+11 2.535722e+11
+[36] 2.725887e+11 2.731508e+11 2.742251e+11 2.652600e+11 2.547000e+11
+[41] 2.568454e+11 2.581600e+11 2.571988e+11 2.575079e+11 2.566809e+11
+[46] 2.447057e+11 2.294207e+11 2.177487e+11 2.180180e+11 2.185940e+11
+[51] 2.189336e+11 2.188852e+11 2.172733e+11 2.167203e+11 2.164505e+11
+[56] 2.163112e+11 2.161889e+11 2.160992e+11 2.160205e+11 2.159265e+11
+[61] 2.158414e+11 2.157644e+11 2.157008e+11 2.156527e+11 2.156129e+11
+[66] 2.155800e+11 2.155533e+11 2.155316e+11 2.155141e+11 2.155009e+11
+[71] 2.154902e+11 2.154826e+11 2.154770e+11 2.154717e+11 2.154691e+11
+[76] 2.154674e+11 2.154641e+11 2.154612e+11 2.154616e+11 2.154626e+11
+[81] 2.154643e+11 2.154653e+11 2.155330e+11 2.155449e+11 2.154777e+11
+
+$relaxed$statlist$`g:0.25`$nzero
+ s0  s1  s2  s3  s4  s5  s6  s7  s8  s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 
+  0   2   4   5   5   5   5   5   5   5   6   6   6   6   7   7   9   9  10  10 
+s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33 s34 s35 s36 s37 s38 s39 
+ 10  11  11  11  13  15  16  16  16  18  18  19  18  20  20  21  21  21  22  22 
+s40 s41 s42 s43 s44 s45 s46 s47 s48 s49 s50 s51 s52 s53 s54 s55 s56 s57 s58 s59 
+ 20  22  21  21  22  25  25  26  26  25  26  26  26  26  25  25  25  27  27  28 
+s60 s61 s62 s63 s64 s65 s66 s67 s68 s69 s70 s71 s72 s73 s74 s75 s76 s77 s78 s79 
+ 28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28 
+s80 s81 s82 s83 s84 
+ 28  28  28  28  28 
+
+
+$relaxed$statlist$`g:0.5`
+$relaxed$statlist$`g:0.5`$lambda
+ [1] 4717075.4485 4199211.7234 3738201.6232 3327803.4774 2962460.8570
+ [6] 2637227.3449 2347699.5662 2089957.5699 1860511.7567 1656255.6324
+[11] 1474423.7494 1312554.2640 1168455.6063 1040176.8074  925981.0855
+[16]  824322.3311  733824.1744  653261.3501  581543.1086  517698.4481
+[21]  460862.9683  410267.1667  365226.0208  325129.7133  289435.3755
+[26]  257659.7376  229372.5853  204190.9356  181773.8512  161817.8245
+[31]  144052.6684  128237.8585  114159.2762  101626.3098   90469.2741
+[36]   80537.1126   71695.3525   63824.2844   56817.3408   50579.6539
+[41]   45026.7709   40083.5107   35682.9459   31765.4967   28278.1244
+[46]   25173.6129   22409.9300   19949.6577   17759.4863   15809.7626
+[51]   14074.0891   12528.9665   11153.4750    9928.9917    8838.9382
+[56]    7868.5561    7004.7073    6235.6961    5551.1108    4941.6825
+[61]    4399.1604    3916.1989    3486.2593    3103.5207    2762.8009
+[66]    2459.4870    2189.4725    1949.1014    1735.1195    1544.6295
+[71]    1375.0525    1224.0925    1089.7056     970.0724     863.5731
+[76]     768.7658     684.3669     609.2337     542.3490     482.8073
+[81]     429.8023     382.6165     340.6110     303.2171     269.9284
+
+$relaxed$statlist$`g:0.5`$cvm
+ [1] 1.264559e+12 6.965988e+11 5.768852e+11 5.350217e+11 5.016541e+11
+ [6] 4.819330e+11 4.645830e+11 4.494368e+11 4.363109e+11 4.217118e+11
+[11] 4.035012e+11 3.940027e+11 3.864168e+11 3.800784e+11 3.716506e+11
+[16] 3.619243e+11 3.466545e+11 3.388205e+11 3.345682e+11 3.328900e+11
+[21] 3.296920e+11 3.245498e+11 3.185157e+11 3.158146e+11 3.066183e+11
+[26] 3.013048e+11 2.985453e+11 2.963533e+11 2.964952e+11 2.976960e+11
+[31] 3.026328e+11 3.015075e+11 3.062689e+11 3.048188e+11 3.101410e+11
+[36] 3.259016e+11 3.251615e+11 3.275193e+11 3.214458e+11 3.125529e+11
+[41] 3.139905e+11 3.148001e+11 3.140648e+11 3.144472e+11 3.133573e+11
+[46] 3.035789e+11 2.862488e+11 2.725224e+11 2.721638e+11 2.756461e+11
+[51] 2.795847e+11 2.792634e+11 2.728376e+11 2.678347e+11 2.669266e+11
+[56] 2.661431e+11 2.654140e+11 2.647463e+11 2.641333e+11 2.635560e+11
+[61] 2.630255e+11 2.625311e+11 2.620726e+11 2.616602e+11 2.612942e+11
+[66] 2.609651e+11 2.606708e+11 2.604063e+11 2.601692e+11 2.599596e+11
+[71] 2.597719e+11 2.596057e+11 2.594584e+11 2.593084e+11 2.591840e+11
+[76] 2.590900e+11 2.589946e+11 2.589086e+11 2.588376e+11 2.587754e+11
+[81] 2.587372e+11 2.586889e+11 2.586949e+11 2.586983e+11 2.586474e+11
+
+$relaxed$statlist$`g:0.5`$cvsd
+ [1] 168250715796 142916710329  94144446619  80547464264  68631093598
+ [6]  66677155297  64845214051  63136772762  61552210917  61780209164
+[11]  63766972884  62527372654  61940014450  61746151207  61146737577
+[16]  60983728310  60173580582  58096467257  57341759578  56413409152
+[21]  55744340716  55216783534  54171856189  53135050558  52303304972
+[26]  50841957946  50202505988  49702390704  49248571958  54166612810
+[31]  60054750828  59530757196  59130683852  55121795186  51569344582
+[36]  55370913002  54474341402  56608629250  56438728652  55356701514
+[41]  55771489975  55780722636  55765181572  56003210185  55933151177
+[46]  55195507015  50602669055  47126195391  47385852889  51091636748
+[51]  55433506363  55683247402  51018602644  47038838163  46882777351
+[56]  46709048823  46529150701  46341336236  46146090616  45960226145
+[61]  45775206886  45582881615  45383843365  45188724087  45006785032
+[66]  44832394051  44666570953  44509079666  44359961101  44220837651
+[71]  44091208959  43970755387  43859430942  43740386477  43638120685
+[76]  43561021434  43482933421  43411453272  43347116696  43288897134
+[81]  43252059124  43205741020  43167164878  43158082812  43149557889
+
+$relaxed$statlist$`g:0.5`$cvup
+ [1] 1.432810e+12 8.395156e+11 6.710296e+11 6.155692e+11 5.702852e+11
+ [6] 5.486102e+11 5.294283e+11 5.125736e+11 4.978631e+11 4.834920e+11
+[11] 4.672681e+11 4.565300e+11 4.483568e+11 4.418246e+11 4.327973e+11
+[16] 4.229080e+11 4.068281e+11 3.969169e+11 3.919099e+11 3.893034e+11
+[21] 3.854364e+11 3.797666e+11 3.726876e+11 3.689496e+11 3.589217e+11
+[26] 3.521467e+11 3.487478e+11 3.460557e+11 3.457438e+11 3.518626e+11
+[31] 3.626875e+11 3.610383e+11 3.653996e+11 3.599406e+11 3.617103e+11
+[36] 3.812726e+11 3.796359e+11 3.841279e+11 3.778845e+11 3.679096e+11
+[41] 3.697620e+11 3.705808e+11 3.698300e+11 3.704505e+11 3.692905e+11
+[46] 3.587744e+11 3.368514e+11 3.196486e+11 3.195496e+11 3.267378e+11
+[51] 3.350182e+11 3.349466e+11 3.238562e+11 3.148736e+11 3.138094e+11
+[56] 3.128522e+11 3.119432e+11 3.110876e+11 3.102794e+11 3.095163e+11
+[61] 3.088007e+11 3.081140e+11 3.074564e+11 3.068489e+11 3.063010e+11
+[66] 3.057975e+11 3.053374e+11 3.049154e+11 3.045292e+11 3.041804e+11
+[71] 3.038632e+11 3.035765e+11 3.033178e+11 3.030488e+11 3.028221e+11
+[76] 3.026510e+11 3.024776e+11 3.023200e+11 3.021847e+11 3.020643e+11
+[81] 3.019893e+11 3.018947e+11 3.018620e+11 3.018563e+11 3.017970e+11
+
+$relaxed$statlist$`g:0.5`$cvlo
+ [1] 1.096309e+12 5.536821e+11 4.827407e+11 4.544743e+11 4.330230e+11
+ [6] 4.152558e+11 3.997378e+11 3.863001e+11 3.747587e+11 3.599316e+11
+[11] 3.397342e+11 3.314753e+11 3.244768e+11 3.183323e+11 3.105039e+11
+[16] 3.009406e+11 2.864809e+11 2.807240e+11 2.772264e+11 2.764766e+11
+[21] 2.739477e+11 2.693330e+11 2.643438e+11 2.626795e+11 2.543150e+11
+[26] 2.504628e+11 2.483427e+11 2.466509e+11 2.472466e+11 2.435294e+11
+[31] 2.425780e+11 2.419767e+11 2.471383e+11 2.496970e+11 2.585717e+11
+[36] 2.705307e+11 2.706872e+11 2.709107e+11 2.650070e+11 2.571962e+11
+[41] 2.582191e+11 2.590194e+11 2.582996e+11 2.584440e+11 2.574242e+11
+[46] 2.483834e+11 2.356461e+11 2.253962e+11 2.247779e+11 2.245545e+11
+[51] 2.241512e+11 2.235801e+11 2.218190e+11 2.207959e+11 2.200439e+11
+[56] 2.194341e+11 2.188849e+11 2.184050e+11 2.179872e+11 2.175958e+11
+[61] 2.172503e+11 2.169482e+11 2.166888e+11 2.164715e+11 2.162874e+11
+[66] 2.161327e+11 2.160043e+11 2.158972e+11 2.158093e+11 2.157387e+11
+[71] 2.156807e+11 2.156349e+11 2.155989e+11 2.155680e+11 2.155459e+11
+[76] 2.155290e+11 2.155117e+11 2.154971e+11 2.154905e+11 2.154865e+11
+[81] 2.154851e+11 2.154832e+11 2.155277e+11 2.155402e+11 2.154978e+11
+
+$relaxed$statlist$`g:0.5`$nzero
+ s0  s1  s2  s3  s4  s5  s6  s7  s8  s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 
+  0   2   4   5   5   5   5   5   5   5   6   6   6   6   7   7   9   9  10  10 
+s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33 s34 s35 s36 s37 s38 s39 
+ 10  11  11  11  13  15  16  16  16  18  18  19  18  20  20  21  21  21  22  22 
+s40 s41 s42 s43 s44 s45 s46 s47 s48 s49 s50 s51 s52 s53 s54 s55 s56 s57 s58 s59 
+ 20  22  21  21  22  25  25  26  26  25  26  26  26  26  25  25  25  27  27  28 
+s60 s61 s62 s63 s64 s65 s66 s67 s68 s69 s70 s71 s72 s73 s74 s75 s76 s77 s78 s79 
+ 28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28 
+s80 s81 s82 s83 s84 
+ 28  28  28  28  28 
+
+
+$relaxed$statlist$`g:0.75`
+$relaxed$statlist$`g:0.75`$lambda
+ [1] 4717075.4485 4199211.7234 3738201.6232 3327803.4774 2962460.8570
+ [6] 2637227.3449 2347699.5662 2089957.5699 1860511.7567 1656255.6324
+[11] 1474423.7494 1312554.2640 1168455.6063 1040176.8074  925981.0855
+[16]  824322.3311  733824.1744  653261.3501  581543.1086  517698.4481
+[21]  460862.9683  410267.1667  365226.0208  325129.7133  289435.3755
+[26]  257659.7376  229372.5853  204190.9356  181773.8512  161817.8245
+[31]  144052.6684  128237.8585  114159.2762  101626.3098   90469.2741
+[36]   80537.1126   71695.3525   63824.2844   56817.3408   50579.6539
+[41]   45026.7709   40083.5107   35682.9459   31765.4967   28278.1244
+[46]   25173.6129   22409.9300   19949.6577   17759.4863   15809.7626
+[51]   14074.0891   12528.9665   11153.4750    9928.9917    8838.9382
+[56]    7868.5561    7004.7073    6235.6961    5551.1108    4941.6825
+[61]    4399.1604    3916.1989    3486.2593    3103.5207    2762.8009
+[66]    2459.4870    2189.4725    1949.1014    1735.1195    1544.6295
+[71]    1375.0525    1224.0925    1089.7056     970.0724     863.5731
+[76]     768.7658     684.3669     609.2337     542.3490     482.8073
+[81]     429.8023     382.6165     340.6110     303.2171     269.9284
+
+$relaxed$statlist$`g:0.75`$cvm
+ [1] 1.288740e+12 9.349676e+11 8.276993e+11 7.647659e+11 7.082086e+11
+ [6] 6.640811e+11 6.252668e+11 5.913977e+11 5.620599e+11 5.351071e+11
+[11] 5.066195e+11 4.853690e+11 4.676213e+11 4.525942e+11 4.377323e+11
+[16] 4.235015e+11 4.064144e+11 3.942535e+11 3.848543e+11 3.780349e+11
+[21] 3.712011e+11 3.640056e+11 3.565148e+11 3.517047e+11 3.430862e+11
+[26] 3.366585e+11 3.319605e+11 3.278991e+11 3.254719e+11 3.241749e+11
+[31] 3.246391e+11 3.221905e+11 3.230907e+11 3.209497e+11 3.230186e+11
+[36] 3.295772e+11 3.279670e+11 3.273552e+11 3.238495e+11 3.179615e+11
+[41] 3.175473e+11 3.171740e+11 3.161571e+11 3.158315e+11 3.146272e+11
+[46] 3.084712e+11 2.979328e+11 2.885040e+11 2.865851e+11 2.870432e+11
+[51] 2.877751e+11 2.864991e+11 2.819199e+11 2.777015e+11 2.757816e+11
+[56] 2.740415e+11 2.724345e+11 2.709615e+11 2.696188e+11 2.683874e+11
+[61] 2.672713e+11 2.662575e+11 2.653381e+11 2.645164e+11 2.637862e+11
+[66] 2.631379e+11 2.625652e+11 2.620569e+11 2.616078e+11 2.612151e+11
+[71] 2.608684e+11 2.605646e+11 2.602989e+11 2.600362e+11 2.598190e+11
+[76] 2.596536e+11 2.594907e+11 2.593451e+11 2.592251e+11 2.591206e+11
+[81] 2.590544e+11 2.589745e+11 2.589267e+11 2.589228e+11 2.588987e+11
+
+$relaxed$statlist$`g:0.75`$cvsd
+ [1] 163095667268 153378979551 121516903462 109646439666  98644549486
+ [6]  94514337397  90644020638  87038477995  83699208726  81801391182
+[11]  81247544011  78853089035  77068158426  75626306788  74119268951
+[16]  73039406465  71825374693  69918761800  68724344913  67453671967
+[21]  66247712367  65199602898  63767175586  62520056561  61487557516
+[26]  59993195654  58956695337  58070381238  57398674700  59758493379
+[31]  62315580209  61584320158  60885873134  58404352829  56427367915
+[36]  58130086740  56951642571  56773763957  56504289847  55478871448
+[41]  55415545739  55195299064  54981186817  54982338090  54863001237
+[46]  54002634803  51691853871  49922526443  49978876638  52024690142
+[51]  54367183008  54687688904  52351624298  49957196726  49609799763
+[56]  49264885232  48921635748  48577965963  48231490809  47894859729
+[61]  47565907249  47238798240  46913715014  46598737068  46300389234
+[66]  46016719115  45748933824  45496246066  45258339931  45037515889
+[71]  44832713771  44643248095  44468792263  44283088404  44124186806
+[76]  44004551313  43883556700  43773093900  43674004817  43584533334
+[81]  43527657558  43456606119  43390795947  43376259739  43370753157
+
+$relaxed$statlist$`g:0.75`$cvup
+ [1] 1.451835e+12 1.088347e+12 9.492162e+11 8.744124e+11 8.068531e+11
+ [6] 7.585954e+11 7.159109e+11 6.784362e+11 6.457591e+11 6.169085e+11
+[11] 5.878671e+11 5.642221e+11 5.446895e+11 5.282205e+11 5.118516e+11
+[16] 4.965409e+11 4.782397e+11 4.641723e+11 4.535786e+11 4.454886e+11
+[21] 4.374488e+11 4.292052e+11 4.202819e+11 4.142248e+11 4.045737e+11
+[26] 3.966517e+11 3.909172e+11 3.859695e+11 3.828706e+11 3.839334e+11
+[31] 3.869547e+11 3.837748e+11 3.839766e+11 3.793541e+11 3.794460e+11
+[36] 3.877072e+11 3.849187e+11 3.841290e+11 3.803538e+11 3.734403e+11
+[41] 3.729628e+11 3.723693e+11 3.711382e+11 3.708138e+11 3.694902e+11
+[46] 3.624739e+11 3.496246e+11 3.384265e+11 3.365640e+11 3.390679e+11
+[51] 3.421423e+11 3.411868e+11 3.342715e+11 3.276587e+11 3.253914e+11
+[56] 3.233064e+11 3.213561e+11 3.195395e+11 3.178503e+11 3.162823e+11
+[61] 3.148372e+11 3.134963e+11 3.122518e+11 3.111151e+11 3.100866e+11
+[66] 3.091546e+11 3.083141e+11 3.075531e+11 3.068661e+11 3.062526e+11
+[71] 3.057011e+11 3.052079e+11 3.047677e+11 3.043193e+11 3.039432e+11
+[76] 3.036582e+11 3.033742e+11 3.031182e+11 3.028991e+11 3.027052e+11
+[81] 3.025821e+11 3.024311e+11 3.023175e+11 3.022991e+11 3.022694e+11
+
+$relaxed$statlist$`g:0.75`$cvlo
+ [1] 1.125644e+12 7.815886e+11 7.061824e+11 6.551195e+11 6.095640e+11
+ [6] 5.695667e+11 5.346228e+11 5.043592e+11 4.783607e+11 4.533057e+11
+[11] 4.253720e+11 4.065160e+11 3.905532e+11 3.769679e+11 3.636130e+11
+[16] 3.504621e+11 3.345890e+11 3.243347e+11 3.161299e+11 3.105812e+11
+[21] 3.049534e+11 2.988060e+11 2.927476e+11 2.891847e+11 2.815986e+11
+[26] 2.766653e+11 2.730038e+11 2.698287e+11 2.680733e+11 2.644164e+11
+[31] 2.623235e+11 2.606062e+11 2.622049e+11 2.625454e+11 2.665912e+11
+[36] 2.714471e+11 2.710154e+11 2.705815e+11 2.673453e+11 2.624826e+11
+[41] 2.621317e+11 2.619787e+11 2.611759e+11 2.608491e+11 2.597642e+11
+[46] 2.544686e+11 2.462409e+11 2.385815e+11 2.366062e+11 2.350185e+11
+[51] 2.334080e+11 2.318114e+11 2.295683e+11 2.277443e+11 2.261718e+11
+[56] 2.247766e+11 2.235129e+11 2.223835e+11 2.213873e+11 2.204926e+11
+[61] 2.197054e+11 2.190187e+11 2.184244e+11 2.179177e+11 2.174858e+11
+[66] 2.171212e+11 2.168163e+11 2.165607e+11 2.163495e+11 2.161775e+11
+[71] 2.160357e+11 2.159214e+11 2.158301e+11 2.157531e+11 2.156948e+11
+[76] 2.156491e+11 2.156071e+11 2.155720e+11 2.155510e+11 2.155361e+11
+[81] 2.155268e+11 2.155179e+11 2.155359e+11 2.155466e+11 2.155279e+11
+
+$relaxed$statlist$`g:0.75`$nzero
+ s0  s1  s2  s3  s4  s5  s6  s7  s8  s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 
+  0   2   4   5   5   5   5   5   5   5   6   6   6   6   7   7   9   9  10  10 
+s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33 s34 s35 s36 s37 s38 s39 
+ 10  11  11  11  13  15  16  16  16  18  18  19  18  20  20  21  21  21  22  22 
+s40 s41 s42 s43 s44 s45 s46 s47 s48 s49 s50 s51 s52 s53 s54 s55 s56 s57 s58 s59 
+ 20  22  21  21  22  25  25  26  26  25  26  26  26  26  25  25  25  27  27  28 
+s60 s61 s62 s63 s64 s65 s66 s67 s68 s69 s70 s71 s72 s73 s74 s75 s76 s77 s78 s79 
+ 28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28 
+s80 s81 s82 s83 s84 
+ 28  28  28  28  28 
+
+
+$relaxed$statlist$`g:1`
+$relaxed$statlist$`g:1`$lambda
+ [1] 4717075.4485 4199211.7234 3738201.6232 3327803.4774 2962460.8570
+ [6] 2637227.3449 2347699.5662 2089957.5699 1860511.7567 1656255.6324
+[11] 1474423.7494 1312554.2640 1168455.6063 1040176.8074  925981.0855
+[16]  824322.3311  733824.1744  653261.3501  581543.1086  517698.4481
+[21]  460862.9683  410267.1667  365226.0208  325129.7133  289435.3755
+[26]  257659.7376  229372.5853  204190.9356  181773.8512  161817.8245
+[31]  144052.6684  128237.8585  114159.2762  101626.3098   90469.2741
+[36]   80537.1126   71695.3525   63824.2844   56817.3408   50579.6539
+[41]   45026.7709   40083.5107   35682.9459   31765.4967   28278.1244
+[46]   25173.6129   22409.9300   19949.6577   17759.4863   15809.7626
+[51]   14074.0891   12528.9665   11153.4750    9928.9917    8838.9382
+[56]    7868.5561    7004.7073    6235.6961    5551.1108    4941.6825
+[61]    4399.1604    3916.1989    3486.2593    3103.5207    2762.8009
+[66]    2459.4870    2189.4725    1949.1014    1735.1195    1544.6295
+[71]    1375.0525    1224.0925    1089.7056     970.0724     863.5731
+[76]     768.7658     684.3669     609.2337     542.3490     482.8073
+[81]     429.8023     382.6165     340.6110     303.2171     269.9284
+
+$relaxed$statlist$`g:1`$cvm
+ [1] 1.314106e+12 1.262477e+12 1.177431e+12 1.085163e+12 9.976271e+11
+ [6] 9.193741e+11 8.505694e+11 7.905440e+11 7.385618e+11 6.933300e+11
+[11] 6.508284e+11 6.131574e+11 5.810496e+11 5.538483e+11 5.304109e+11
+[16] 5.093875e+11 4.902985e+11 4.720302e+11 4.557563e+11 4.416788e+11
+[21] 4.297018e+11 4.194912e+11 4.102790e+11 4.022870e+11 3.943273e+11
+[26] 3.863411e+11 3.788112e+11 3.720860e+11 3.660719e+11 3.608948e+11
+[31] 3.558965e+11 3.513529e+11 3.473105e+11 3.435031e+11 3.397280e+11
+[36] 3.366145e+11 3.345340e+11 3.327344e+11 3.310513e+11 3.288252e+11
+[41] 3.260051e+11 3.237799e+11 3.219907e+11 3.204116e+11 3.190262e+11
+[46] 3.175640e+11 3.150624e+11 3.109104e+11 3.067948e+11 3.031675e+11
+[51] 3.000766e+11 2.972975e+11 2.943297e+11 2.909638e+11 2.876220e+11
+[56] 2.845488e+11 2.817231e+11 2.791400e+11 2.767890e+11 2.746612e+11
+[61] 2.727470e+11 2.710285e+11 2.694880e+11 2.681183e+11 2.669032e+11
+[66] 2.658324e+11 2.648938e+11 2.640675e+11 2.633440e+11 2.627161e+11
+[71] 2.621669e+11 2.616893e+11 2.612754e+11 2.608747e+11 2.605443e+11
+[76] 2.602913e+11 2.600476e+11 2.598314e+11 2.596533e+11 2.594992e+11
+[81] 2.593991e+11 2.592825e+11 2.591767e+11 2.591631e+11 2.591646e+11
+
+$relaxed$statlist$`g:1`$cvsd
+ [1] 157931989577 158410362033 153502379603 145963735663 138485765530
+ [6] 131356441020 124701019133 118525042415 112831709996 107573255635
+[11] 103123952465  99290286535  95879639644  92902407680  90303907849
+[16]  88157061766  86426309849  84772321150  83092414748  81355424171
+[21]  79606621339  78021548840  76540859828  75125625551  73882732975
+[26]  72552276315  71089363893  69718513483  68449832729  67322441515
+[31]  66309964894  65399084844  64518885586  63489211482  62241021413
+[36]  61150409861  60284088448  59463332657  58740967637  58055791151
+[41]  57252310451  56608627169  56063537417  55616952419  55281598534
+[46]  55025211735  54639243538  54190945775  53790753334  53642857370
+[51]  53777613401  54009082948  53998104425  53519982570  52881821743
+[56]  52282525541  51705095496  51145919090  50597759951  50065988874
+[61]  49555798940  49063644501  48588022677  48132454543  47698724122
+[66]  47289637854  46906221719  46546700210  46210075002  45899162828
+[71]  45612086657  45347622930  45104978201  44847803273  44628566004
+[76]  44463717992  44297226117  44145610778  44010043415  43887890557
+[81]  43809897739  43713062863  43619090541  43598947278  43596646457
+
+$relaxed$statlist$`g:1`$cvup
+ [1] 1.472038e+12 1.420888e+12 1.330934e+12 1.231127e+12 1.136113e+12
+ [6] 1.050731e+12 9.752704e+11 9.090690e+11 8.513935e+11 8.009032e+11
+[11] 7.539523e+11 7.124477e+11 6.769292e+11 6.467507e+11 6.207148e+11
+[16] 5.975445e+11 5.767248e+11 5.568025e+11 5.388487e+11 5.230342e+11
+[21] 5.093084e+11 4.975128e+11 4.868198e+11 4.774126e+11 4.682100e+11
+[26] 4.588934e+11 4.499005e+11 4.418045e+11 4.345217e+11 4.282172e+11
+[31] 4.222064e+11 4.167520e+11 4.118294e+11 4.069923e+11 4.019690e+11
+[36] 3.977649e+11 3.948180e+11 3.921978e+11 3.897922e+11 3.868810e+11
+[41] 3.832574e+11 3.803886e+11 3.780543e+11 3.760286e+11 3.743078e+11
+[46] 3.725892e+11 3.697016e+11 3.651013e+11 3.605856e+11 3.568103e+11
+[51] 3.538542e+11 3.513066e+11 3.483279e+11 3.444838e+11 3.405038e+11
+[56] 3.368313e+11 3.334282e+11 3.302860e+11 3.273868e+11 3.247272e+11
+[61] 3.223028e+11 3.200922e+11 3.180760e+11 3.162508e+11 3.146019e+11
+[66] 3.131221e+11 3.118001e+11 3.106142e+11 3.095541e+11 3.086152e+11
+[71] 3.077790e+11 3.070369e+11 3.063804e+11 3.057225e+11 3.051728e+11
+[76] 3.047550e+11 3.043449e+11 3.039770e+11 3.036633e+11 3.033871e+11
+[81] 3.032090e+11 3.029956e+11 3.027958e+11 3.027620e+11 3.027612e+11
+
+$relaxed$statlist$`g:1`$cvlo
+ [1] 1.156174e+12 1.104067e+12 1.023929e+12 9.391997e+11 8.591414e+11
+ [6] 7.880177e+11 7.258684e+11 6.720190e+11 6.257301e+11 5.857567e+11
+[11] 5.477044e+11 5.138671e+11 4.851700e+11 4.609459e+11 4.401070e+11
+[16] 4.212304e+11 4.038722e+11 3.872579e+11 3.726639e+11 3.603233e+11
+[21] 3.500951e+11 3.414697e+11 3.337381e+11 3.271614e+11 3.204446e+11
+[26] 3.137889e+11 3.077218e+11 3.023675e+11 2.976221e+11 2.935723e+11
+[31] 2.895865e+11 2.859538e+11 2.827916e+11 2.800139e+11 2.774869e+11
+[36] 2.754641e+11 2.742499e+11 2.732711e+11 2.723103e+11 2.707694e+11
+[41] 2.687528e+11 2.671713e+11 2.659272e+11 2.647946e+11 2.637446e+11
+[46] 2.625388e+11 2.604231e+11 2.567194e+11 2.530041e+11 2.495246e+11
+[51] 2.462990e+11 2.432885e+11 2.403316e+11 2.374438e+11 2.347402e+11
+[56] 2.322663e+11 2.300181e+11 2.279941e+11 2.261912e+11 2.245952e+11
+[61] 2.231912e+11 2.219649e+11 2.208999e+11 2.199859e+11 2.192045e+11
+[66] 2.185428e+11 2.179876e+11 2.175208e+11 2.171339e+11 2.168169e+11
+[71] 2.165548e+11 2.163417e+11 2.161704e+11 2.160269e+11 2.159157e+11
+[76] 2.158276e+11 2.157504e+11 2.156858e+11 2.156432e+11 2.156114e+11
+[81] 2.155892e+11 2.155695e+11 2.155576e+11 2.155641e+11 2.155679e+11
+
+$relaxed$statlist$`g:1`$nzero
+ s0  s1  s2  s3  s4  s5  s6  s7  s8  s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 
+  0   2   4   5   5   5   5   5   5   5   6   6   6   6   7   7   9   9  10  10 
+s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33 s34 s35 s36 s37 s38 s39 
+ 10  11  11  11  13  15  16  16  16  18  18  19  18  20  20  21  21  21  22  22 
+s40 s41 s42 s43 s44 s45 s46 s47 s48 s49 s50 s51 s52 s53 s54 s55 s56 s57 s58 s59 
+ 20  22  21  21  22  25  25  26  26  25  26  26  26  26  25  25  25  27  27  28 
+s60 s61 s62 s63 s64 s65 s66 s67 s68 s69 s70 s71 s72 s73 s74 s75 s76 s77 s78 s79 
+ 28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28  28 
+s80 s81 s82 s83 s84 
+ 28  28  28  28  28 
+
+
+
+$relaxed$gamma
+[1] 0.00 0.25 0.50 0.75 1.00
+
+$relaxed$lambda.min
+[1] 8838.938
+
+$relaxed$lambda.1se
+[1] 733824.2
+
+$relaxed$gamma.min
+[1] 0
+
+$relaxed$gamma.1se
+[1] 0
+
+$relaxed$nzero.min
+g:0.s54 
+     25 
+
+$relaxed$nzero.1se
+g:0.s16 
+      9 
+
+$relaxed$index
+    Lambda Gamma
+min     55     1
+1se     17     1
+
+
+attr(,"class")
+[1] "cv.relaxed" "cv.glmnet" </code></pre>
+</div>
+</div>
+<hr>
+<p><em>Report generated by <a href="https://github.com/wcraytor/glmnetUI">glmnetUI</a> on 2026-03-22 01:41:19.905066</em></p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

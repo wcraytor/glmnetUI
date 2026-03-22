@@ -34,11 +34,20 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
                                   lambda_method = "cv",
                                   data_file_name = "",
                                   assets_dir = NULL) {
+  message("[glmnetUI ASSETS] prepare_report_assets() called")
+  message("[glmnetUI ASSETS] model class: ", paste(class(model), collapse = ", "))
+  message("[glmnetUI ASSETS] lambda=", lambda, " gamma=", gamma,
+          " response=", response, " #predictors=", length(predictors))
+  message("[glmnetUI ASSETS] x_mat dim: ", nrow(x_mat), "x", ncol(x_mat),
+          " y_vec length: ", length(y_vec))
+  message("[glmnetUI ASSETS] coef_df rows: ", nrow(coef_df))
+
   if (is.null(assets_dir)) {
     assets_dir <- tempfile("glmnetUI_assets_")
   }
   dir.create(assets_dir, recursive = TRUE, showWarnings = FALSE)
   assets_dir <- normalizePath(assets_dir)
+  message("[glmnetUI ASSETS] assets_dir: ", assets_dir)
   plots_dir <- file.path(assets_dir, "plots")
   dir.create(plots_dir, showWarnings = FALSE)
 
@@ -104,19 +113,27 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
   names(coef_vec) <- coef_names
 
   imp_df <- compute_importance_(coef_vec, x_mat, predictors, col_types)
+  message("[glmnetUI ASSETS] importance computed: ", nrow(imp_df), " rows")
 
   # --- ANOVA ---
   anova_df <- compute_anova_(coef_vec, x_mat, y_vec, predictors, col_types)
+  message("[glmnetUI ASSETS] ANOVA computed: ", nrow(anova_df), " rows")
 
   # --- Contribution data for plots ---
   contrib_info <- compute_contrib_for_report_(
     coef_vec, x_mat, predictors, data, col_types)
 
-  # --- Model print output ---
-  model_print <- utils::capture.output(print(model))
+  # --- Save model for on-the-fly printing in template ---
+  # Strip Call: from model before saving — cv.relaxed stores the full
+  # function body (200K+ chars) which blows up LaTeX bufsize.
+  model_clean <- model
+  model_clean$call <- quote(cv.glmnet(...))
+  if (!is.null(model_clean$glmnet.fit))
+    model_clean$glmnet.fit$call <- quote(glmnet(...))
 
   # --- Save all pre-computed data ---
   saveRDS(list(
+    model          = model_clean,
     data_file_name = data_file_name,
     n_obs          = n,
     response       = response,
@@ -140,9 +157,10 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     coef_df        = coef_df,
     importance_df  = imp_df,
     anova_df       = anova_df,
-    contrib_names  = names(contrib_info$contribs),
-    model_print    = model_print
+    contrib_names  = names(contrib_info$contribs)
   ), file.path(assets_dir, "report_data.rds"))
+  message("[glmnetUI ASSETS] report_data.rds saved to: ",
+          file.path(assets_dir, "report_data.rds"))
 
   # --- Generate plots ---
   save_ggplot_ <- function(name, p, width = 8, height = 5) {
@@ -199,31 +217,163 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     save_ggplot_("correlation", p_cor, width = 10, height = 8)
   }
 
-  # Contribution plots
+  # Contribution plots — match the rendering in mod_contributions.R:
+  #   Numeric: scatter + slope/fit line
+  #   Factor:  box plot by level
+  #   Interaction: scatter colored by 2nd var + heatmap + static 3D persp
+  fac_cols <- if (!is.null(col_types)) {
+    names(col_types)[col_types %in% c("factor", "character")]
+  } else {
+    character(0)
+  }
+
   for (vname in names(contrib_info$contribs)) {
     safe_name <- gsub("[^a-zA-Z0-9_]", "_", vname)
     cv <- contrib_info$contribs[[vname]]
     xv <- contrib_info$x_values[[vname]]
-    if (!is.null(xv) && length(xv) == length(cv)) {
+    is_interaction <- grepl(":", vname, fixed = TRUE)
+    is_factor <- vname %in% fac_cols ||
+      (vname %in% names(data) &&
+       (is.factor(data[[vname]]) || is.character(data[[vname]])))
+
+    if (is_interaction) {
+      # --- Interaction: scatter + heatmap + 3D persp ---
+      int_vars <- strsplit(vname, ":", fixed = TRUE)[[1]]
+      var1 <- int_vars[1]; var2 <- int_vars[2]
+      if (var1 %in% names(data) && var2 %in% names(data) &&
+          is.numeric(data[[var1]]) && is.numeric(data[[var2]])) {
+        x1 <- data[[var1]]; x2 <- data[[var2]]
+        if (length(x1) != length(cv)) {
+          # Align to x_mat rows (complete cases)
+          use_cols <- intersect(c(response, predictors), names(data))
+          mask <- stats::complete.cases(data[, use_cols, drop = FALSE])
+          if (sum(mask) == length(cv)) {
+            x1 <- x1[mask]; x2 <- x2[mask]
+          }
+        }
+        if (length(x1) == length(cv)) {
+          plot_df <- data.frame(x = x1, y = x2, contribution = cv)
+
+          # Scatter colored by contribution
+          p_scatter <- ggplot2::ggplot(plot_df,
+            ggplot2::aes(x = .data$x, y = .data$y,
+                         color = .data$contribution)) +
+            ggplot2::geom_point(alpha = 0.6, size = 1.5) +
+            ggplot2::scale_color_gradient2(
+              low = "#2166AC", mid = "white", high = "#B2182B",
+              midpoint = 0, name = "Contrib.",
+              labels = glmnet_axis_labels_) +
+            ggplot2::labs(title = paste("Scatter:", var1, "\u00d7", var2),
+                          x = var1, y = var2) +
+            ggplot2::scale_x_continuous(labels = glmnet_axis_labels_) +
+            ggplot2::scale_y_continuous(labels = glmnet_axis_labels_) +
+            glmnet_diag_theme_(font_fam)
+          save_ggplot_(paste0("contrib_", safe_name, "_scatter"), p_scatter)
+
+          # Heatmap
+          p_heat <- ggplot2::ggplot(plot_df,
+            ggplot2::aes(x = .data$x, y = .data$y,
+                         z = .data$contribution)) +
+            ggplot2::stat_summary_2d(bins = 20, fun = mean) +
+            ggplot2::scale_fill_gradient2(
+              low = "#2166AC", mid = "white", high = "#B2182B",
+              midpoint = 0, name = "Mean\nContrib.",
+              labels = glmnet_axis_labels_) +
+            ggplot2::labs(title = paste("Heatmap:", var1, "\u00d7", var2),
+                          x = var1, y = var2) +
+            ggplot2::scale_x_continuous(labels = glmnet_axis_labels_) +
+            ggplot2::scale_y_continuous(labels = glmnet_axis_labels_) +
+            glmnet_diag_theme_(font_fam) +
+            ggplot2::theme(
+              legend.key.height = ggplot2::unit(1.5, "cm"),
+              legend.key.width = ggplot2::unit(0.6, "cm"),
+              legend.title = ggplot2::element_text(size = 13),
+              legend.text = ggplot2::element_text(size = 12)
+            )
+          save_ggplot_(paste0("contrib_", safe_name, "_heatmap"), p_heat)
+
+          # Static 3D persp (snapshot of interactive surface)
+          tryCatch({
+            x1_seq <- seq(min(x1, na.rm = TRUE), max(x1, na.rm = TRUE),
+                          length.out = 30)
+            x2_seq <- seq(min(x2, na.rm = TRUE), max(x2, na.rm = TRUE),
+                          length.out = 30)
+            surf_df <- data.frame(x1 = x1, x2 = x2, z = cv)
+            surf_fit <- stats::loess(z ~ x1 * x2, data = surf_df, span = 0.75)
+            grid_df <- expand.grid(x1 = x1_seq, x2 = x2_seq)
+            z_mat <- matrix(stats::predict(surf_fit, grid_df),
+                            nrow = length(x1_seq))
+
+            col_pal <- grDevices::colorRampPalette(
+              c("#2166AC", "white", "#B2182B"))(50)
+            z_range <- range(z_mat, na.rm = TRUE)
+            z_scaled <- (z_mat - z_range[1]) /
+              max(z_range[2] - z_range[1], 1e-10)
+            z_cols <- col_pal[pmax(1L, pmin(50L,
+              as.integer(z_scaled * 49) + 1L))]
+            facet_col <- matrix(z_cols, nrow = nrow(z_mat) - 1,
+                                ncol = ncol(z_mat) - 1)
+
+            for (ext in c("png", "pdf")) {
+              path <- file.path(plots_dir,
+                paste0("contrib_", safe_name, "_3d.", ext))
+              if (ext == "png") {
+                grDevices::png(path, width = 8, height = 6,
+                               units = "in", res = 150)
+              } else {
+                grDevices::pdf(path, width = 8, height = 6)
+              }
+              old_par <- graphics::par(mar = c(2, 2, 3, 1))
+              graphics::persp(x1_seq, x2_seq, z_mat,
+                theta = 30, phi = 25, expand = 0.6,
+                col = facet_col, border = NA, shade = 0.3,
+                ticktype = "detailed",
+                xlab = var1, ylab = var2, zlab = "Contribution",
+                main = paste("3D Surface:", var1, "\u00d7", var2))
+              graphics::par(old_par)
+              grDevices::dev.off()
+            }
+          }, error = function(e) {
+            message("[glmnetUI ASSETS] 3D persp error for ", vname, ": ",
+                    e$message)
+          })
+        }
+      }
+    } else if (is_factor && vname %in% names(data)) {
+      # --- Factor: box plot by level ---
+      fac_vals <- as.factor(data[[vname]])
+      if (length(fac_vals) != length(cv)) {
+        use_cols <- intersect(c(response, predictors), names(data))
+        mask <- stats::complete.cases(data[, use_cols, drop = FALSE])
+        if (sum(mask) == length(cv)) fac_vals <- fac_vals[mask]
+      }
+      if (length(fac_vals) == length(cv)) {
+        plot_df <- data.frame(level = fac_vals, contribution = cv)
+        p_c <- ggplot2::ggplot(plot_df,
+          ggplot2::aes(x = .data$level, y = .data$contribution)) +
+          ggplot2::geom_boxplot(fill = "#5e81ac", alpha = 0.6) +
+          ggplot2::labs(title = paste("Contribution:", vname),
+                        x = vname, y = "Contribution") +
+          ggplot2::scale_y_continuous(labels = glmnet_axis_labels_) +
+          glmnet_diag_theme_(font_fam) +
+          ggplot2::theme(axis.text.x = ggplot2::element_text(
+            angle = 45, hjust = 1))
+        save_ggplot_(paste0("contrib_", safe_name), p_c)
+      }
+    } else if (!is.null(xv) && length(xv) == length(cv)) {
+      # --- Numeric: scatter with slope/fit line ---
       plot_df <- data.frame(x = xv, contribution = cv)
-      plot_df <- plot_df[order(plot_df$x), ]
       p_c <- ggplot2::ggplot(plot_df,
-               ggplot2::aes(x = .data$x, y = .data$contribution)) +
-        ggplot2::geom_line(color = "#5e81ac", linewidth = 1) +
-        ggplot2::geom_point(alpha = 0.3, size = 0.5) +
+        ggplot2::aes(x = .data$x, y = .data$contribution)) +
+        ggplot2::geom_point(alpha = 0.3, color = "#5e81ac", size = 1) +
+        ggplot2::geom_smooth(method = "lm", formula = y ~ x,
+                              color = "#bf616a", linewidth = 1,
+                              se = FALSE) +
         ggplot2::labs(x = vname, y = "Contribution",
                       title = paste("Contribution:", vname)) +
-        ggplot2::theme_minimal(base_family = font_fam)
-      save_ggplot_(paste0("contrib_", safe_name), p_c)
-    } else {
-      # Histogram for factors/interactions
-      plot_df <- data.frame(contribution = cv)
-      p_c <- ggplot2::ggplot(plot_df,
-               ggplot2::aes(x = .data$contribution)) +
-        ggplot2::geom_histogram(fill = "#5e81ac", color = "white", bins = 30) +
-        ggplot2::labs(x = "Contribution", y = "Count",
-                      title = paste("Contribution Distribution:", vname)) +
-        ggplot2::theme_minimal(base_family = font_fam)
+        ggplot2::scale_x_continuous(labels = glmnet_axis_labels_) +
+        ggplot2::scale_y_continuous(labels = glmnet_axis_labels_) +
+        glmnet_diag_theme_(font_fam)
       save_ggplot_(paste0("contrib_", safe_name), p_c)
     }
   }
@@ -316,14 +466,21 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     ggplot2::theme_minimal(base_family = font_fam)
   save_ggplot_("qq", p_qq)
 
+  all_plots <- list.files(plots_dir, full.names = FALSE)
+  message("[glmnetUI ASSETS] All plots generated (", length(all_plots), "): ",
+          paste(all_plots, collapse = ", "))
+  message("[glmnetUI ASSETS] prepare_report_assets() DONE. assets_dir=",
+          assets_dir)
   invisible(assets_dir)
 }
 
 
 #' Render glmnetUI Report
 #'
-#' Renders the Quarto template into HTML, PDF, or Word output using
-#' pre-generated assets.
+#' Renders a model report in the requested format using pre-generated
+#' assets from [prepare_report_assets()].  Tries Quarto first; if Quarto
+#' is unavailable or fails, falls back to rmarkdown with the bundled
+#' \code{report_template.Rmd}.
 #'
 #' @param output_format Character: "html", "pdf", or "docx".
 #' @param output_file Character path for the output file.
@@ -333,15 +490,47 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
 #' @export
 render_report <- function(output_format = "html", output_file,
                           assets_dir) {
-  if (!requireNamespace("quarto", quietly = TRUE)) {
-    stop("Package 'quarto' is required for report rendering. ",
-         "Install with: install.packages('quarto')", call. = FALSE)
+  message("[glmnetUI REPORT] render_report() called: format=", output_format,
+          " output_file=", output_file, " assets_dir=", assets_dir)
+
+  # --- Try Quarto first, then fall back to rmarkdown ---
+  quarto_ok <- requireNamespace("quarto", quietly = TRUE)
+  message("[glmnetUI REPORT] quarto package available: ", quarto_ok)
+
+  rendered_ok <- FALSE
+
+  if (quarto_ok) {
+    rendered_ok <- tryCatch({
+      render_report_quarto_(output_format, output_file, assets_dir)
+      TRUE
+    }, error = function(e) {
+      message("[glmnetUI REPORT] Quarto rendering FAILED: ", e$message)
+      FALSE
+    })
   }
 
+  if (!rendered_ok) {
+    message("[glmnetUI REPORT] Falling back to rmarkdown rendering...")
+    render_report_rmarkdown_(output_format, output_file, assets_dir)
+  }
+
+  if (!file.exists(output_file)) {
+    stop("Report file was not created at: ", output_file, call. = FALSE)
+  }
+  message("[glmnetUI REPORT] Report successfully created: ", output_file,
+          " (", file.size(output_file), " bytes)")
+  invisible(output_file)
+}
+
+
+#' Render report via Quarto
+#' @noRd
+render_report_quarto_ <- function(output_format, output_file, assets_dir) {
   template <- system.file("quarto", "glmnet_report.qmd",
                            package = "glmnetUI")
+  message("[glmnetUI REPORT] Quarto template path: '", template, "'")
   if (!nzchar(template)) {
-    stop("Report template not found in package.", call. = FALSE)
+    stop("Quarto report template not found in package.", call. = FALSE)
   }
 
   # Create temp rendering directory
@@ -350,47 +539,116 @@ render_report <- function(output_format = "html", output_file,
   on.exit(unlink(render_dir, recursive = TRUE), add = TRUE)
 
   # Copy template and assets
-  file.copy(template, file.path(render_dir, "glmnet_report.qmd"))
-  file.copy(file.path(assets_dir, "report_data.rds"),
-            file.path(render_dir, "report_data.rds"))
+  qmd_dst <- file.path(render_dir, "glmnet_report.qmd")
+  file.copy(template, qmd_dst)
+  message("[glmnetUI REPORT] QMD copied: ", file.exists(qmd_dst))
+
+  rds_src <- file.path(assets_dir, "report_data.rds")
+  rds_dst <- file.path(render_dir, "report_data.rds")
+  file.copy(rds_src, rds_dst)
+  message("[glmnetUI REPORT] RDS copied: ", file.exists(rds_dst),
+          " (source existed: ", file.exists(rds_src), ")")
+
   plots_src <- file.path(assets_dir, "plots")
   if (dir.exists(plots_src)) {
     plots_dst <- file.path(render_dir, "plots")
     dir.create(plots_dst, showWarnings = FALSE)
-    file.copy(list.files(plots_src, full.names = TRUE), plots_dst)
+    plot_files <- list.files(plots_src, full.names = TRUE)
+    file.copy(plot_files, plots_dst)
+    message("[glmnetUI REPORT] Copied ", length(plot_files), " plot files")
+  } else {
+    message("[glmnetUI REPORT] WARNING: plots_src does not exist: ", plots_src)
   }
 
-  # Map format
   qmd_format <- switch(output_format,
-    html = "html",
-    pdf  = "pdf",
-    docx = "docx",
-    "html"
-  )
+    html = "html", pdf = "pdf", docx = "docx", "html")
+  message("[glmnetUI REPORT] Quarto format: ", qmd_format)
 
   # Render
   old_env <- Sys.getenv("QUARTO_R")
   Sys.setenv(QUARTO_R = file.path(R.home("bin"), "R"))
   on.exit(Sys.setenv(QUARTO_R = old_env), add = TRUE)
 
+  message("[glmnetUI REPORT] Calling quarto::quarto_render()...")
   quarto::quarto_render(
     input = file.path(render_dir, "glmnet_report.qmd"),
     output_format = qmd_format,
     execute_params = list(
       data_file = file.path(render_dir, "report_data.rds")
     ),
-    quiet = TRUE
+    quiet = FALSE
   )
 
   # Find output file
   out_ext <- switch(output_format, html = ".html", pdf = ".pdf",
                     docx = ".docx", ".html")
   rendered <- file.path(render_dir, paste0("glmnet_report", out_ext))
-  if (file.exists(rendered)) {
-    file.copy(rendered, output_file, overwrite = TRUE)
+  message("[glmnetUI REPORT] Expected rendered file: ", rendered,
+          " exists: ", file.exists(rendered))
+
+  if (!file.exists(rendered)) {
+    # List what's actually in the render dir for debugging
+    all_files <- list.files(render_dir, recursive = TRUE)
+    message("[glmnetUI REPORT] Files in render_dir: ",
+            paste(all_files, collapse = ", "))
+    stop("Quarto rendered but output file not found: ", rendered,
+         call. = FALSE)
   }
 
-  invisible(output_file)
+  file.copy(rendered, output_file, overwrite = TRUE)
+  message("[glmnetUI REPORT] Quarto output copied to: ", output_file)
+}
+
+
+#' Render report via rmarkdown (fallback)
+#' @noRd
+render_report_rmarkdown_ <- function(output_format, output_file, assets_dir) {
+  message("[glmnetUI REPORT] rmarkdown fallback: format=", output_format)
+
+  rmd_template <- system.file("app", "report_template.Rmd",
+                               package = "glmnetUI")
+  message("[glmnetUI REPORT] Rmd template path: '", rmd_template, "'")
+  if (!nzchar(rmd_template)) {
+    stop("Rmd report template not found in package.", call. = FALSE)
+  }
+
+  rmd_copy <- file.path(tempdir(), "glmnetUI_report.Rmd")
+  file.copy(rmd_template, rmd_copy, overwrite = TRUE)
+
+  # Load the pre-computed assets to pass as params
+  data_file <- file.path(assets_dir, "report_data.rds")
+  message("[glmnetUI REPORT] Assets RDS: ", data_file,
+          " exists: ", file.exists(data_file))
+
+  rmd_out_format <- if (output_format == "html") {
+    rmarkdown::html_document(self_contained = TRUE)
+  } else if (output_format == "docx") {
+    rmarkdown::word_document()
+  } else {
+    rmarkdown::pdf_document(latex_engine = "xelatex")
+  }
+
+  message("[glmnetUI REPORT] Calling rmarkdown::render()...")
+  rmarkdown::render(
+    rmd_copy,
+    output_format = rmd_out_format,
+    output_file = output_file,
+    params = list(
+      appraiser_name   = "",
+      property_address = "",
+      report_date      = as.character(Sys.Date()),
+      file_number      = "",
+      lambda           = 0,
+      lambda_min       = NA,
+      lambda_1se       = NA,
+      coef_df          = NULL,
+      plot_dir         = assets_dir
+    ),
+    envir = new.env(parent = globalenv()),
+    quiet = FALSE
+  )
+  message("[glmnetUI REPORT] rmarkdown::render() completed, output exists: ",
+          file.exists(output_file))
 }
 
 
@@ -506,14 +764,20 @@ compute_contrib_for_report_ <- function(coef_vec, x_mat, predictors,
   contribs <- list()
   x_values <- list()
 
-  for (pred in predictors) {
-    idx <- which(col_names == pred |
-                   startsWith(col_names, paste0(pred)))
-    idx <- Filter(function(j) {
-      cn <- col_names[j]
-      cn == pred || !any(startsWith(cn, paste0(setdiff(predictors, pred))))
-    }, idx)
+  # Map each model matrix column to its parent predictor
+  preds_sorted <- predictors[order(-nchar(predictors))]
+  col_to_pred <- vapply(col_names, function(cn) {
+    # Interaction columns contain ":"
+    if (grepl(":", cn, fixed = TRUE)) return("")
+    for (p in preds_sorted) {
+      if (cn == p || startsWith(cn, p)) return(p)
+    }
+    ""
+  }, character(1), USE.NAMES = FALSE)
 
+  # Single predictors
+  for (pred in predictors) {
+    idx <- which(col_to_pred == pred)
     if (length(idx) == 0) next
     contrib_vec <- rep(0, nrow(x_mat))
     has_nonzero <- FALSE
@@ -525,21 +789,46 @@ compute_contrib_for_report_ <- function(coef_vec, x_mat, predictors,
       }
     }
     if (!has_nonzero) next
-
     contribs[[pred]] <- contrib_vec
 
     # X-axis values for scatter plot
-    if (length(idx) == 1L && pred %in% names(data) &&
-        is.numeric(data[[pred]])) {
+    if (pred %in% names(data) && is.numeric(data[[pred]])) {
       xv <- data[[pred]]
       if (length(xv) == nrow(x_mat)) {
         x_values[[pred]] <- xv
       }
-    } else if (pred %in% names(data) && is.numeric(data[[pred]])) {
-      xv <- data[[pred]]
-      if (length(xv) == nrow(x_mat)) {
-        x_values[[pred]] <- xv
+    }
+  }
+
+  # Interaction terms (columns with ":")
+  int_cols <- which(grepl(":", col_names, fixed = TRUE))
+  if (length(int_cols) > 0) {
+    # Group interaction columns by their parent predictor pair
+    int_groups <- list()
+    for (j in int_cols) {
+      parts <- strsplit(col_names[j], ":", fixed = TRUE)[[1]]
+      parent_vars <- vapply(parts, function(comp) {
+        for (p in preds_sorted) {
+          if (comp == p || startsWith(comp, p)) return(p)
+        }
+        comp
+      }, character(1))
+      key <- paste(sort(unique(parent_vars)), collapse = ":")
+      int_groups[[key]] <- c(int_groups[[key]], j)
+    }
+
+    for (key in names(int_groups)) {
+      idx <- int_groups[[key]]
+      contrib_vec <- rep(0, nrow(x_mat))
+      has_nonzero <- FALSE
+      for (j in idx) {
+        b <- coef_vec[col_names[j]]
+        if (!is.na(b) && b != 0) {
+          contrib_vec <- contrib_vec + b * x_mat[, j]
+          has_nonzero <- TRUE
+        }
       }
+      if (has_nonzero) contribs[[key]] <- contrib_vec
     }
   }
 
