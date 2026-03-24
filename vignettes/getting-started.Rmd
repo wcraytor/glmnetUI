@@ -35,11 +35,15 @@ no login, no server, no accounts. You launch it from R, import a dataset
 A **Purpose** radio button at the top of the sidebar selects:
 
 - **General** --- Elastic net regression for any dataset. The default mode.
+  A **Skip first row** checkbox lets you exclude row 1 from fitting.
 - **For Appraisal** --- Tailored for real estate appraisal with subject
   property handling, special column designations, RCA adjustments, and
   formatted report export.
 - **Market Area Analysis** --- For analyzing groups of properties with optional
-  subject row exclusion.
+  first row exclusion.
+
+Settings are saved per file and purpose combination, so switching modes
+preserves each mode's configuration independently.
 
 ### Launching the Application
 
@@ -48,7 +52,7 @@ library(glmnetUI)
 glmnetUI()
 ```
 
-This opens the application at `http://localhost:7878`.
+This opens the application at `http://localhost:7879`.
 
 ## Basic Workflow
 
@@ -67,12 +71,13 @@ Column names are automatically converted to `snake_case` on import.
 
 After importing, a predictor table shows each column with:
 
-- **Type** --- data type dropdown (numeric, integer, character, factor, etc.)
+- **Type** --- data type dropdown (numeric, integer, character, Date, POSIXct)
+- **Fac** --- factor checkbox (treat as categorical)
 - **Inc** --- checkbox to include as predictor
 - **Force** --- force into model (penalty factor = 0, never dropped by lasso)
-- **Special** --- special column designation (see User Guide)
 - **Sign** --- expected coefficient sign (positive, negative, or either)
 - **NAs** --- missing value count
+- **Special** --- special column designation (appraisal/market modes only)
 
 Select your **response variable** from the dropdown, then check/uncheck
 predictors as needed.
@@ -110,22 +115,26 @@ Results appear in the main panel tabs:
 - **Correlation** --- Heatmap of predictor correlations (no model needed)
 - **Summary** --- R², GR², CV R², RMSE, MAE; appraisal metrics (COD, PRD)
 - **Coefficients** --- Non-zero coefficients with sign warnings
-- **Variable Importance** --- Bar chart of |β| × sd(x) per predictor
-- **Contributions** --- Per-variable effect plots with slope labels
+- **Variable Importance** --- Bar chart of |coef| x sd(x) per predictor
+- **Contributions** --- Per-variable effect plots: scatter with fit line
+  (numeric), box plot (factor), scatter/heatmap/3D surface (interactions)
 - **ANOVA** --- Variance decomposition table
 - **Diagnostics** --- Coefficient path, CV error, actual vs predicted, residuals
-- **Report** --- Export to Word or PDF
+- **Report** --- Configure and export reports
 
 ### 6. Export
 
-- **Download Output** (appraisal/market modes): Excel with predictions,
-  residuals, CQA scores, and per-variable contributions
+- **Download Output** (all modes): Excel with predictions, residuals, CQA
+  scores, and per-variable contributions
 - **Sales Grid** (appraisal mode): Generate a formatted Sales Comparison
   Grid Excel workbook from RCA output. A modal dialog lets you select
   comps (recommended comps with gross adjustment < 25% are pre-checked).
   Up to 30 comps across 10 sheets (3 per sheet) with grouped rows,
   formulas, and unlocked residual cells for appraiser input.
-- **Download Report**: Word (.docx) or PDF with all tables and plots
+- **Download Report**: Word (.docx), PDF, or HTML with all tables and plots.
+  Reports include contribution plots matching the Contributions tab
+  (scatter, heatmap, 3D persp snapshots for interactions). Rendered via
+  Quarto with automatic rmarkdown fallback.
 
 ## Tips
 

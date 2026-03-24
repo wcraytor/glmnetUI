@@ -313,7 +313,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
       file_key <- rv$file_name
 
       # CSS for flexbox rows (colors handled via classes for dark mode)
-      row_css <- "display:flex; align-items:center; padding:3px 6px;"
+      row_css <- "display:flex; align-items:center; padding:3px 6px; gap:4px;"
       hdr_css <- paste0(row_css, " font-weight:bold;")
 
       all_types <- c("numeric", "integer", "character",
@@ -331,15 +331,20 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
 
       hdr_cols <- list(
         shiny::tags$div(style = "flex:1; min-width:100px;", "Variable"),
-        shiny::tags$div(style = "width:90px; text-align:center;", "Type"),
-        shiny::tags$div(style = "width:30px; text-align:center;", "Fac"),
-        shiny::tags$div(style = "width:30px; text-align:center;", "Inc"),
-        shiny::tags$div(style = "width:40px; text-align:center;", "Force"),
-        shiny::tags$div(style = "width:90px; text-align:center;", "Special")
+        shiny::tags$div(style = "width:90px; min-width:90px; text-align:center;", "Type"),
+        shiny::tags$div(style = "width:35px; min-width:35px; text-align:center;", "Fac"),
+        shiny::tags$div(style = "width:35px; min-width:35px; text-align:center;", "Inc"),
+        shiny::tags$div(style = "width:45px; min-width:45px; text-align:center;", "Force")
       )
+      if (appraiser) {
+        hdr_cols <- c(hdr_cols, list(
+          shiny::tags$div(style = "width:95px; min-width:95px; text-align:center;",
+                          "Special")
+        ))
+      }
       hdr_cols <- c(hdr_cols, list(
-        shiny::tags$div(style = "width:60px; text-align:center;", "Sign"),
-        shiny::tags$div(style = "width:45px; text-align:center;", "NAs")
+        shiny::tags$div(style = "width:65px; min-width:65px; text-align:center;", "Sign"),
+        shiny::tags$div(style = "width:45px; min-width:45px; text-align:center;", "NAs")
       ))
       header <- shiny::tags$div(
         class = "glmnet-var-hdr",
@@ -382,7 +387,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
           shiny::tags$option(value = sp, sp)
         })
         special_el <- shiny::tags$div(
-          style = "width:90px; text-align:center;",
+          style = "width:95px; min-width:95px; text-align:center;",
           shiny::tags$select(
             id = ns(paste0("special_", col_name)),
             class = "form-control glmnet-special-sel",
@@ -398,11 +403,11 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
             col_name
           ),
           shiny::tags$div(
-            style = "width:90px; text-align:center;",
+            style = "width:90px; min-width:90px; text-align:center;",
             type_el
           ),
           shiny::tags$div(
-            style = "width:30px; text-align:center;",
+            style = "width:35px; min-width:35px; text-align:center;",
             shiny::tags$input(
               type = "checkbox",
               id = ns(paste0("fac_", col_name)),
@@ -411,7 +416,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
             )
           ),
           shiny::tags$div(
-            style = "width:30px; text-align:center;",
+            style = "width:35px; min-width:35px; text-align:center;",
             shiny::tags$input(
               type = "checkbox",
               id = ns(paste0("inc_", col_name)),
@@ -420,7 +425,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
             )
           ),
           shiny::tags$div(
-            style = "width:40px; text-align:center;",
+            style = "width:45px; min-width:45px; text-align:center;",
             shiny::tags$input(
               type = "checkbox",
               id = ns(paste0("force_", col_name)),
@@ -429,15 +434,17 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
             )
           )
         )
-        row_cells <- c(row_cells, list(special_el))
+        if (appraiser) {
+          row_cells <- c(row_cells, list(special_el))
+        }
         row_cells <- c(row_cells, list(
           shiny::tags$div(
-            style = "width:60px; text-align:center;",
+            style = "width:65px; min-width:65px; text-align:center;",
             sign_el
           ),
           shiny::tags$div(
-            style = paste0("width:45px; text-align:center; font-size:12px;",
-                           na_style),
+            style = paste0("width:45px; min-width:45px; text-align:center;",
+                           " font-size:12px;", na_style),
             as.character(na_count)
           )
         ))
@@ -451,12 +458,17 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
 
       # JavaScript: sync state, save/restore from localStorage by filename
       col_names_json <- jsonlite::toJSON(cols, auto_unbox = FALSE)
-      js_code <- sprintf('
+      file_key_json <- jsonlite::toJSON(file_key, auto_unbox = TRUE)
+      ns_prefix <- ns("")
+      js_code <- paste0('
         (function() {
-          var cols = %s;
-          var nsPrefix = "%s";
-          var fileKey = %s;
-          var storageKey = "glmnetUI_vars_" + fileKey;
+          var cols = ', col_names_json, ';
+          var nsPrefix = "', ns_prefix, '";
+          var fileKey = ', file_key_json, ';
+          function getVarStorageKey() {
+            var p = document.querySelector("input[name=purpose]:checked");
+            return "glmnetUI_vars_" + fileKey + "_" + (p ? p.value : "general");
+          }
 
           function gatherState() {
             var preds = [];
@@ -511,16 +523,25 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
               };
             }
             try {
-              localStorage.setItem(storageKey, JSON.stringify(state));
+              var sk = getVarStorageKey();
+              console.log("[glmnetUI vars] saveState key=" + sk);
+              localStorage.setItem(sk, JSON.stringify(state));
             } catch(e) {}
           }
 
           function restoreState() {
             var saved = null;
+            var usedKey = getVarStorageKey();
             try {
-              var raw = localStorage.getItem(storageKey);
+              var raw = localStorage.getItem(usedKey);
+              if (!raw) {
+                usedKey = "glmnetUI_vars_" + fileKey;
+                raw = localStorage.getItem(usedKey);
+              }
               if (raw) saved = JSON.parse(raw);
             } catch(e) {}
+            console.log("[glmnetUI vars] restoreState key=" + usedKey +
+                        " found=" + (saved !== null));
 
             for (var i = 0; i < cols.length; i++) {
               var cb = document.getElementById(nsPrefix + "inc_" + cols[i]);
@@ -640,8 +661,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
           restoreState();
           setTimeout(gatherState, 50);
         })();
-      ', col_names_json, ns(""),
-                         jsonlite::toJSON(file_key, auto_unbox = TRUE))
+      ')
 
       shiny::tagList(
         header,

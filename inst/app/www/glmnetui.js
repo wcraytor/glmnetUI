@@ -102,10 +102,16 @@ $(document).on("click", "#model-fit_btn", function() {
   });
 });
 
+// Helper: get purpose-keyed localStorage key
+function glmnetStorageKey(prefix, filename) {
+  var purpose = $("input[name='purpose']:checked").val() || "general";
+  return prefix + filename + "_" + purpose;
+}
+
 // Pre-seed sale_age as included in localStorage when computed
 Shiny.addCustomMessageHandler("sale_age_added", function(msg) {
   if (!msg.filename) return;
-  var storageKey = "glmnetUI_vars_" + msg.filename;
+  var storageKey = glmnetStorageKey("glmnetUI_vars_", msg.filename);
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem(storageKey)) || {}; } catch(e) {}
   saved["sale_age"] = { inc: true, fac: false, type: "integer", force: false, sign: "either", special: "no" };
@@ -130,8 +136,8 @@ Shiny.addCustomMessageHandler("save_locale_defaults", function(msg) {
 // --- Global settings apply function ---
 window.glmnetApplySettings = function(s) {
   // Radio buttons (namespaced and global)
-  ["model-alpha_method", "model-lambda_method", "model-lambda_choice",
-   "purpose"].forEach(function(id) {
+  ["model-alpha_method", "model-lambda_method", "model-lambda_choice"
+  ].forEach(function(id) {
     if (s[id] !== undefined) {
       $("input[name=\"" + id + "\"][value=\"" + s[id] + "\"]")
         .prop("checked", true).trigger("change");
@@ -221,6 +227,7 @@ window.glmnetApplyInteractions = function(saved) {
 // --- Apply saved defaults from localStorage ---
 Shiny.addCustomMessageHandler("apply_saved_defaults", function(msg) {
   var fn = msg.filename || "default";
+  var purpose = $("input[name='purpose']:checked").val() || "general";
   var defSettings = null;
   var defVars = null;
   var defInts = null;
@@ -235,15 +242,16 @@ Shiny.addCustomMessageHandler("apply_saved_defaults", function(msg) {
   }
 
   window.glmnetApplySettings(defSettings);
-  // Save to current file localStorage too
-  try { localStorage.setItem("glmnetUI_settings_" + fn, JSON.stringify(defSettings)); } catch(e) {}
+  // Save to current file+purpose localStorage too
+  var sfx = fn + "_" + purpose;
+  try { localStorage.setItem("glmnetUI_settings_" + sfx, JSON.stringify(defSettings)); } catch(e) {}
 
   if (defVars) {
-    try { localStorage.setItem("glmnetUI_vars_" + fn, JSON.stringify(defVars)); } catch(e) {}
+    try { localStorage.setItem("glmnetUI_vars_" + sfx, JSON.stringify(defVars)); } catch(e) {}
     setTimeout(function() { window.glmnetApplyVariables(defVars); }, 200);
   }
   if (defInts) {
-    try { localStorage.setItem("glmnetUI_interactions_" + fn, JSON.stringify(defInts)); } catch(e) {}
+    try { localStorage.setItem("glmnetUI_interactions_" + sfx, JSON.stringify(defInts)); } catch(e) {}
     setTimeout(function() { window.glmnetApplyInteractions(defInts); }, 200);
   }
 });
@@ -263,8 +271,7 @@ Shiny.addCustomMessageHandler("apply_glmnet_defaults", function(msg) {
     "model-standardize": true,
     "model-enforce_signs": false,
     "model-relaxed": false,
-    "model-gamma": 0,
-    "purpose": "general"
+    "model-gamma": 0
   };
   window.glmnetApplySettings(defaults);
   // Reset variable table: check all inc, uncheck force, set sign=either
@@ -284,9 +291,10 @@ Shiny.addCustomMessageHandler("apply_glmnet_defaults", function(msg) {
 Shiny.addCustomMessageHandler("glmnet_init_matrix", function(msg) {
   var n = msg.n;
   var nsPrefix = msg.nsPrefix;
-  var storageKey = "glmnetUI_interactions_" + msg.storageKey;
+  var purpose = $("input[name='purpose']:checked").val() || "general";
+  var storageKey = "glmnetUI_interactions_" + msg.storageKey + "_" + purpose;
   var glmnetPreds = msg.preds;
-  var blk1Key = "glmnetUI_blk1_" + msg.storageKey;
+  var blk1Key = "glmnetUI_blk1_" + msg.storageKey + "_" + purpose;
 
   function saveState() {
     var state = {};
@@ -301,7 +309,11 @@ Shiny.addCustomMessageHandler("glmnet_init_matrix", function(msg) {
 
   function restoreState() {
     var saved = null;
-    try { saved = JSON.parse(localStorage.getItem(storageKey)); } catch(e) {}
+    try {
+      saved = JSON.parse(localStorage.getItem(storageKey));
+      // Fall back to old key format (without purpose suffix)
+      if (!saved) saved = JSON.parse(localStorage.getItem("glmnetUI_interactions_" + msg.storageKey));
+    } catch(e) {}
     if (!saved) return;
     for (var i = 1; i < n; i++) {
       for (var j = i + 1; j <= n; j++) {
@@ -363,7 +375,11 @@ Shiny.addCustomMessageHandler("glmnet_init_matrix", function(msg) {
 
   // Block from main effect: right-click variable name
   var blk1 = {};
-  try { var s = JSON.parse(localStorage.getItem(blk1Key)); if (s) blk1 = s; } catch(e) {}
+  try {
+    var s = JSON.parse(localStorage.getItem(blk1Key));
+    if (!s) s = JSON.parse(localStorage.getItem("glmnetUI_blk1_" + msg.storageKey));
+    if (s) blk1 = s;
+  } catch(e) {}
 
   function updateBlk1Labels() {
     $(".glmnet-matrix-varlabel").each(function() {
@@ -409,16 +425,17 @@ Shiny.addCustomMessageHandler("glmnet_init_matrix", function(msg) {
 // --- Collect and save current settings as defaults ---
 Shiny.addCustomMessageHandler("collect_and_save_defaults", function(msg) {
   var fn = msg.filename || "default";
+  var sfx = fn + "_" + ($("input[name='purpose']:checked").val() || "general");
   try {
-    var s = localStorage.getItem("glmnetUI_settings_" + fn);
+    var s = localStorage.getItem("glmnetUI_settings_" + sfx);
     if (s) localStorage.setItem("glmnetUI_settings___defaults__", s);
   } catch(e) {}
   try {
-    var v = localStorage.getItem("glmnetUI_vars_" + fn);
+    var v = localStorage.getItem("glmnetUI_vars_" + sfx);
     if (v) localStorage.setItem("glmnetUI_vars___defaults__", v);
   } catch(e) {}
   try {
-    var i = localStorage.getItem("glmnetUI_interactions_" + fn);
+    var i = localStorage.getItem("glmnetUI_interactions_" + sfx);
     if (i) localStorage.setItem("glmnetUI_interactions___defaults__", i);
   } catch(e) {}
 });

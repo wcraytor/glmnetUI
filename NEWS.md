@@ -1,3 +1,40 @@
+# glmnetUI 0.4.0
+
+## Report Generation — Fixed and Enhanced
+
+* **Fixed PDF/Word report failures**: LaTeX compilation errors from unescaped underscores in variable names (`\text{sale_price}`) and 200K+ character `Call:` field from `print(cv.relaxed)` exceeding LaTeX bufsize. The model `Call:` is now stripped before saving to report assets.
+* **Quarto → rmarkdown automatic fallback**: If Quarto rendering fails or is unavailable, reports fall back to rmarkdown with the bundled `report_template.Rmd`.
+* **HTML reports self-contained**: Images embedded via `embed-resources: true` so HTML reports display all plots without external file references.
+* **Fixed missing plots in reports**: Switched from `knitr::include_graphics()` to raw markdown image syntax in `results='asis'` chunks; fixed Quarto PDF absolute path issue where LuaTeX prepended `./` to paths.
+* **Data alignment fix**: Report contribution plots now work correctly with appraisal data where `nrow(data) != nrow(x_mat)` due to weight=0 rows and subject exclusion.
+
+## Report Contribution Plots — Rewritten
+
+* **Numeric predictors**: Scatter plot with linear fit line (was: `geom_line`).
+* **Factor variables**: Box plot by level (was: histogram).
+* **Interactions**: Scatter colored by contribution + heatmap of mean contribution + static 3D `persp()` surface snapshot (was: histogram).
+* All axes and color legends use comma-formatted numbers (no scientific notation).
+* Heatmap legends enlarged for readability.
+
+## General Purpose Mode — 8 Fixes
+
+* **Purpose no longer snaps back to "For Appraisal"**: Removed `purpose` from per-file settings save/restore so user's purpose choice is respected.
+* **Skip first row checkbox**: Added after Purpose radio (visible for General/Market modes), excludes row 1 from model fitting.
+* **Separate settings per purpose**: localStorage keys now include purpose (`glmnetUI_settings_<file>_<purpose>`) so switching modes preserves each mode's settings independently. Falls back to legacy keys for migration.
+* **No Special column for General**: Predictor settings table hides the Special dropdown when purpose=general.
+* **Min-widths on predictor columns**: Added `min-width` and `gap` to prevent column collapse and improve readability.
+* **Special variable handling skipped for General**: sale_age computation, contract_date handling, latitude/longitude rounding only run in appraisal/market modes.
+* **Step 6 Download enabled for General**: Was showing "Skip" for General mode; now shows the download button for all purpose modes.
+* **RCA/Sales Grid hidden for non-appraisal**: Sections 7 and 8 completely hidden instead of showing "Skip" for non-appraisal modes.
+
+## Other Changes
+
+* **Earth import removed**: Removed `earth_knots_r` parameter and all earth-basis code paths from `modelingServer`, eliminating "Expected a glmnetUI_earth_import object" errors.
+* **Settings JS refactored**: Replaced `sprintf` with `paste0` for predictor settings JavaScript to avoid the 8192-character `sprintf` format limit.
+* 29 new unit tests for report generation (1,158 total tests, all passing).
+* Updated roxygen documentation for `render_report()`, `reportServer()`, and `modelingServer()`.
+* Updated vignettes, user guide (QMD + PDF), and cran-comments.md.
+
 # glmnetUI 0.1.2
 
 * **Random seed** for reproducible cross-validation: text input pre-filled with random integer, seed history (last 5 per file) with clickable recall links, `set.seed()` called before fitting, seed shown in Glmnet Output tab and fit status.

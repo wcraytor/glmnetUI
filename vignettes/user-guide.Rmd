@@ -41,7 +41,7 @@ library(glmnetUI)
 glmnetUI()
 ```
 
-This opens the Shiny app at `http://localhost:7878`.
+This opens the Shiny app at `http://localhost:7879`.
 
 ## Locale & Regional Settings
 
@@ -143,17 +143,22 @@ The sidebar is organized into numbered sections:
 
 1. **Import Data** --- CSV or Excel file upload
 2. **Project Output Folder** --- where downloads are saved
-3. **Variable Configuration** --- target, predictors, data types, special
-   columns, expected signs, effective date (appraisal/market only)
+3. **Variable Configuration** --- target, predictors, data types, expected
+   signs. Special column designations appear in appraisal/market only.
+   Effective date input appears in appraisal/market only.
 4. **glmnet Call Parameters** --- alpha, lambda, family, standardize, sign
    constraints, relaxed lasso, interaction matrix, advanced parameters
 5. **Fit Glmnet Model** --- green button to run the model
-6. **Download Output** --- Excel file with predictions and diagnostics
-   (appraisal/market only)
+6. **Download Output** --- Excel file with predictions, residuals, CQA
+   scores, and per-variable contributions (all purpose modes)
 7. **Calculate RCA Adjustments & Download** (appraisal only)
 8. **Sales Comparison Grid** (appraisal only) --- generate formatted Excel
    workbook with comp selection modal
 9. **Download Report** --- Word (.docx), PDF, or HTML
+
+A **Skip first row** checkbox appears below the Purpose selector in
+General and Market modes. Settings are saved per file and purpose
+combination, so switching modes preserves each mode's configuration.
 
 ## Variable Selection
 

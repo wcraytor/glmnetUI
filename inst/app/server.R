@@ -68,11 +68,16 @@ function(input, output, session) {
   # Wrap global inputs as reactives for module consumption
   purpose <- shiny::reactive(input$purpose)
   effective_date <- shiny::reactive(input$effective_date)
+  skip_first_row <- shiny::reactive({
+    if (identical(input$purpose, "appraisal")) TRUE
+    else isTRUE(input$skip_subject_row)
+  })
 
   # earthUI import is inactive (code retained for future use)
   # earth_knots_r <- earthImportServer("earth")
   data_out <- dataImportServer("data", purpose)
-  model_out <- modelingServer("model", data_out, purpose, effective_date)
+  model_out <- modelingServer("model", data_out, purpose, effective_date,
+                               skip_first_row)
   coef_out <- coefficientsServer("coefs", model_out, data_out)
   equationServer("eq", model_out, data_out)
   summaryServer("summ", model_out, data_out, purpose)
@@ -1103,17 +1108,22 @@ function(input, output, session) {
       message("[glmnetUI S9] x_mat: ", nrow(x_mat), "x", ncol(x_mat),
               " y_vec: ", length(y_vec), " coef_df: ", nrow(coef_df), " rows")
 
-      # Determine alpha
-      alpha_val <- if (inherits(model, "cv.glmnet")) {
-        a <- model$glmnet.fit$call$alpha
-        if (is.null(a)) 1 else a
-      } else {
-        a <- model$call$alpha
-        if (is.null(a)) 1 else a
-      }
+      # Determine alpha — guard against NULL/language objects from do.call
+      alpha_val <- tryCatch({
+        a <- if (inherits(model, "cv.glmnet")) {
+          model$glmnet.fit$call$alpha
+        } else {
+          model$call$alpha
+        }
+        if (is.null(a) || is.language(a)) 1 else as.numeric(a)
+      }, error = function(e) 1)
 
       # Prepare assets (all plots and data)
       session$sendCustomMessage("report_timer", list(action = "start"))
+      message("[glmnetUI S9] alpha_val=", alpha_val,
+              " purpose=", input$purpose,
+              " family=", model_out$family(),
+              " file_name=", data_out$file_name())
       message("[glmnetUI S9] Calling prepare_report_assets()...")
       assets_dir <- prepare_report_assets(
         model         = model,

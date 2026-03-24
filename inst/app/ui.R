@@ -241,6 +241,11 @@ bslib::page_fluid(
                                         "Market Area Analysis" = "market"),
                             selected = "general", inline = TRUE)
       ),
+      shiny::conditionalPanel(
+        condition = "input.purpose !== 'appraisal'",
+        shiny::checkboxInput("skip_subject_row", "Skip first row",
+                             value = FALSE)
+      ),
       shiny::hr(),
 
       # --- 1. Import Data ---
@@ -314,68 +319,39 @@ bslib::page_fluid(
           shiny::tags$details(class = "glmnet-section",
             shiny::tags$summary(shiny::uiOutput("download_heading",
                                                  inline = TRUE)),
-            shiny::conditionalPanel(
-              condition = "input.purpose !== 'general'",
-              shiny::actionButton("export_data", "Download Output (Excel)",
-                                  class = "btn-success",
-                                  style = "width: 100%;")
-            ),
-            shiny::conditionalPanel(
-              condition = "input.purpose === 'general'",
-              shiny::tags$p(
-                shiny::tags$em("Skip"),
-                style = "color: var(--bs-secondary-color); margin: 4px 0;"
-              )
-            )
+            shiny::actionButton("export_data", "Download Output (Excel)",
+                                class = "btn-success",
+                                style = "width: 100%;")
           )
         ),
 
         # --- 7. Calculate RCA Adjustments (Appraisal only) ---
         shiny::conditionalPanel(
-          condition = "output.model_fitted",
+          condition = "output.model_fitted && input.purpose === 'appraisal'",
           shiny::hr(),
           shiny::tags$details(class = "glmnet-section",
-            shiny::tags$summary(shiny::h4("7. Calculate RCA Adjustments & Download",
-                                          style = "display:inline;")),
-            shiny::conditionalPanel(
-              condition = "input.purpose === 'appraisal'",
-              shiny::actionButton("rca_output_btn",
-                                  "Calculate RCA Adjustments & Download",
-                                  class = "btn-success",
-                                  style = "width: 100%;")
-            ),
-            shiny::conditionalPanel(
-              condition = "input.purpose !== 'appraisal'",
-              shiny::tags$p(
-                shiny::tags$em("Skip"),
-                style = "color: var(--bs-secondary-color); margin: 4px 0;"
-              )
-            )
+            shiny::tags$summary(shiny::h4(
+              "7. Calculate RCA Adjustments & Download",
+              style = "display:inline;")),
+            shiny::actionButton("rca_output_btn",
+                                "Calculate RCA Adjustments & Download",
+                                class = "btn-success",
+                                style = "width: 100%;")
           )
         ),
 
         # --- 8. Generate Sales Grid (Appraisal only) ---
         shiny::conditionalPanel(
-          condition = "output.rca_computed",
+          condition = "output.rca_computed && input.purpose === 'appraisal'",
           shiny::hr(),
           shiny::tags$details(class = "glmnet-section",
             shiny::tags$summary(shiny::h4(
               "8. Generate Sales Grid & Download",
               style = "display:inline;")),
-            shiny::conditionalPanel(
-              condition = "input.purpose === 'appraisal'",
-              shiny::actionButton("sales_grid_btn",
-                                  "Generate Sales Grid & Download",
-                                  class = "btn-success",
-                                  style = "width: 100%;")
-            ),
-            shiny::conditionalPanel(
-              condition = "input.purpose !== 'appraisal'",
-              shiny::tags$p(
-                shiny::tags$em("Skip"),
-                style = "color: var(--bs-secondary-color); margin: 4px 0;"
-              )
-            )
+            shiny::actionButton("sales_grid_btn",
+                                "Generate Sales Grid & Download",
+                                class = "btn-success",
+                                style = "width: 100%;")
           )
         ),
 

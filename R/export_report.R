@@ -66,6 +66,33 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     ggplot2::theme_set(ggplot2::theme_minimal(base_family = "sans"))
   }
 
+  # --- Align data to x_mat rows ---
+  # x_mat may have fewer rows than data (complete cases, weight != 0, etc.)
+  n_xmat <- nrow(x_mat)
+  if (nrow(data) != n_xmat) {
+    use_cols <- intersect(c(response, predictors), names(data))
+    mask <- stats::complete.cases(data[, use_cols, drop = FALSE])
+    if (sum(mask) > n_xmat) {
+      # Also exclude weight=0 rows
+      for (cn in names(data)) {
+        if (cn == "weight" || (!is.null(col_types) &&
+            !is.na(col_types[cn]) && col_types[cn] == "weight")) {
+          wt <- as.numeric(data[[cn]])
+          mask <- mask & (!is.na(wt) & wt != 0)
+        }
+      }
+    }
+    if (sum(mask) == n_xmat) {
+      data_aligned <- data[mask, , drop = FALSE]
+    } else {
+      data_aligned <- data[seq_len(min(nrow(data), n_xmat)), , drop = FALSE]
+    }
+  } else {
+    data_aligned <- data
+  }
+  message("[glmnetUI ASSETS] data rows=", nrow(data),
+          " x_mat rows=", n_xmat, " aligned rows=", nrow(data_aligned))
+
   # --- Predictions and residuals ---
   pred_args <- list(model, newx = x_mat, s = lambda, type = "response")
   if (!is.null(gamma)) pred_args$gamma <- gamma
@@ -121,7 +148,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
 
   # --- Contribution data for plots ---
   contrib_info <- compute_contrib_for_report_(
-    coef_vec, x_mat, predictors, data, col_types)
+    coef_vec, x_mat, predictors, data_aligned, col_types)
 
   # --- Save model for on-the-fly printing in template ---
   # Strip Call: from model before saving — cv.relaxed stores the full
@@ -196,10 +223,10 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
 
   # Correlation matrix
   numeric_preds <- predictors[vapply(predictors, function(p) {
-    p %in% names(data) && is.numeric(data[[p]])
+    p %in% names(data_aligned) && is.numeric(data_aligned[[p]])
   }, logical(1))]
   if (length(numeric_preds) >= 2) {
-    cor_mat <- stats::cor(data[, numeric_preds, drop = FALSE],
+    cor_mat <- stats::cor(data_aligned[, numeric_preds, drop = FALSE],
                           use = "pairwise.complete.obs")
     cor_long <- as.data.frame(as.table(cor_mat))
     names(cor_long) <- c("Var1", "Var2", "value")
@@ -240,17 +267,9 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
       # --- Interaction: scatter + heatmap + 3D persp ---
       int_vars <- strsplit(vname, ":", fixed = TRUE)[[1]]
       var1 <- int_vars[1]; var2 <- int_vars[2]
-      if (var1 %in% names(data) && var2 %in% names(data) &&
-          is.numeric(data[[var1]]) && is.numeric(data[[var2]])) {
-        x1 <- data[[var1]]; x2 <- data[[var2]]
-        if (length(x1) != length(cv)) {
-          # Align to x_mat rows (complete cases)
-          use_cols <- intersect(c(response, predictors), names(data))
-          mask <- stats::complete.cases(data[, use_cols, drop = FALSE])
-          if (sum(mask) == length(cv)) {
-            x1 <- x1[mask]; x2 <- x2[mask]
-          }
-        }
+      if (var1 %in% names(data_aligned) && var2 %in% names(data_aligned) &&
+          is.numeric(data_aligned[[var1]]) && is.numeric(data_aligned[[var2]])) {
+        x1 <- data_aligned[[var1]]; x2 <- data_aligned[[var2]]
         if (length(x1) == length(cv)) {
           plot_df <- data.frame(x = x1, y = x2, contribution = cv)
 
@@ -339,14 +358,9 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
           })
         }
       }
-    } else if (is_factor && vname %in% names(data)) {
+    } else if (is_factor && vname %in% names(data_aligned)) {
       # --- Factor: box plot by level ---
-      fac_vals <- as.factor(data[[vname]])
-      if (length(fac_vals) != length(cv)) {
-        use_cols <- intersect(c(response, predictors), names(data))
-        mask <- stats::complete.cases(data[, use_cols, drop = FALSE])
-        if (sum(mask) == length(cv)) fac_vals <- fac_vals[mask]
-      }
+      fac_vals <- as.factor(data_aligned[[vname]])
       if (length(fac_vals) == length(cv)) {
         plot_df <- data.frame(level = fac_vals, contribution = cv)
         p_c <- ggplot2::ggplot(plot_df,

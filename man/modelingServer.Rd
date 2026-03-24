@@ -9,7 +9,7 @@ modelingServer(
   data_module,
   purpose = shiny::reactiveVal("general"),
   effective_date = shiny::reactiveVal(Sys.Date()),
-  earth_knots_r = shiny::reactiveVal(NULL)
+  skip_first_row_r = shiny::reactiveVal(FALSE)
 )
 }
 \arguments{
@@ -21,11 +21,8 @@ modelingServer(
 
 \item{effective_date}{Reactive returning the effective date.}
 
-\item{earth_knots_r}{Reactive returning a \code{glmnetUI_earth_import}
-object from \code{\link[=earthImportServer]{earthImportServer()}}, or \code{NULL} if no earthUI result
-is loaded. When non-NULL, the interaction matrix is disabled and
-earth basis columns (from \code{earth::model.matrix()}) are appended
-to the glmnet model matrix.}
+\item{skip_first_row_r}{Reactive returning logical; when TRUE,
+row 1 is excluded from model fitting.}
 }
 \value{
 A reactive list containing model results.
@@ -35,12 +32,4 @@ Server logic for the glmnet modeling module. Handles model fitting
 with glmnet and cv.glmnet, including weights, penalty factors,
 coefficient bounds, relaxed lasso, alpha grid search, and
 interaction terms.
-}
-\details{
-When an earthUI result is provided via \code{earth_knots_r}, the
-glmnet interaction matrix is disabled and earth hinge basis
-functions are appended to the model matrix instead. This ensures
-that interactions are determined solely by the earth model, whose
-hinge-based interactions are interpretable and explainable to third
-parties -- unlike glmnet cross-product interactions.
 }

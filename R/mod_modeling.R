@@ -403,22 +403,12 @@ fitModelUI <- function(id) {
 #' coefficient bounds, relaxed lasso, alpha grid search, and
 #' interaction terms.
 #'
-#' When an earthUI result is provided via \code{earth_knots_r}, the
-#' glmnet interaction matrix is disabled and earth hinge basis
-#' functions are appended to the model matrix instead. This ensures
-#' that interactions are determined solely by the earth model, whose
-#' hinge-based interactions are interpretable and explainable to third
-#' parties -- unlike glmnet cross-product interactions.
-#'
 #' @param id Module namespace ID.
 #' @param data_module Reactive list returned by [dataImportServer()].
 #' @param purpose Reactive returning the purpose mode string.
 #' @param effective_date Reactive returning the effective date.
-#' @param earth_knots_r Reactive returning a `glmnetUI_earth_import`
-#'   object from [earthImportServer()], or `NULL` if no earthUI result
-#'   is loaded. When non-NULL, the interaction matrix is disabled and
-#'   earth basis columns (from `earth::model.matrix()`) are appended
-#'   to the glmnet model matrix.
+#' @param skip_first_row_r Reactive returning logical; when TRUE,
+#'   row 1 is excluded from model fitting.
 #'
 #' @return A reactive list containing model results.
 #'
@@ -426,7 +416,7 @@ fitModelUI <- function(id) {
 modelingServer <- function(id, data_module,
                            purpose = shiny::reactiveVal("general"),
                            effective_date = shiny::reactiveVal(Sys.Date()),
-                           earth_knots_r = shiny::reactiveVal(NULL)) {
+                           skip_first_row_r = shiny::reactiveVal(FALSE)) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -570,10 +560,14 @@ modelingServer <- function(id, data_module,
 
       shiny::tags$script(shiny::HTML(sprintf('
         (function() {
-          var storageKey = "glmnetUI_settings_" + %s;
+          var fileKey = %s;
+          function getStorageKey() {
+            var p = document.querySelector("input[name=purpose]:checked");
+            return "glmnetUI_settings_" + fileKey + "_" + (p ? p.value : "general");
+          }
 
           var radioIds = ["model-alpha_method", "model-lambda_method",
-                          "model-lambda_choice", "purpose"];
+                          "model-lambda_choice"];
           var sliderIds = ["model-alpha", "model-gamma"];
           var rangeSliderIds = ["model-alpha_range"];
           var numericIds = ["model-n_alphas", "model-lambda_manual",
@@ -620,15 +614,24 @@ modelingServer <- function(id, data_module,
                 $(document.getElementById(id)).val();
             });
             try {
-              localStorage.setItem(storageKey, JSON.stringify(state));
+              var sk = getStorageKey();
+              console.log("[glmnetUI settings] saveSettings key=" + sk);
+              localStorage.setItem(sk, JSON.stringify(state));
             } catch(e) {}
           }
 
           function restoreSettings() {
             var saved = null;
+            var usedKey = getStorageKey();
             try {
-              saved = JSON.parse(localStorage.getItem(storageKey));
+              saved = JSON.parse(localStorage.getItem(usedKey));
+              if (!saved) {
+                usedKey = "glmnetUI_settings_" + fileKey;
+                saved = JSON.parse(localStorage.getItem(usedKey));
+              }
             } catch(e) {}
+            console.log("[glmnetUI settings] restoreSettings key=" + usedKey +
+                        " found=" + (saved !== null));
             if (!saved) return;
             if (typeof window.glmnetApplySettings === "function") {
               window.glmnetApplySettings(saved);
@@ -754,11 +757,6 @@ modelingServer <- function(id, data_module,
 
     # --- Get allowed interaction pairs from matrix checkboxes ---
     get_interaction_pairs <- shiny::reactive({
-      # When earthUI is imported, skip glmnet interactions --
-      # earth handles interactions via hinge basis functions
-      ek <- earth_knots_r()
-      if (!is.null(ek)) return(list())
-
       preds <- data_module$predictors()
       if (is.null(preds) || length(preds) < 2) return(list())
       n <- length(preds)
@@ -873,6 +871,15 @@ modelingServer <- function(id, data_module,
         resp <- data_module$response()
         preds <- data_module$predictors()
 
+        # Skip first row when requested (appraisal always skips via weight=0;
+        # general/market can skip via the checkbox)
+        message("[glmnetUI FIT] skip_first_row_r()=", skip_first_row_r(),
+                " purpose=", purpose(), " nrow(df)=", nrow(df))
+        if (isTRUE(skip_first_row_r()) && nrow(df) >= 2L) {
+          df <- df[2:nrow(df), , drop = FALSE]
+          message("[glmnetUI FIT] Skipped row 1, now ", nrow(df), " rows")
+        }
+
         if (!resp %in% names(df)) {
           shiny::showNotification(
             paste0("Response variable '", resp, "' not found in data."),
@@ -958,54 +965,10 @@ modelingServer <- function(id, data_module,
 
         # --- Build model matrix ---
         # Standard pattern: when earth is imported, use ONLY the earth
-        # basis as x_mat. Earth's model.matrix already includes all
-        # basis functions (hinges, interactions, factor dummies).
-        # Do NOT combine formula model.matrix + earth basis -- that
-        # creates duplicate columns for shared factor dummies.
-        ek <- earth_knots_r()
         y_vec <- df_clean[[resp]]
 
-        if (!is.null(ek)) {
-          # Earth-only basis (the standard earth-to-glmnet pattern)
-          full_basis <- build_earth_basis(NULL, ek)
-          if (is.null(full_basis)) {
-            shiny::showNotification("Earth basis generation failed.",
-                                    type = "error")
-            return()
-          }
-          n_earth <- nrow(full_basis)
-          n_glmnet <- nrow(df_clean)
-          if (n_earth == n_glmnet) {
-            x_mat <- full_basis
-          } else if (n_earth == nrow(df) && n_earth != n_glmnet) {
-            row_mask <- complete
-            if (!is.null(wt_col) && wt_col %in% names(df)) {
-              wt_all <- as.numeric(df[[wt_col]])
-              row_mask <- row_mask & (is.na(wt_all) | wt_all != 0)
-              row_mask[is.na(row_mask)] <- FALSE
-            }
-            x_mat <- full_basis[row_mask, , drop = FALSE]
-          } else if (n_earth == nrow(df) - 1L) {
-            dummy_row <- full_basis[1L, , drop = FALSE] * 0
-            full_with_subj <- rbind(dummy_row, full_basis)
-            row_mask <- complete
-            if (!is.null(wt_col) && wt_col %in% names(df)) {
-              wt_all <- as.numeric(df[[wt_col]])
-              row_mask <- row_mask & (is.na(wt_all) | wt_all != 0)
-              row_mask[is.na(row_mask)] <- FALSE
-            }
-            x_mat <- full_with_subj[row_mask, , drop = FALSE]
-          } else {
-            shiny::showNotification(
-              paste0("Earth basis rows (", n_earth,
-                     ") don't align with data (", nrow(df),
-                     "). Check weight column settings."),
-              type = "error")
-            return()
-          }
-          assign_attr <- seq_len(ncol(x_mat))
-        } else {
-          # No earth import: standard formula model matrix
+        # Build model matrix from formula
+        {
           ints <- get_interaction_pairs()
           # Remove blocked variables from main effects
           blk <- input$block_main_effect
@@ -1350,7 +1313,7 @@ modelingServer <- function(id, data_module,
       fitted = shiny::reactive(rv$fitted),
       fit_count = shiny::reactive(rv$fit_count),
       seed_used = shiny::reactive(rv$seed_used),
-      earth_import = earth_knots_r
+      earth_import = shiny::reactiveVal(NULL)
     ))
   })
 }

@@ -344,7 +344,7 @@ When either **For Appraisal** or **Market Area Analysis** is selected, glmnetUI 
 To use glmnetUI:
 
 1. **Install the package** in R: `install.packages("glmnetUI")` or install from source.
-2. **Launch the application**: run `glmnetUI::glmnetUI()` in R. The app opens in your web browser on port 7878. You can also access the app directly by navigating to `http://localhost:7878` in your browser.
+2. **Launch the application**: run `glmnetUI::glmnetUI()` in R. The app opens in your web browser on port 7879. You can also access the app directly by navigating to `http://localhost:7879` in your browser.
 3. **Import your data** using the file upload in Section 1 of the sidebar. glmnetUI accepts CSV and Excel files.
 4. **Select your Purpose** (General, For Appraisal, or Market Area Analysis).
 5. **Configure variables** --- choose your target and predictors, set data types, expected signs, and assign any special column roles.
@@ -474,6 +474,14 @@ General Purpose mode is the default when you launch glmnetUI. It provides the co
 
 In General mode, the interface omits the real estate--specific features (special columns, sale age, coordinate rounding, RCA). The sidebar is streamlined to focus on variable selection, parameter configuration, model fitting, and export.
 
+### Skip First Row
+
+A **Skip first row** checkbox appears below the Purpose selector (in General and Market modes). When checked, row 1 is excluded from model fitting. This is useful when row 1 contains a target or reference observation that should not influence the model. In Appraisal mode, row 1 (the subject property) is always excluded automatically.
+
+### Settings Per Purpose
+
+Settings (predictor selections, model parameters, interactions) are saved separately for each combination of input file and purpose mode. Switching between General, Appraisal, and Market modes preserves each mode's settings independently.
+
 ## The Sidebar Workflow
 
 The sidebar is organized into numbered, collapsible sections that guide you from data import through export:
@@ -482,19 +490,15 @@ The sidebar is organized into numbered, collapsible sections that guide you from
 
 **2. Project Output Folder** --- A text field specifying where downloads are saved (defaults to `~/Downloads`).
 
-**3. Variable Configuration** --- Target variable selector, predictor table with checkboxes for Include, Force, Sign, and Special (in appraisal/market modes). See Chapter 6 for full details.
+**3. Variable Configuration** --- Target variable selector, predictor table with checkboxes for Include, Force, and Sign. The Special column (for designating contract dates, coordinates, etc.) appears only in Appraisal and Market modes. See Chapter 6 for full details.
 
 **4. glmnet Call Parameters** --- All model configuration: alpha, lambda, family, standardize, sign constraints, relaxed lasso, interaction matrix, and advanced parameters (lambda.min.ratio, nlambda, CV loss metric, convergence threshold, max iterations, intercept). See Chapter 7 for the complete parameter reference.
 
 **5. Fit Glmnet Model** --- A single green button that runs the model.
 
-**6. Download Output** --- Exports predictions, residuals, CQA scores, and per-variable contributions as an Excel file (appraisal/market modes only). See Chapter 10.
+**6. Download Output** --- Exports predictions, residuals, CQA scores, and per-variable contributions as an Excel file. Available in all purpose modes.
 
-**7. Calculate RCA Adjustments \& Download** --- Appraisal mode only. See Chapter 11.
-
-**8. Sales Comparison Grid** --- Appraisal mode only. Generates a formatted Excel workbook with comp selection. See Chapter 12.
-
-**9. Download Report** --- Generates a formatted report (Word, PDF, or HTML) saved to the output folder. See Chapter 13.
+**7. Download Report** --- Generates a formatted report (Word, PDF, or HTML) saved to the output folder. See Chapter 13. Steps 7--8 (RCA Adjustments and Sales Grid) appear only in Appraisal mode; in General mode the report step is numbered 7.
 
 ## Main Panel Tabs
 
