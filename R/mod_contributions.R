@@ -47,6 +47,7 @@ contrib_slope_label_ <- function(slope, x_breaks) {
 #' @param id Module namespace ID.
 #' @param model_module Reactive list from [modelingServer()].
 #' @param data_module Reactive list from [dataImportServer()].
+#' @return No return value, called for side effects (renders UI outputs).
 #' @export
 contributionsServer <- function(id, model_module, data_module) {
   shiny::moduleServer(id, function(input, output, session) {
@@ -82,14 +83,16 @@ contributionsServer <- function(id, model_module, data_module) {
 
       hinge_var_ <- function(h) {
         inner <- sub("^h\\(", "", sub("\\)$", "", h))
-        parts <- strsplit(inner, "-", fixed = TRUE)[[1]]
-        if (length(parts) >= 2) {
-          first <- parts[1]
-          rest  <- paste(parts[-1], collapse = "-")
-          if (suppressWarnings(!is.na(as.numeric(first)))) rest else first
-        } else {
-          inner
+        # Handle negative knots: h(-121.45-var) has inner "-121.45-var"
+        for (p in parent_preds_sorted) {
+          if (grepl(p, inner, fixed = TRUE)) return(p)
         }
+        parts <- strsplit(inner, "-", fixed = TRUE)[[1]]
+        parts <- parts[nzchar(parts)]
+        for (pt in parts) {
+          if (suppressWarnings(is.na(as.numeric(pt)))) return(pt)
+        }
+        inner
       }
 
       # Use earth predictors if available, otherwise glmnetUI predictors
@@ -132,6 +135,7 @@ contributionsServer <- function(id, model_module, data_module) {
       for (pred_name in unique_preds) {
         idx <- which(col_to_pred == pred_name)
         if (length(idx) == 0) next
+        if (all(coef_vec[idx] == 0)) next
         contrib_vec <- rep(0, nrow(x_mat))
         for (j in idx) {
           contrib_vec <- contrib_vec + coef_vec[j] * x_mat[, j]
@@ -182,6 +186,11 @@ contributionsServer <- function(id, model_module, data_module) {
       }
 
       fac_vars_check <- data_module$fac_vars()
+      # Earth model knows which variables are factors via xlevels
+      if (!is.null(earth_import) && !is.null(earth_import$model$xlevels)) {
+        fac_vars_check <- union(fac_vars_check,
+                                names(earth_import$model$xlevels))
+      }
       for (pred_name in unique_preds) {
         if (grepl(":", pred_name, fixed = TRUE)) next
         # Skip factor variables — they get box plots, not scatter
@@ -200,6 +209,9 @@ contributionsServer <- function(id, model_module, data_module) {
       }
 
       fac_vars <- data_module$fac_vars()
+      if (!is.null(earth_import) && !is.null(earth_import$model$xlevels)) {
+        fac_vars <- union(fac_vars, names(earth_import$model$xlevels))
+      }
 
       list(
         contribs    = contribs,
@@ -252,7 +264,8 @@ contributionsServer <- function(id, model_module, data_module) {
         p <- ggplot2::ggplot(plot_df,
                              ggplot2::aes(x = .data$x,
                                           y = .data$contribution)) +
-          ggplot2::geom_point(alpha = 0.3, color = "#5e81ac", size = 1)
+          ggplot2::geom_point(ggplot2::aes(color = "Observations"),
+                              alpha = 0.3, size = 1)
 
         if (!is.null(slope_val) && !is.na(slope_val) && slope_val != 0) {
           # Single-coefficient predictor: draw exact linear line
@@ -268,7 +281,8 @@ contributionsServer <- function(id, model_module, data_module) {
 
           p <- p +
             ggplot2::geom_line(data = line_df,
-                               color = "#bf616a", linewidth = 1) +
+                               ggplot2::aes(color = "Coefficient line"),
+                               linewidth = 1) +
             ggplot2::geom_label(
               data = label_df,
               ggplot2::aes(x = .data$x, y = .data$y, label = .data$label),
@@ -282,9 +296,25 @@ contributionsServer <- function(id, model_module, data_module) {
           # Multi-column predictor: use OLS fit line through contributions
           p <- p +
             ggplot2::geom_smooth(method = "lm", formula = y ~ x,
-                                  color = "#bf616a", linewidth = 1,
-                                  se = FALSE)
+                                  ggplot2::aes(color = "Fitted trend"),
+                                  linewidth = 1, se = FALSE)
         }
+
+        p <- p +
+          ggplot2::scale_color_manual(
+            name = NULL,
+            values = c("Observations" = "#5e81ac",
+                       "Coefficient line" = "#bf616a",
+                       "Fitted trend" = "#bf616a"),
+            guide = ggplot2::guide_legend(
+              override.aes = list(
+                shape = c(16, NA, NA),
+                linetype = c(NA, 1, 1),
+                linewidth = c(NA, 1, 1),
+                alpha = c(0.6, 1, 1)
+              )
+            )
+          )
 
         p +
           ggplot2::labs(
@@ -325,7 +355,7 @@ contributionsServer <- function(id, model_module, data_module) {
                                 color = .data$contribution)) +
             ggplot2::geom_point(alpha = 0.6, size = 1.5) +
             ggplot2::scale_color_gradient2(
-              low = "#2166AC", mid = "white", high = "#B2182B",
+              low = "#2166AC", mid = "#d0d0d0", high = "#B2182B",
               midpoint = 0, name = "Contrib.") +
             ggplot2::labs(
               title = paste("Scatter:", var1, "\u00d7", var2),
@@ -339,7 +369,7 @@ contributionsServer <- function(id, model_module, data_module) {
                                 z = .data$contribution)) +
             ggplot2::stat_summary_2d(bins = 20, fun = mean) +
             ggplot2::scale_fill_gradient2(
-              low = "#2166AC", mid = "white", high = "#B2182B",
+              low = "#2166AC", mid = "#d0d0d0", high = "#B2182B",
               midpoint = 0, name = "Mean\nContrib.") +
             ggplot2::labs(
               title = paste("Heatmap:", var1, "\u00d7", var2),
@@ -386,11 +416,13 @@ contributionsServer <- function(id, model_module, data_module) {
                  var_name %in% names(cd$df_aligned) &&
                  (is.factor(cd$df_aligned[[var_name]]) ||
                   var_name %in% cd$fac_vars)) {
-        # Factor: box plot by level
+        # Factor: box plot by level, sorted by median contribution
         plot_df <- data.frame(
           level = as.factor(cd$df_aligned[[var_name]]),
           contribution = contrib_vec
         )
+        plot_df$level <- stats::reorder(plot_df$level, plot_df$contribution,
+                                         FUN = stats::median)
         ggplot2::ggplot(plot_df,
                         ggplot2::aes(x = .data$level,
                                      y = .data$contribution)) +
@@ -469,7 +501,7 @@ contributionsServer <- function(id, model_module, data_module) {
 
         plotly::plot_ly(x = x1_seq, y = x2_seq, z = z_mat,
                         type = "surface",
-                        colorscale = list(c(0, "#2166AC"), c(0.5, "white"),
+                        colorscale = list(c(0, "#2166AC"), c(0.5, "#d0d0d0"),
                                           c(1, "#B2182B"))) |>
           plotly::layout(
             title = paste("3D Surface:", var1, "\u00d7", var2),
@@ -520,7 +552,7 @@ contributionsServer <- function(id, model_module, data_module) {
       if (is.null(z_mat)) return(NULL)
 
       col_palette <- grDevices::colorRampPalette(
-        c("#2166AC", "white", "#B2182B"))(50)
+        c("#2166AC", "#d0d0d0", "#B2182B"))(50)
       z_range <- range(z_mat, na.rm = TRUE)
       z_scaled <- (z_mat - z_range[1]) /
                   max(z_range[2] - z_range[1], 1e-10)
@@ -530,6 +562,8 @@ contributionsServer <- function(id, model_module, data_module) {
 
       old_par <- graphics::par(mar = c(2, 2, 3, 1))
       on.exit(graphics::par(old_par))
+      old_scipen <- options(scipen = 999)
+      on.exit(options(old_scipen), add = TRUE)
       graphics::persp(x1_seq, x2_seq, z_mat,
                       theta = 30, phi = 25, expand = 0.6,
                       col = facet_col, border = NA,

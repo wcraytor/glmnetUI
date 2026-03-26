@@ -1,14 +1,17 @@
 Package: glmnetUI
-Title: Interactive Shiny Interface for Elastic Net Modeling with 'glmnet'
+Title: Interactive 'shiny' Interface for Elastic Net Modeling with 'glmnet'
 Version: 0.4.0
 Authors@R:
     person("William", "Craytor", , "bcraytor@proton.me", role = c("aut", "cre"))
-Description: A self-contained Shiny application for interactive elastic net
+Description: A self-contained 'shiny' application for interactive elastic net
     regression modeling using 'glmnet'. Provides point-and-click variable
     selection, alpha/lambda tuning with cross-validation, coefficient sign
-    warnings for model defensibility, diagnostic plots, and formatted report
-    export. Designed for real estate appraisers and general regression users
-    who need an accessible interface for regularized regression.
+    warnings for model defensibility, diagnostic plots via 'ggplot2', and
+    formatted report export via 'Quarto' or 'rmarkdown'. Designed for real
+    estate appraisers and general regression users who need an accessible
+    interface for regularized regression. Methods are described in
+    Friedman, Hastie, and Tibshirani (2010) <doi:10.18637/jss.v033.i01>
+    and Zou and Hastie (2005) <doi:10.1111/j.1467-9868.2005.00503.x>.
 License: AGPL (>= 3)
 URL: https://github.com/wcraytor/glmnetUI
 BugReports: https://github.com/wcraytor/glmnetUI/issues

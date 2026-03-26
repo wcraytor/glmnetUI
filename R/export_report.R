@@ -33,6 +33,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
                                   standardize = TRUE, relaxed = FALSE,
                                   lambda_method = "cv",
                                   data_file_name = "",
+                                  earth_import = NULL,
                                   assets_dir = NULL) {
   message("[glmnetUI ASSETS] prepare_report_assets() called")
   message("[glmnetUI ASSETS] model class: ", paste(class(model), collapse = ", "))
@@ -129,7 +130,11 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
   }
 
   # --- Equation ---
-  eq <- format_glmnet_equation_(model, lambda, gamma, response)
+  eq <- if (!is.null(earth_import)) {
+    format_glmnet_earth_equation_(model, lambda, gamma, response, earth_import)
+  } else {
+    format_glmnet_equation_(model, lambda, gamma, response)
+  }
 
   # --- Variable importance ---
   coef_args <- list(model, s = lambda)
@@ -148,7 +153,8 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
 
   # --- Contribution data for plots ---
   contrib_info <- compute_contrib_for_report_(
-    coef_vec, x_mat, predictors, data_aligned, col_types)
+    coef_vec, x_mat, predictors, data_aligned, col_types,
+    earth_import = earth_import)
 
   # --- Save model for on-the-fly printing in template ---
   # Strip Call: from model before saving — cv.relaxed stores the full
@@ -180,7 +186,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     cv_r_squared   = cv_r_sq,
     rmse           = rmse,
     mae            = mae,
-    equation_latex = eq$latex,
+    equation_latex = eq$latex_pdf %||% eq$latex,
     coef_df        = coef_df,
     importance_df  = imp_df,
     anova_df       = anova_df,
@@ -207,8 +213,10 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     }
   }
 
-  # Variable importance plot
+  # Variable importance plot (landscape for many variables)
   if (nrow(imp_df) > 0) {
+    n_vars <- nrow(imp_df)
+    imp_height <- max(5, n_vars * 0.4)
     p_imp <- ggplot2::ggplot(
       imp_df,
       ggplot2::aes(x = stats::reorder(.data$Variable, .data$Importance),
@@ -218,7 +226,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
       ggplot2::labs(x = NULL, y = "Importance (|coef| \u00d7 sd(x))",
                     title = "Variable Importance") +
       ggplot2::theme_minimal(base_family = font_fam)
-    save_ggplot_("importance", p_imp)
+    save_ggplot_("importance", p_imp, width = 10, height = imp_height)
   }
 
   # Correlation matrix
@@ -259,7 +267,9 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     cv <- contrib_info$contribs[[vname]]
     xv <- contrib_info$x_values[[vname]]
     is_interaction <- grepl(":", vname, fixed = TRUE)
+    earth_fac <- if (!is.null(earth_import)) names(earth_import$model$xlevels) else character(0)
     is_factor <- vname %in% fac_cols ||
+      vname %in% earth_fac ||
       (vname %in% names(data) &&
        (is.factor(data[[vname]]) || is.character(data[[vname]])))
 
@@ -277,9 +287,9 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
           p_scatter <- ggplot2::ggplot(plot_df,
             ggplot2::aes(x = .data$x, y = .data$y,
                          color = .data$contribution)) +
-            ggplot2::geom_point(alpha = 0.6, size = 1.5) +
+            ggplot2::geom_point(alpha = 0.8, size = 2.5) +
             ggplot2::scale_color_gradient2(
-              low = "#2166AC", mid = "white", high = "#B2182B",
+              low = "#2166AC", mid = "#d0d0d0", high = "#B2182B",
               midpoint = 0, name = "Contrib.",
               labels = glmnet_axis_labels_) +
             ggplot2::labs(title = paste("Scatter:", var1, "\u00d7", var2),
@@ -295,7 +305,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
                          z = .data$contribution)) +
             ggplot2::stat_summary_2d(bins = 20, fun = mean) +
             ggplot2::scale_fill_gradient2(
-              low = "#2166AC", mid = "white", high = "#B2182B",
+              low = "#2166AC", mid = "#d0d0d0", high = "#B2182B",
               midpoint = 0, name = "Mean\nContrib.",
               labels = glmnet_axis_labels_) +
             ggplot2::labs(title = paste("Heatmap:", var1, "\u00d7", var2),
@@ -343,12 +353,14 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
                 grDevices::pdf(path, width = 8, height = 6)
               }
               old_par <- graphics::par(mar = c(2, 2, 3, 1))
+              old_scipen <- options(scipen = 999)
               graphics::persp(x1_seq, x2_seq, z_mat,
                 theta = 30, phi = 25, expand = 0.6,
                 col = facet_col, border = NA, shade = 0.3,
                 ticktype = "detailed",
                 xlab = var1, ylab = var2, zlab = "Contribution",
                 main = paste("3D Surface:", var1, "\u00d7", var2))
+              options(old_scipen)
               graphics::par(old_par)
               grDevices::dev.off()
             }
@@ -359,10 +371,14 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
         }
       }
     } else if (is_factor && vname %in% names(data_aligned)) {
-      # --- Factor: box plot by level ---
+      # --- Factor: box plot by level, sorted by median contribution ---
       fac_vals <- as.factor(data_aligned[[vname]])
       if (length(fac_vals) == length(cv)) {
         plot_df <- data.frame(level = fac_vals, contribution = cv)
+        # Sort levels by median contribution
+        med_order <- stats::reorder(plot_df$level, plot_df$contribution,
+                                     FUN = stats::median)
+        plot_df$level <- med_order
         p_c <- ggplot2::ggplot(plot_df,
           ggplot2::aes(x = .data$level, y = .data$contribution)) +
           ggplot2::geom_boxplot(fill = "#5e81ac", alpha = 0.6) +
@@ -375,14 +391,28 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
         save_ggplot_(paste0("contrib_", safe_name), p_c)
       }
     } else if (!is.null(xv) && length(xv) == length(cv)) {
-      # --- Numeric: scatter with slope/fit line ---
+      # --- Numeric: scatter with fitted trend and legend ---
       plot_df <- data.frame(x = xv, contribution = cv)
       p_c <- ggplot2::ggplot(plot_df,
         ggplot2::aes(x = .data$x, y = .data$contribution)) +
-        ggplot2::geom_point(alpha = 0.3, color = "#5e81ac", size = 1) +
+        ggplot2::geom_point(ggplot2::aes(color = "Observations"),
+                            alpha = 0.3, size = 1) +
         ggplot2::geom_smooth(method = "lm", formula = y ~ x,
-                              color = "#bf616a", linewidth = 1,
-                              se = FALSE) +
+                              ggplot2::aes(color = "Fitted trend"),
+                              linewidth = 1, se = FALSE) +
+        ggplot2::scale_color_manual(
+          name = NULL,
+          values = c("Observations" = "#5e81ac",
+                     "Fitted trend" = "#bf616a"),
+          guide = ggplot2::guide_legend(
+            override.aes = list(
+              shape = c(16, NA),
+              linetype = c(NA, 1),
+              linewidth = c(NA, 1),
+              alpha = c(0.6, 1)
+            )
+          )
+        ) +
         ggplot2::labs(x = vname, y = "Contribution",
                       title = paste("Contribution:", vname)) +
         ggplot2::scale_x_continuous(labels = glmnet_axis_labels_) +
@@ -773,12 +803,40 @@ compute_anova_ <- function(coef_vec, x_mat, y_vec, predictors, col_types) {
 #' Compute contribution data for report plots
 #' @noRd
 compute_contrib_for_report_ <- function(coef_vec, x_mat, predictors,
-                                         data, col_types) {
+                                         data, col_types,
+                                         earth_import = NULL) {
   col_names <- colnames(x_mat)
   contribs <- list()
   x_values <- list()
 
-  # Map each model matrix column to its parent predictor
+  # Earth path: use earth_col_to_pred_ for column-to-parent mapping
+  if (!is.null(earth_import)) {
+    earth_preds <- earth_import$predictors
+    col_to_pred <- earth_col_to_pred_(col_names, earth_preds)
+    beta_pos <- as.numeric(coef_vec)
+    unique_parents <- unique(col_to_pred[nzchar(col_to_pred)])
+    earth_fac <- names(earth_import$model$xlevels)
+    for (parent in unique_parents) {
+      idx <- which(col_to_pred == parent)
+      # Skip groups where all coefficients are zero
+      if (all(beta_pos[idx] == 0)) next
+      cv <- rep(0, nrow(x_mat))
+      for (j in idx) cv <- cv + beta_pos[j] * x_mat[, j]
+      contribs[[parent]] <- cv
+      # X-axis: use original data for non-factor single predictors
+      base_var <- strsplit(parent, ":", fixed = TRUE)[[1]][1]
+      if (!grepl(":", parent, fixed = TRUE) &&
+          base_var %in% names(data) &&
+          !base_var %in% earth_fac &&
+          is.numeric(data[[base_var]]) &&
+          length(data[[base_var]]) == nrow(x_mat)) {
+        x_values[[parent]] <- data[[base_var]]
+      }
+    }
+    return(list(contribs = contribs, x_values = x_values))
+  }
+
+  # Standard formula path: map each model matrix column to its parent predictor
   preds_sorted <- predictors[order(-nchar(predictors))]
   col_to_pred <- vapply(col_names, function(cn) {
     # Interaction columns contain ":"

@@ -128,19 +128,24 @@ locale_paper_ <- function() glmnet_locale_env_$paper
 #' @noRd
 locale_date_formats_ <- function() {
   fmt <- glmnet_locale_env_$date_fmt %||% "mdy"
+  # Try 2-digit year (%y) before 4-digit (%Y) for m/d and d/m patterns
+  # because %Y will "successfully" parse "12/18/25" as year 0025.
+  # The date range validation in callers catches this, but ordering
+  # %y first avoids the issue entirely when both would match.
   preferred <- switch(fmt,
-    mdy = c("%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y",
+    mdy = c("%m/%d/%y", "%m/%d/%Y", "%m-%d-%y", "%m-%d-%Y",
             "%m/%d/%Y %H:%M:%S"),
-    dmy = c("%d/%m/%Y", "%d/%m/%y", "%d-%m-%Y", "%d-%m-%y",
-            "%d.%m.%Y", "%d.%m.%y", "%d/%m/%Y %H:%M:%S"),
-    ymd = c("%Y-%m-%d", "%y-%m-%d", "%Y/%m/%d", "%y/%m/%d",
+    dmy = c("%d/%m/%y", "%d/%m/%Y", "%d-%m-%y", "%d-%m-%Y",
+            "%d.%m.%y", "%d.%m.%Y", "%d/%m/%Y %H:%M:%S"),
+    ymd = c("%Y-%m-%d", "%Y/%m/%d", "%y-%m-%d", "%y/%m/%d",
             "%Y-%m-%d %H:%M:%S"),
-    c("%m/%d/%Y", "%d/%m/%Y")
+    c("%m/%d/%y", "%m/%d/%Y", "%d/%m/%y", "%d/%m/%Y")
   )
-  all_fmts <- c("%Y-%m-%d", "%y-%m-%d", "%Y/%m/%d", "%y/%m/%d",
-                "%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y",
-                "%d/%m/%Y", "%d/%m/%y", "%d-%m-%Y", "%d-%m-%y",
-                "%d.%m.%Y", "%d.%m.%y",
+  all_fmts <- c("%Y-%m-%d", "%Y/%m/%d",
+                "%m/%d/%y", "%m/%d/%Y", "%m-%d-%y", "%m-%d-%Y",
+                "%d/%m/%y", "%d/%m/%Y", "%d-%m-%y", "%d-%m-%Y",
+                "%d.%m.%y", "%d.%m.%Y",
+                "%y-%m-%d", "%y/%m/%d",
                 "%Y-%m-%d %H:%M:%S", "%m/%d/%Y %H:%M:%S",
                 "%d/%m/%Y %H:%M:%S", "%Y-%m-%dT%H:%M:%S",
                 "%b %d, %Y", "%B %d, %Y")

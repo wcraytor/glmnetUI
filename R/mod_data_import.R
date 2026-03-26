@@ -94,12 +94,12 @@ variableConfigUI <- function(id) {
     shiny::uiOutput(ns("response_type")),
     shiny::tags$h5("Predictor Settings"),
     shiny::helpText(
+      style = "font-size:0.85em;",
+      "Type = column data type. ",
       shiny::tags$b("Inc"), " = include as predictor. ",
-      shiny::tags$b("Force"), " = guarantee variable stays in the model",
-      " (regularization cannot remove it). ",
-      shiny::tags$b("Sign"), " = expected coefficient direction;",
-      " used for warnings, and for hard constraints if",
-      " 'Enforce Sign Constraints' is enabled."
+      shiny::tags$b("Factor"), " = treat as categorical. ",
+      shiny::tags$b("Force"), " = guarantee variable stays in the model. ",
+      shiny::tags$b("Sign"), " = expected coefficient direction."
     ),
     shiny::tags$div(
       class = "glmnet-var-table",
@@ -313,8 +313,8 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
       file_key <- rv$file_name
 
       # CSS for flexbox rows (colors handled via classes for dark mode)
-      row_css <- "display:flex; align-items:center; padding:3px 6px; gap:4px;"
-      hdr_css <- paste0(row_css, " font-weight:bold;")
+      row_css <- "display:flex; align-items:center; padding:2px 0; border-bottom:1px solid #eee; gap:2px;"
+      hdr_css <- "display:flex; align-items:center; padding:4px 0; border-bottom:2px solid #ccc; font-weight:bold; font-size:0.85em; gap:2px;"
 
       all_types <- c("numeric", "integer", "character",
                      "Date", "POSIXct")
@@ -329,22 +329,22 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         c("no", "weight")
       }
 
+      angled_hdr <- "text-align:center; font-size:1.0em; writing-mode:vertical-lr; transform:rotate(180deg); height:60px; line-height:1;"
       hdr_cols <- list(
-        shiny::tags$div(style = "flex:1; min-width:100px;", "Variable"),
-        shiny::tags$div(style = "width:90px; min-width:90px; text-align:center;", "Type"),
-        shiny::tags$div(style = "width:35px; min-width:35px; text-align:center;", "Fac"),
-        shiny::tags$div(style = "width:35px; min-width:35px; text-align:center;", "Inc"),
-        shiny::tags$div(style = "width:45px; min-width:45px; text-align:center;", "Force")
+        shiny::tags$div(style = "flex:1; min-width:60px;", "Variable"),
+        shiny::tags$div(style = "width:62px; text-align:center;", "Type"),
+        shiny::tags$div(style = paste0("width:20px;", angled_hdr), "Include"),
+        shiny::tags$div(style = paste0("width:20px;", angled_hdr), "Factor"),
+        shiny::tags$div(style = paste0("width:20px;", angled_hdr), "Force")
       )
       if (appraiser) {
         hdr_cols <- c(hdr_cols, list(
-          shiny::tags$div(style = "width:95px; min-width:95px; text-align:center;",
-                          "Special")
+          shiny::tags$div(style = "width:72px; text-align:center;", "Special")
         ))
       }
       hdr_cols <- c(hdr_cols, list(
-        shiny::tags$div(style = "width:65px; min-width:65px; text-align:center;", "Sign"),
-        shiny::tags$div(style = "width:45px; min-width:45px; text-align:center;", "NAs")
+        shiny::tags$div(style = "width:52px; text-align:center;", "Sign"),
+        shiny::tags$div(style = "width:28px; text-align:right; padding-right:2px;", "NAs")
       ))
       header <- shiny::tags$div(
         class = "glmnet-var-hdr",
@@ -368,7 +368,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         type_el <- shiny::tags$select(
           id = ns(paste0("type_", col_name)),
           class = "form-control glmnet-type-sel",
-          style = "padding:2px; height:auto; font-size:11px;",
+          style = "width:58px; padding:1px 2px; font-size:0.72em; border:1px solid #ccc; border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
           `data-col` = col_name,
           type_options
         )
@@ -376,7 +376,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         sign_el <- shiny::tags$select(
           id = ns(paste0("sign_", col_name)),
           class = "form-control glmnet-sign-sel",
-          style = "padding:2px; height:auto; font-size:12px;",
+          style = "width:52px; padding:1px 2px; font-size:0.72em; border:1px solid #ccc; border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
           `data-col` = col_name,
           shiny::tags$option(value = "either", "either"),
           shiny::tags$option(value = "positive", "positive"),
@@ -387,11 +387,11 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
           shiny::tags$option(value = sp, sp)
         })
         special_el <- shiny::tags$div(
-          style = "width:95px; min-width:95px; text-align:center;",
+          style = "width:72px; text-align:center;",
           shiny::tags$select(
             id = ns(paste0("special_", col_name)),
             class = "form-control glmnet-special-sel",
-            style = "padding:2px; height:auto; font-size:11px;",
+            style = "width:68px; padding:1px 2px; font-size:0.75em; border:1px solid #ccc; border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
             `data-col` = col_name,
             special_opts
           )
@@ -399,24 +399,15 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
 
         row_cells <- list(
           shiny::tags$div(
-            style = "flex:1; min-width:100px; font-size:13px;",
-            col_name
+            style = "flex:1; min-width:60px; font-size:0.82em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
+            title = col_name, col_name
           ),
           shiny::tags$div(
-            style = "width:90px; min-width:90px; text-align:center;",
+            style = "width:62px; text-align:center;",
             type_el
           ),
           shiny::tags$div(
-            style = "width:35px; min-width:35px; text-align:center;",
-            shiny::tags$input(
-              type = "checkbox",
-              id = ns(paste0("fac_", col_name)),
-              class = "glmnet-fac-cb",
-              `data-col` = col_name
-            )
-          ),
-          shiny::tags$div(
-            style = "width:35px; min-width:35px; text-align:center;",
+            style = "width:20px; text-align:center;",
             shiny::tags$input(
               type = "checkbox",
               id = ns(paste0("inc_", col_name)),
@@ -425,7 +416,16 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
             )
           ),
           shiny::tags$div(
-            style = "width:45px; min-width:45px; text-align:center;",
+            style = "width:20px; text-align:center;",
+            shiny::tags$input(
+              type = "checkbox",
+              id = ns(paste0("fac_", col_name)),
+              class = "glmnet-fac-cb",
+              `data-col` = col_name
+            )
+          ),
+          shiny::tags$div(
+            style = "width:20px; text-align:center;",
             shiny::tags$input(
               type = "checkbox",
               id = ns(paste0("force_", col_name)),
@@ -439,13 +439,13 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         }
         row_cells <- c(row_cells, list(
           shiny::tags$div(
-            style = "width:65px; min-width:65px; text-align:center;",
+            style = "width:52px; text-align:center;",
             sign_el
           ),
           shiny::tags$div(
-            style = paste0("width:45px; min-width:45px; text-align:center;",
-                           " font-size:12px;", na_style),
-            as.character(na_count)
+            style = paste0("width:28px; text-align:right;",
+                           " font-size:0.8em; padding-right:2px;", na_style),
+            if (na_count > 0L) as.character(na_count) else ""
           )
         ))
 
@@ -890,10 +890,14 @@ auto_parse_dates_ <- function(df) {
       c(two_digit, four_digit)
     }
 
-    # Try each format
+    # Try each format — require non-NA AND dates in 1900-2100
+    # to avoid %Y parsing 2-digit years as year 0025
+    min_date <- as.POSIXct("1900-01-01")
+    max_date <- as.POSIXct("2100-12-31")
     for (fmt in try_fmts) {
       parsed <- suppressWarnings(as.POSIXct(sample_vals, format = fmt))
-      if (all(!is.na(parsed))) {
+      ok <- !is.na(parsed) & parsed >= min_date & parsed <= max_date
+      if (all(ok)) {
         # Format matches sample — parse the full column
         df[[nm]] <- suppressWarnings(as.POSIXct(col, format = fmt))
         break

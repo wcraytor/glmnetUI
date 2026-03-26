@@ -1,7 +1,3 @@
-# NOTE: This module is currently INACTIVE in the UI. The earthUI import
-# feature has been removed from the interface but the code is retained
-# for potential future use with small datasets.
-
 #' Earth Import Module -- UI
 #'
 #' Compact widget for importing an earthUI result (.rds file) via
@@ -54,19 +50,23 @@ earthImportUI <- function(id) {
 #' Earth Import Module -- Server
 #'
 #' @param id Shiny module namespace ID.
-#' @return A reactive containing a `glmnetUI_earth_knots` object, or
-#'   `NULL`.
+#' @return A list with components:
+#'   \describe{
+#'     \item{earth_import}{Reactive containing a `glmnetUI_earth_import`
+#'       object, or `NULL`.}
+#'     \item{reset}{Function to clear the imported earth data.}
+#'   }
 #' @export
 earthImportServer <- function(id) {
   shiny::moduleServer(id, function(input, output, session) {
-    earth_knots <- shiny::reactiveVal(NULL)
+    earth_import_rv <- shiny::reactiveVal(NULL)
     loaded_file <- shiny::reactiveVal(NULL)
 
     # Cache directory for persisting uploaded files across sessions
     cache_dir <- file.path(tools::R_user_dir("glmnetUI", "data"), "cache")
     if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
 
-    output$has_earth <- shiny::reactive(!is.null(earth_knots()))
+    output$has_earth <- shiny::reactive(!is.null(earth_import_rv()))
     shiny::outputOptions(output, "has_earth", suspendWhenHidden = FALSE)
 
     output$loaded_path <- shiny::renderText({
@@ -77,7 +77,7 @@ earthImportServer <- function(id) {
     # Load and cache helper
     load_earth_ <- function(path, name) {
       ek <- import_earth(path)
-      earth_knots(ek)
+      earth_import_rv(ek)
       loaded_file(name)
       # Save full path and directory for next session
       tryCatch({
@@ -137,12 +137,12 @@ earthImportServer <- function(id) {
       }, error = function(e) {
         shiny::showNotification(paste("Import error:", e$message),
                                 type = "error")
-        earth_knots(NULL)
+        earth_import_rv(NULL)
       })
     })
 
     output$earth_summary <- shiny::renderPrint({
-      ek <- earth_knots()
+      ek <- earth_import_rv()
       shiny::req(ek)
       cat("Target:", paste(ek$target, collapse = ", "), "\n")
       cat("R-sq:", round(ek$earth_summary$r_squared, 4), "\n")
@@ -161,14 +161,14 @@ earthImportServer <- function(id) {
         paste0("earth_knots_", format(Sys.Date(), "%Y%m%d"), ".csv")
       },
       content = function(file) {
-        ek <- earth_knots()
+        ek <- earth_import_rv()
         shiny::req(ek)
         export_knots_csv(ek, file)
       }
     )
 
     shiny::observeEvent(input$clear_earth, {
-      earth_knots(NULL)
+      earth_import_rv(NULL)
       # Remove cached last-earth pointer so it won't auto-load next session
       last_file <- file.path(cache_dir, ".last_earth")
       tryCatch(unlink(last_file), error = function(e) NULL)
@@ -176,6 +176,12 @@ earthImportServer <- function(id) {
                               type = "message", duration = 3)
     })
 
-    shiny::reactive(earth_knots())
+    list(
+      earth_import = shiny::reactive(earth_import_rv()),
+      reset = function() {
+        earth_import_rv(NULL)
+        loaded_file(NULL)
+      }
+    )
   })
 }

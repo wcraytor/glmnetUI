@@ -9,7 +9,8 @@ modelingServer(
   data_module,
   purpose = shiny::reactiveVal("general"),
   effective_date = shiny::reactiveVal(Sys.Date()),
-  skip_first_row_r = shiny::reactiveVal(FALSE)
+  skip_first_row_r = shiny::reactiveVal(FALSE),
+  earth_import_r = shiny::reactive(NULL)
 )
 }
 \arguments{
@@ -23,6 +24,9 @@ modelingServer(
 
 \item{skip_first_row_r}{Reactive returning logical; when TRUE,
 row 1 is excluded from model fitting.}
+
+\item{earth_import_r}{Reactive returning a \code{glmnetUI_earth_import}
+object (from \code{\link[=earthImportServer]{earthImportServer()}}), or \code{NULL}.}
 }
 \value{
 A reactive list containing model results.

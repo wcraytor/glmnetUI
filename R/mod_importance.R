@@ -17,6 +17,7 @@ importanceUI <- function(id) {
 #' @param id Module namespace ID.
 #' @param model_module Reactive list from [modelingServer()].
 #' @param data_module Reactive list from [dataImportServer()].
+#' @return No return value, called for side effects (renders UI outputs).
 #' @export
 importanceServer <- function(id, model_module, data_module) {
   shiny::moduleServer(id, function(input, output, session) {

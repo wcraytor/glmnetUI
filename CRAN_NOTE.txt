@@ -1,0 +1,15 @@
+ The 0.4.0 tag was created before the CRAN reviewer fixes (single-quoted names, DOIs, \value tags). The submitted
+  tarball includes these fixes but the tag doesn't. Once CRAN accepts, you should delete and re-tag:
+
+  git tag -d 0.4.0
+  git push origin :refs/tags/0.4.0
+
+  Then commit the CRAN fixes, re-tag, and push:
+
+  git add -A
+  git commit -m "CRAN reviewer fixes: quoted names, DOI refs, \value tags"
+  git tag -a v0.4.0 -m "glmnetUI 0.4.0"
+  git push origin main --tags
+
+  That will also update the Zenodo archive to match what was submitted to CRAN.
+

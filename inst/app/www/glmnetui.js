@@ -439,3 +439,22 @@ Shiny.addCustomMessageHandler("collect_and_save_defaults", function(msg) {
     if (i) localStorage.setItem("glmnetUI_interactions___defaults__", i);
   } catch(e) {}
 });
+
+// --- Save purpose per filename ---
+Shiny.addCustomMessageHandler("save_purpose", function(msg) {
+  if (!msg.filename) return;
+  try {
+    localStorage.setItem("glmnetUI_purpose_" + msg.filename, msg.purpose);
+  } catch(e) {}
+});
+
+// --- Restore purpose for a filename ---
+Shiny.addCustomMessageHandler("restore_purpose", function(msg) {
+  if (!msg.filename) return;
+  try {
+    var saved = localStorage.getItem("glmnetUI_purpose_" + msg.filename);
+    if (saved) {
+      Shiny.setInputValue("glmnet_restored_purpose", saved, {priority: "event"});
+    }
+  } catch(e) {}
+});

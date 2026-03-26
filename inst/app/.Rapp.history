@@ -1,0 +1,6 @@
+devtools::load_all()                                                                                             #
+  glmnetUI::run_app()
+setwd("/Volumes/Nvme_1/ClaudeCode/glmnetUI")
+devtools::load_all()                                                                                             #
+  glmnetUI::run_app()
+glmnetUI::glmnetUI()

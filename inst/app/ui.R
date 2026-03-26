@@ -26,6 +26,9 @@ bslib::page_fluid(
       background: var(--bs-tertiary-bg);
       border-bottom: 1px solid var(--bs-border-color);
       color: var(--bs-body-color);
+      position: sticky;
+      top: 0;
+      z-index: 2;
     }
     .glmnet-var-row {
       border-bottom: 1px solid var(--bs-border-color);
@@ -164,10 +167,30 @@ bslib::page_fluid(
       font-size: 0.7em;
       transition: transform 0.2s;
       display: inline-block;
-      margin-right: 0.4em;
+      margin-right: 0.8em;
     }
+    .glmnet-section-info {
+      display: inline-block; width: 16px; height: 16px;
+      border-radius: 50%; background: #5bc0de; color: #fff;
+      text-align: center; font-size: 10px; font-weight: bold;
+      line-height: 16px; cursor: pointer;
+      margin-left: 8px; vertical-align: middle;
+    }
+    .glmnet-section-info:hover { background: #31b0d5; }
     .glmnet-section[open] > summary h4::before {
       transform: rotate(90deg);
+    }
+
+    /* Earth-sourced interaction cells in the interaction matrix */
+    .glmnet-int-earth-cell {
+      background-color: rgba(235, 203, 139, 0.35);
+    }
+    .glmnet-int-earth {
+      cursor: not-allowed;
+      opacity: 0.8;
+    }
+    [data-bs-theme="dark"] .glmnet-int-earth-cell {
+      background-color: rgba(235, 203, 139, 0.2);
     }
   ')),
 
@@ -230,7 +253,7 @@ bslib::page_fluid(
   ),
   shiny::sidebarLayout(
     shiny::sidebarPanel(
-      width = 4,
+      width = 3,
 
       # --- Purpose Mode ---
       shiny::tags$div(
@@ -250,28 +273,58 @@ bslib::page_fluid(
 
       # --- 1. Import Data ---
       shiny::tags$details(class = "glmnet-section",
-        shiny::tags$summary(shiny::h4("1. Import Data",
-                                      style = "display:inline;")),
+        shiny::tags$summary(shiny::h4(
+          "1. Import Data",
+          shiny::tags$span(class = "glmnet-section-info",
+            `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+            `data-bs-content` = "Load a CSV data file containing the response variable, predictors, and optional weight column.",
+            "?"),
+          style = "display:inline;")),
         dataImportUI("data")
+      ),
+      shiny::hr(),
+
+      # --- 2. Import from earthUI (optional) ---
+      shiny::tags$details(class = "glmnet-section",
+        shiny::tags$summary(shiny::h4(
+          "2. Import from earthUI (optional)",
+          shiny::tags$span(class = "glmnet-section-info",
+            `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+            `data-bs-content` = "Import an earthUI result (.rds) to use earth's hinge basis functions for nonlinear modeling. Earth defines the basis; glmnet applies regularization.",
+            "?"),
+          style = "display:inline;")),
+        shiny::tags$div(style = "padding-top: 6px;",
+          earthImportUI("earth")
+        )
       ),
       shiny::hr(),
 
       shiny::conditionalPanel(
         condition = "output['data-data_loaded']",
 
-        # --- 2. Project Output Folder ---
+        # --- 3. Project Output Folder ---
         shiny::tags$details(class = "glmnet-section",
-          shiny::tags$summary(shiny::h4("2. Project Output Folder",
-                                        style = "display:inline;")),
+          shiny::tags$summary(shiny::h4(
+            "3. Project Output Folder",
+            shiny::tags$span(class = "glmnet-section-info",
+              `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+              `data-bs-content` = "Set the directory where output files (Excel, PDF reports, sales grids) will be saved.",
+              "?"),
+            style = "display:inline;")),
           shiny::textInput("output_folder", NULL,
                            value = path.expand("~/Downloads"))
         ),
         shiny::hr(),
 
-        # --- 3. Variable Configuration ---
+        # --- 4. Variable Configuration ---
         shiny::tags$details(class = "glmnet-section",
-          shiny::tags$summary(shiny::h4("3. Variable Configuration",
-                                        style = "display:inline;")),
+          shiny::tags$summary(shiny::h4(
+            "4. Variable Configuration",
+            shiny::tags$span(class = "glmnet-section-info",
+              `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+              `data-bs-content` = "Select the response variable, predictors, weight column, factor variables, expected signs, and force-in variables.",
+              "?"),
+            style = "display:inline;")),
           shiny::conditionalPanel(
             condition = "input.purpose !== 'general'",
             shiny::dateInput("effective_date", "Effective Date",
@@ -281,10 +334,15 @@ bslib::page_fluid(
         ),
         shiny::hr(),
 
-        # --- 4. glmnet Call Parameters ---
+        # --- 5. glmnet Call Parameters ---
         shiny::tags$details(class = "glmnet-section",
-          shiny::tags$summary(shiny::h4("4. glmnet Call Parameters",
-                                        style = "display:inline;")),
+          shiny::tags$summary(shiny::h4(
+            "5. glmnet Call Parameters",
+            shiny::tags$span(class = "glmnet-section-info",
+              `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+              `data-bs-content` = "Configure alpha (ridge/lasso mix), lambda selection method (CV or manual), cross-validation folds, and advanced parameters.",
+              "?"),
+            style = "display:inline;")),
           shiny::tags$div(
             style = "margin-bottom: 4px; font-size: 0.85em;",
             shiny::radioButtons(
@@ -305,14 +363,19 @@ bslib::page_fluid(
         ),
         shiny::hr(),
 
-        # --- 5. Fit Glmnet Model ---
+        # --- 6. Fit Glmnet Model ---
         shiny::tags$details(class = "glmnet-section",
-          shiny::tags$summary(shiny::h4("5. Fit Glmnet Model",
-                                        style = "display:inline;")),
+          shiny::tags$summary(shiny::h4(
+            "6. Fit Glmnet Model",
+            shiny::tags$span(class = "glmnet-section-info",
+              `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+              `data-bs-content` = "Fit the elastic net model with the configured parameters. Results appear in the tabs on the right.",
+              "?"),
+            style = "display:inline;")),
           fitModelUI("model")
         ),
 
-        # --- 6. Download Estimated Sale Prices & Residuals ---
+        # --- 7. Download Estimated Sale Prices & Residuals ---
         shiny::conditionalPanel(
           condition = "output.model_fitted",
           shiny::hr(),
@@ -325,13 +388,17 @@ bslib::page_fluid(
           )
         ),
 
-        # --- 7. Calculate RCA Adjustments (Appraisal only) ---
+        # --- 8. Calculate RCA Adjustments (Appraisal only) ---
         shiny::conditionalPanel(
           condition = "output.model_fitted && input.purpose === 'appraisal'",
           shiny::hr(),
           shiny::tags$details(class = "glmnet-section",
             shiny::tags$summary(shiny::h4(
-              "7. Calculate RCA Adjustments & Download",
+              "8. Calculate RCA Adjustments & Download",
+              shiny::tags$span(class = "glmnet-section-info",
+                `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+                `data-bs-content` = "Compute per-variable RCA adjustments for each comparable, interpolate the subject residual via CQA, and download the results.",
+                "?"),
               style = "display:inline;")),
             shiny::actionButton("rca_output_btn",
                                 "Calculate RCA Adjustments & Download",
@@ -340,13 +407,17 @@ bslib::page_fluid(
           )
         ),
 
-        # --- 8. Generate Sales Grid (Appraisal only) ---
+        # --- 9. Generate Sales Grid (Appraisal only) ---
         shiny::conditionalPanel(
           condition = "output.rca_computed && input.purpose === 'appraisal'",
           shiny::hr(),
           shiny::tags$details(class = "glmnet-section",
             shiny::tags$summary(shiny::h4(
-              "8. Generate Sales Grid & Download",
+              "9. Generate Sales Grid & Download",
+              shiny::tags$span(class = "glmnet-section-info",
+                `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+                `data-bs-content` = "Generate the Intermediate Sales Comparable Grid for the appraisal report, ranking comparables by gross adjustment percentage.",
+                "?"),
               style = "display:inline;")),
             shiny::actionButton("sales_grid_btn",
                                 "Generate Sales Grid & Download",
@@ -355,7 +426,7 @@ bslib::page_fluid(
           )
         ),
 
-        # --- 9. Download Report ---
+        # --- 10. Download Report ---
         shiny::conditionalPanel(
           condition = "output.model_fitted",
           shiny::hr(),

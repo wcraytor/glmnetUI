@@ -260,13 +260,15 @@ modelingUI <- function(id) {
         $(document).on('change', '#%s', function() {
           if ($(this).is(':checked')) {
             $('#%s').prop('checked', false);
-            $('.glmnet-interaction-cb').prop('checked', true).first().trigger('change');
+            $('.glmnet-interaction-cb').not('.glmnet-int-earth').prop('checked', true);
+            $('.glmnet-interaction-cb').first().trigger('change');
           }
         });
         $(document).on('change', '#%s', function() {
           if ($(this).is(':checked')) {
             $('#%s').prop('checked', false);
-            $('.glmnet-interaction-cb').prop('checked', false).first().trigger('change');
+            $('.glmnet-interaction-cb').not('.glmnet-int-earth').prop('checked', false);
+            $('.glmnet-interaction-cb').first().trigger('change');
           }
         });
         $(document).on('change', '.glmnet-interaction-cb', function() {
@@ -396,6 +398,45 @@ fitModelUI <- function(id) {
   )
 }
 
+# Map earth basis column names to parent predictor names.
+# Handles h() hinges, interaction products (*), and factor dummies.
+#' @noRd
+earth_col_to_pred_ <- function(col_names, predictor_names) {
+  # Sort by length descending so longer names match first
+  sorted_preds <- predictor_names[order(-nchar(predictor_names))]
+
+  hinge_var_ <- function(h) {
+    inner <- sub("^h\\(", "", sub("\\)$", "", h))
+    # Handle negative knots: h(-121.45-longitude) has inner "-121.45-longitude"
+    # Split smartly: find the variable name by matching known predictors
+    for (p in sorted_preds) {
+      if (grepl(p, inner, fixed = TRUE)) return(p)
+    }
+    # Fallback: split on "-" and find the non-numeric part
+    parts <- strsplit(inner, "-", fixed = TRUE)[[1]]
+    parts <- parts[nzchar(parts)]
+    for (pt in parts) {
+      if (suppressWarnings(is.na(as.numeric(pt)))) return(pt)
+    }
+    inner
+  }
+
+  component_parent_ <- function(comp) {
+    if (grepl("^h[(]", comp)) return(hinge_var_(comp))
+    for (p in sorted_preds) {
+      if (startsWith(comp, p)) return(p)
+    }
+    comp
+  }
+
+  vapply(col_names, function(cn) {
+    components <- strsplit(cn, "[*:]")[[1]]
+    parents <- unique(vapply(components, component_parent_, character(1)))
+    if (length(parents) == 1L) parents else
+      paste(sort(parents), collapse = ":")
+  }, character(1), USE.NAMES = FALSE)
+}
+
 #' Modeling Module Server
 #'
 #' Server logic for the glmnet modeling module. Handles model fitting
@@ -409,6 +450,8 @@ fitModelUI <- function(id) {
 #' @param effective_date Reactive returning the effective date.
 #' @param skip_first_row_r Reactive returning logical; when TRUE,
 #'   row 1 is excluded from model fitting.
+#' @param earth_import_r Reactive returning a `glmnetUI_earth_import`
+#'   object (from [earthImportServer()]), or `NULL`.
 #'
 #' @return A reactive list containing model results.
 #'
@@ -416,7 +459,8 @@ fitModelUI <- function(id) {
 modelingServer <- function(id, data_module,
                            purpose = shiny::reactiveVal("general"),
                            effective_date = shiny::reactiveVal(Sys.Date()),
-                           skip_first_row_r = shiny::reactiveVal(FALSE)) {
+                           skip_first_row_r = shiny::reactiveVal(FALSE),
+                           earth_import_r = shiny::reactive(NULL)) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -673,6 +717,18 @@ modelingServer <- function(id, data_module,
       n <- length(preds)
       file_key <- data_module$file_name()
 
+      # Detect earth interactions from imported model
+      ek <- earth_import_r()
+      earth_int_pairs <- character(0)
+      if (!is.null(ek)) {
+        bx <- build_earth_basis(NULL, ek)
+        if (!is.null(bx)) {
+          col_parent <- earth_col_to_pred_(colnames(bx), ek$predictors)
+          int_parents <- col_parent[grepl(":", col_parent, fixed = TRUE)]
+          earth_int_pairs <- unique(int_parents)
+        }
+      }
+
       # Column headers
       header_cells <- list(shiny::tags$th(style = "padding:2px;", ""))
       for (j in seq_len(n)) {
@@ -709,13 +765,22 @@ modelingServer <- function(id, data_module,
         for (j in seq_len(n)) {
           if (j > i) {
             cb_id <- ns(paste0("int_", i, "_", j))
+            pair_key <- paste(sort(c(preds[i], preds[j])), collapse = ":")
+            from_earth <- pair_key %in% earth_int_pairs
+            earth_cls <- if (from_earth) " glmnet-int-earth" else ""
+            cell_cls <- if (from_earth) "glmnet-int-earth-cell" else ""
+            chk_attr <- if (from_earth) "checked" else NULL
+            dis_attr <- if (from_earth) "disabled" else NULL
             cells <- c(cells, list(
               shiny::tags$td(
                 style = "text-align:center; padding:2px;",
+                class = cell_cls,
                 shiny::tags$input(
                   type = "checkbox", id = cb_id,
-                  class = "glmnet-interaction-cb",
-                  style = "margin:0;"
+                  class = paste0("glmnet-interaction-cb", earth_cls),
+                  style = "margin:0;",
+                  checked = chk_attr,
+                  disabled = dis_attr
                 )
               )
             ))
@@ -873,11 +938,8 @@ modelingServer <- function(id, data_module,
 
         # Skip first row when requested (appraisal always skips via weight=0;
         # general/market can skip via the checkbox)
-        message("[glmnetUI FIT] skip_first_row_r()=", skip_first_row_r(),
-                " purpose=", purpose(), " nrow(df)=", nrow(df))
         if (isTRUE(skip_first_row_r()) && nrow(df) >= 2L) {
           df <- df[2:nrow(df), , drop = FALSE]
-          message("[glmnetUI FIT] Skipped row 1, now ", nrow(df), " rows")
         }
 
         if (!resp %in% names(df)) {
@@ -964,13 +1026,54 @@ modelingServer <- function(id, data_module,
         }
 
         # --- Build model matrix ---
-        # Standard pattern: when earth is imported, use ONLY the earth
         y_vec <- df_clean[[resp]]
+        ek <- earth_import_r()
 
-        # Build model matrix from formula
-        {
+        if (!is.null(ek)) {
+          # Earth provides the basis definition; glmnetUI provides
+          # the data. Use all earth predictor columns from df_clean.
+          # build_earth_basis aligns factor types via model$xlevels.
+          earth_pred_cols <- intersect(ek$predictors, names(df_clean))
+          x_mat <- build_earth_basis(
+            df_clean[, earth_pred_cols, drop = FALSE], ek)
+          if (is.null(x_mat)) {
+            shiny::showNotification(
+              "Earth basis generation failed. Check data compatibility.",
+              type = "error")
+            return()
+          }
+          assign_attr <- NULL
+
+          # Map each basis column to its parent predictor
+          col_parent <- earth_col_to_pred_(colnames(x_mat),
+                                           ek$predictors)
+
+          # Penalty factors: force-in by parent predictor
+          penalty_fac <- rep(1, ncol(x_mat))
+          force_vars <- data_module$force_in()
+          for (fv in force_vars) {
+            penalty_fac[col_parent == fv] <- 0
+          }
+
+          # Coefficient bounds from expected signs
+          lower_lim <- rep(-Inf, ncol(x_mat))
+          upper_lim <- rep(Inf, ncol(x_mat))
+          if (isTRUE(input$enforce_signs)) {
+            expected <- data_module$expected_signs()
+            for (pred_name in names(expected)) {
+              cols_j <- which(col_parent == pred_name)
+              if (length(cols_j) == 0L) next
+              sign_val <- expected[pred_name]
+              if (sign_val == "positive") {
+                lower_lim[cols_j] <- 0
+              } else if (sign_val == "negative") {
+                upper_lim[cols_j] <- 0
+              }
+            }
+          }
+        } else {
+          # Standard formula path
           ints <- get_interaction_pairs()
-          # Remove blocked variables from main effects
           blk <- input$block_main_effect
           main_preds <- if (!is.null(blk) && length(blk) > 0L) {
             setdiff(preds, blk)
@@ -989,32 +1092,32 @@ modelingServer <- function(id, data_module,
           x_mat <- stats::model.matrix(stats::as.formula(formula_str),
                                        data = x_df)
           assign_attr <- attr(x_mat, "assign")
-        }
 
-        # --- Penalty factors from force-in variables ---
-        n_main <- length(preds)
-        penalty_fac <- rep(1, ncol(x_mat))
-        force_vars <- data_module$force_in()
-        for (j in seq_len(n_main)) {
-          if (preds[j] %in% force_vars) {
-            penalty_fac[assign_attr == j] <- 0
-          }
-        }
-
-        # --- Coefficient bounds from expected signs ---
-        lower_lim <- rep(-Inf, ncol(x_mat))
-        upper_lim <- rep(Inf, ncol(x_mat))
-        if (isTRUE(input$enforce_signs)) {
-          expected <- data_module$expected_signs()
+          # Penalty factors from force-in variables
+          n_main <- length(preds)
+          penalty_fac <- rep(1, ncol(x_mat))
+          force_vars <- data_module$force_in()
           for (j in seq_len(n_main)) {
-            pred_name <- preds[j]
-            if (pred_name %in% names(expected)) {
-              sign_val <- expected[pred_name]
-              cols_j <- which(assign_attr == j)
-              if (sign_val == "positive") {
-                lower_lim[cols_j] <- 0
-              } else if (sign_val == "negative") {
-                upper_lim[cols_j] <- 0
+            if (preds[j] %in% force_vars) {
+              penalty_fac[assign_attr == j] <- 0
+            }
+          }
+
+          # Coefficient bounds from expected signs
+          lower_lim <- rep(-Inf, ncol(x_mat))
+          upper_lim <- rep(Inf, ncol(x_mat))
+          if (isTRUE(input$enforce_signs)) {
+            expected <- data_module$expected_signs()
+            for (j in seq_len(n_main)) {
+              pred_name <- preds[j]
+              if (pred_name %in% names(expected)) {
+                sign_val <- expected[pred_name]
+                cols_j <- which(assign_attr == j)
+                if (sign_val == "positive") {
+                  lower_lim[cols_j] <- 0
+                } else if (sign_val == "negative") {
+                  upper_lim[cols_j] <- 0
+                }
               }
             }
           }
@@ -1313,7 +1416,7 @@ modelingServer <- function(id, data_module,
       fitted = shiny::reactive(rv$fitted),
       fit_count = shiny::reactive(rv$fit_count),
       seed_used = shiny::reactive(rv$seed_used),
-      earth_import = shiny::reactiveVal(NULL)
+      earth_import = earth_import_r
     ))
   })
 }

@@ -31,8 +31,13 @@ equationServer <- function(id, model_module, data_module) {
       lambda <- model_module$lambda()
       gamma  <- model_module$gamma()
       resp   <- data_module$response()
+      ei     <- model_module$earth_import()
 
-      format_glmnet_equation_(model, lambda, gamma, resp)
+      if (!is.null(ei)) {
+        format_glmnet_earth_equation_(model, lambda, gamma, resp, ei)
+      } else {
+        format_glmnet_equation_(model, lambda, gamma, resp)
+      }
     })
 
     output$model_equation <- shiny::renderUI({
@@ -68,10 +73,9 @@ format_glmnet_equation_ <- function(model, lambda, gamma, response) {
   # Keep only non-zero coefficients
   nonzero <- beta[beta != 0]
 
-  # Escape underscores for LaTeX: \text{sale_price} breaks in PDF.
-
-  # Use \text{sale\_price} which works in both MathJax and LaTeX.
-  esc <- function(x) gsub("_", "\\_", x, fixed = TRUE)
+  # In MathJax \text{}, underscores are safe as-is.
+  # PDF reports handle escaping separately.
+  esc <- function(x) x
 
   # Build LaTeX lines
   lines <- character(0)
@@ -118,10 +122,31 @@ format_glmnet_equation_ <- function(model, lambda, gamma, response) {
   latex <- sprintf("\\begin{array}{rl}\n%s\n\\end{array}", body)
   latex_inline <- paste0("$$\n", latex, "\n$$")
 
+  # PDF version: escape underscores inside \text{} blocks
+  latex_pdf <- gsub_text_underscores_(latex)
+
   list(
     latex = latex,
-    latex_inline = latex_inline
+    latex_inline = latex_inline,
+    latex_pdf = latex_pdf
   )
+}
+
+#' Escape underscores inside \\text{} blocks for LaTeX PDF output.
+#' MathJax handles bare underscores in \\text{} fine, but native
+#' LaTeX treats them as subscript operators.
+#' @noRd
+gsub_text_underscores_ <- function(x) {
+  pattern <- "\\\\text\\{[^}]*\\}"
+  m <- gregexpr(pattern, x, perl = TRUE)
+  regmatches(x, m) <- lapply(regmatches(x, m), function(matches) {
+    vapply(matches, function(txt) {
+      inner <- sub("^\\\\text\\{(.*)\\}$", "\\1", txt)
+      inner <- gsub("_", "\\_", inner, fixed = TRUE)
+      paste0("\\text{", inner, "}")
+    }, character(1))
+  })
+  x
 }
 
 #' Format Coefficient Value for LaTeX
@@ -149,16 +174,32 @@ format_hinge_latex_ <- function(component, esc) {
     return(sprintf("\\text{%s}", esc(component)))
   }
   inner <- sub("^h\\(", "", sub("\\)$", "", component))
+  # Handle negative knots: h(-121.45-var) has inner "-121.45-var"
+  # Use regex to find "variable - knot" or "knot - variable" pattern
+  # Try matching known pattern: negative number followed by variable
+  if (grepl("^-[0-9]", inner)) {
+    # Starts with negative number: reverse hinge h(negative_knot - var)
+    # Find where the variable name starts after the knot
+    m <- regexpr("-[a-zA-Z]", inner)
+    if (m > 0) {
+      knot <- substring(inner, 1, m - 1)
+      var_name <- substring(inner, m + 1)
+      return(sprintf("h(%s - \\text{%s})", knot, esc(var_name)))
+    }
+  }
   parts <- strsplit(inner, "-", fixed = TRUE)[[1]]
   if (length(parts) >= 2) {
     first <- parts[1]
     rest <- paste(parts[-1], collapse = "-")
-    if (suppressWarnings(!is.na(as.numeric(first)))) {
+    if (nzchar(first) && suppressWarnings(!is.na(as.numeric(first)))) {
       # Reverse hinge: h(knot - var)
       sprintf("h(%s - \\text{%s})", first, esc(rest))
-    } else {
+    } else if (nzchar(first)) {
       # Forward hinge: h(var - knot)
       sprintf("h(\\text{%s} - %s)", esc(first), rest)
+    } else {
+      # Empty first part (negative knot fallback)
+      sprintf("h(%s)", esc(inner))
     }
   } else {
     sprintf("h(%s)", esc(inner))
@@ -172,4 +213,167 @@ format_earth_term_latex_ <- function(nm, esc) {
   components <- strsplit(nm, "*", fixed = TRUE)[[1]]
   parts_tex <- vapply(components, format_hinge_latex_, character(1), esc = esc)
   paste(parts_tex, collapse = " \\times ")
+}
+
+#' Format glmnet equation with earth g-function grouping
+#'
+#' Groups earth basis terms by variable/interaction and displays
+#' each group as a g-function with glmnet's coefficients.
+#' @noRd
+format_glmnet_earth_equation_ <- function(model, lambda, gamma,
+                                           response, earth_import) {
+  # Extract glmnet coefficients
+
+  coef_args <- list(model, s = lambda)
+  if (!is.null(gamma)) coef_args$gamma <- gamma
+  coef_sparse <- do.call(stats::coef, coef_args)
+  coef_vec <- as.numeric(coef_sparse)
+  coef_names <- rownames(coef_sparse)
+
+  intercept <- coef_vec[1L]
+  beta <- coef_vec[-1L]
+  names(beta) <- coef_names[-1L]
+
+  # Build g-function groups from earth model
+  groups <- build_g_groups_(earth_import)
+
+  # Map earth basis column names to glmnet coefficient names
+  bx <- build_earth_basis(NULL, earth_import)
+  bx_colnames <- if (!is.null(bx)) colnames(bx) else character(0)
+
+  # Build a mapping: earth selected term index -> glmnet coefficient
+  earth_model <- earth_import$model
+  sel <- earth_model$selected.terms
+
+  # Basis columns correspond to selected terms 2..n (intercept is term 1)
+  # Map each basis column index to its selected term index
+  glmnet_coef_for_term <- function(term_index) {
+    # term_index is position in selected.terms (1-based, 1 = intercept)
+    basis_idx <- term_index - 1L
+    if (basis_idx < 1L || basis_idx > length(bx_colnames)) return(0)
+    col_name <- bx_colnames[basis_idx]
+    if (col_name %in% names(beta)) beta[col_name] else 0
+  }
+
+  # Format component as LaTeX (reusing earthUI's approach)
+  fmt_comp_ <- function(comp) {
+    var_tex <- comp$base_var
+    if (comp$is_factor) {
+      sprintf("I\\{\\text{%s} = \\text{%s}\\}", var_tex, comp$level)
+    } else if (comp$dir == 2) {
+      sprintf("\\text{%s}", var_tex)
+    } else if (comp$dir == 1) {
+      sprintf("\\max(0,\\, \\text{%s} - %s)",
+              var_tex, format_coef_(comp$cut))
+    } else {
+      sprintf("\\max(0,\\, %s - \\text{%s})",
+              format_coef_(comp$cut), var_tex)
+    }
+  }
+
+  # Assign g-function indices by degree
+  degree_counters <- integer(0)
+  for (g_idx in seq_along(groups)) {
+    j <- groups[[g_idx]]$degree
+    j_key <- as.character(j)
+    if (is.na(degree_counters[j_key])) {
+      degree_counters[j_key] <- 1L
+    } else {
+      degree_counters[j_key] <- degree_counters[j_key] + 1L
+    }
+    groups[[g_idx]]$g_j <- j
+    groups[[g_idx]]$g_k <- as.integer(degree_counters[j_key])
+    groups[[g_idx]]$g_f <- groups[[g_idx]]$n_factors %||% 0L
+  }
+
+  # Build line data for each group
+  lines <- character(0)
+  active_g_labels <- character(0)
+
+  for (grp in groups) {
+    if (grp$degree == 0L) next
+
+    # Collect terms with non-zero glmnet coefficients
+    term_lines <- character(0)
+    for (t_idx in seq_along(grp$terms)) {
+      term <- grp$terms[[t_idx]]
+      glm_coef <- glmnet_coef_for_term(term$index)
+      if (glm_coef == 0) next
+
+      # Build component product
+      comp_strs <- vapply(term$components, fmt_comp_, character(1))
+      product <- paste(comp_strs, collapse = " \\cdot ")
+
+      is_first <- (length(term_lines) == 0L)
+      if (is_first) {
+        term_lines <- c(term_lines,
+          sprintf("%s \\cdot %s", format_coef_(glm_coef), product))
+      } else {
+        sign_str <- if (glm_coef >= 0) "+" else "-"
+        term_lines <- c(term_lines,
+          sprintf("%s \\; %s \\cdot %s",
+                  sign_str, format_coef_(abs(glm_coef)), product))
+      }
+    }
+
+    if (length(term_lines) == 0L) next
+
+    g_tex <- sprintf("{}^{%d}g^{%d}_{%d}",
+                     grp$g_f, grp$g_j, grp$g_k)
+
+    # Format label
+    if (grp$degree > 1L) {
+      var_parts <- vapply(grp$base_vars, function(v) {
+        sprintf("\\text{%s}", v)
+      }, character(1))
+      label_latex <- paste0("\\{", paste(var_parts, collapse = ",\\, "), "\\}")
+    } else {
+      label_latex <- sprintf("\\text{%s}", grp$label)
+    }
+
+    active_g_labels <- c(active_g_labels, g_tex)
+
+    # First term line gets the label and g = ...
+    lines <- c(lines,
+      sprintf("  %s & %s \\;=\\; & %s",
+              label_latex, g_tex, term_lines[1L]))
+    # Continuation lines
+    if (length(term_lines) > 1L) {
+      for (tl in term_lines[-1L]) {
+        lines <- c(lines,
+          sprintf("  & & \\quad %s", tl))
+      }
+    }
+  }
+
+  # Build top-level equation: response = intercept + g1 + g2 + ...
+  # Wrap across multiple lines (max ~4 g-labels per line)
+  resp_tex <- sprintf("\\text{%s}", response)
+  top_lines <- character(0)
+  top_lines[1L] <- sprintf("  %s & \\;=\\; & %s",
+                             resp_tex, format_coef_(intercept))
+  per_line <- 4L
+  for (i in seq_along(active_g_labels)) {
+    if ((i - 1L) %% per_line == 0L) {
+      top_lines <- c(top_lines,
+        sprintf("  & & + %s", active_g_labels[i]))
+    } else {
+      top_lines[length(top_lines)] <- paste0(
+        top_lines[length(top_lines)], " + ", active_g_labels[i])
+    }
+  }
+
+  # Combine: top-level equation, blank separator, then g-function definitions
+  all_lines <- c(top_lines, "  & & \\\\", lines)
+  body <- paste(all_lines, collapse = " \\\\\n")
+  latex <- sprintf("\\small\n\\begin{array}{lrl}\n%s\n\\end{array}", body)
+  latex_inline <- paste0("$$\n", latex, "\n$$")
+
+  latex_pdf <- gsub_text_underscores_(latex)
+
+  list(
+    latex = latex,
+    latex_inline = latex_inline,
+    latex_pdf = latex_pdf
+  )
 }

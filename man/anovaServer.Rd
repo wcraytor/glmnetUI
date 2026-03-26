@@ -13,6 +13,9 @@ anovaServer(id, model_module, data_module)
 
 \item{data_module}{Reactive list from \code{\link[=dataImportServer]{dataImportServer()}}.}
 }
+\value{
+No return value, called for side effects (renders UI outputs).
+}
 \description{
 ANOVA Decomposition Module Server
 }

@@ -73,11 +73,11 @@ function(input, output, session) {
     else isTRUE(input$skip_subject_row)
   })
 
-  # earthUI import is inactive (code retained for future use)
-  # earth_knots_r <- earthImportServer("earth")
+  earth_mod <- earthImportServer("earth")
+  earth_import_r <- earth_mod$earth_import
   data_out <- dataImportServer("data", purpose)
   model_out <- modelingServer("model", data_out, purpose, effective_date,
-                               skip_first_row)
+                               skip_first_row, earth_import_r)
   coef_out <- coefficientsServer("coefs", model_out, data_out)
   equationServer("eq", model_out, data_out)
   summaryServer("summ", model_out, data_out, purpose)
@@ -87,6 +87,15 @@ function(input, output, session) {
   anovaServer("anova", model_out, data_out)
   diagnosticsServer("diag", model_out)
   reportServer("report", model_out, coef_out, data_out)
+
+  # Reset data and earth imports when purpose changes
+  shiny::observeEvent(input$purpose, {
+    data_out$rv$data <- NULL
+    data_out$rv$file_name <- NULL
+    data_out$rv$col_types <- NULL
+    data_out$rv$sheets <- NULL
+    earth_mod$reset()
+  }, ignoreInit = TRUE)
 
   # --- Model fitted flag for conditionalPanel ---
   output$model_fitted <- shiny::reactive(isTRUE(model_out$fitted()))
@@ -133,16 +142,28 @@ function(input, output, session) {
   # --- Dynamic step headings ---
   output$download_heading <- shiny::renderUI({
     label <- if (identical(input$purpose, "general")) {
-      "6. Download Estimated Target Variable(s) & Residuals"
+      "7. Download Estimated Target Variable(s) & Residuals"
     } else {
-      "6. Download Estimated Sale Prices & Residuals"
+      "7. Download Estimated Sale Prices & Residuals"
     }
-    shiny::h4(label, style = "display:inline;")
+    shiny::h4(
+      label,
+      shiny::tags$span(class = "glmnet-section-info",
+        `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+        `data-bs-content` = "Download an Excel file with predicted values, residuals, CQA scores, and per-variable contributions for all observations.",
+        "?"),
+      style = "display:inline;")
   })
 
   output$report_heading <- shiny::renderUI({
-    n <- if (identical(input$purpose, "appraisal")) "9" else "7"
-    shiny::h4(paste0(n, ". Download Report"), style = "display:inline;")
+    n <- if (identical(input$purpose, "appraisal")) "10" else "8"
+    shiny::h4(
+      paste0(n, ". Download Report"),
+      shiny::tags$span(class = "glmnet-section-info",
+        `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+        `data-bs-content` = "Generate a PDF or Word report with model equation, coefficients, variable importance, contribution plots, and diagnostic charts.",
+        "?"),
+      style = "display:inline;")
   })
 
   # ── Shared helper: build full model matrix & coefficients ──────────
@@ -217,28 +238,38 @@ function(input, output, session) {
     complete <- stats::complete.cases(x_df)
     x_full <- NULL
     assign_attr <- NULL
-    # earthUI import is inactive
-    ek <- NULL
+    ek <- tryCatch(earth_import_r(), error = function(e) NULL)
 
     if (any(complete)) {
       if (!is.null(ek)) {
-        # Earth-only basis (same as fitting: no formula + earth combo)
-        full_basis <- build_earth_basis(NULL, ek)
-        if (!is.null(full_basis)) {
-          n_earth_rows <- nrow(full_basis)
-          n_export <- nrow(export_df)
-          if (n_earth_rows == n_export) {
-            x_full <- full_basis[complete, , drop = FALSE]
-          } else if (n_earth_rows == n_export - 1L) {
-            dummy_row <- full_basis[1L, , drop = FALSE] * 0
-            full_with_subj <- rbind(dummy_row, full_basis)
-            x_full <- full_with_subj[complete, , drop = FALSE]
+        # Earth basis needs ALL earth predictor columns, not just
+        # glmnetUI's selected predictors. build_earth_basis handles
+        # factor/type alignment internally.
+        earth_cols <- intersect(ek$predictors, names(export_df))
+        earth_df <- export_df[complete, earth_cols, drop = FALSE]
+        x_full <- tryCatch(
+          build_earth_basis(earth_df, ek),
+          error = function(e) {
+            stop("Earth basis for export failed: ", e$message)
           }
+        )
+        # Align columns with training matrix (glmnet uses position)
+        if (!is.null(x_full) &&
+            !identical(colnames(x_full), train_colnames)) {
+          x_full <- x_full[, train_colnames, drop = FALSE]
         }
       } else {
         # Standard formula model matrix
-        x_full <- stats::model.matrix(stats::as.formula(formula_str),
-                                      data = x_df[complete, , drop = FALSE])
+        x_full <- tryCatch(
+          stats::model.matrix(stats::as.formula(formula_str),
+                              data = x_df[complete, , drop = FALSE]),
+          error = function(e) {
+            stop("model.matrix failed: ", e$message,
+                 "\nFormula: ", formula_str,
+                 "\nComplete rows: ", sum(complete),
+                 "\nPredictors: ", paste(preds_col, collapse = ", "))
+          }
+        )
         assign_attr <- attr(x_full, "assign")
 
         # Align columns with training matrix
@@ -248,6 +279,16 @@ function(input, output, session) {
                              ncol = length(missing_cols),
                              dimnames = list(NULL, missing_cols))
           x_full <- cbind(x_full, zero_mat)
+        }
+        extra_cols <- setdiff(colnames(x_full), train_colnames)
+        if (length(extra_cols) > 0) {
+          x_full <- x_full[, intersect(colnames(x_full), train_colnames),
+                           drop = FALSE]
+        }
+        if (!all(train_colnames %in% colnames(x_full))) {
+          still_missing <- setdiff(train_colnames, colnames(x_full))
+          stop("Column mismatch after alignment. Missing: ",
+               paste(still_missing, collapse = ", "))
         }
         x_full <- x_full[, train_colnames, drop = FALSE]
 
@@ -261,10 +302,28 @@ function(input, output, session) {
     tt <- stats::terms(stats::as.formula(formula_str))
     term_labels <- attr(tt, "term.labels")
 
+    if (is.null(x_full)) {
+      has_earth <- !is.null(ek)
+      ek_class <- if (has_earth) paste(class(ek), collapse = "/") else "NULL"
+      ek_info <- ""
+      if (has_earth) {
+        ek_info <- paste0(", ek_preds=",
+          paste(ek$predictors, collapse = ","),
+          ", ek_data_rows=", if (!is.null(ek$data)) nrow(ek$data) else "NULL")
+      }
+      stop("build_export_matrix_ returned x_full=NULL. ",
+           "complete_rows=", sum(complete), "/", length(complete),
+           ", earth_import=", has_earth,
+           ", ek_class=", ek_class, ek_info,
+           ", formula=", formula_str,
+           ", train_cols=", length(train_colnames))
+    }
+
     list(x_full = x_full, complete = complete, beta = beta,
          intercept = intercept, term_labels = term_labels,
          formula_str = formula_str, x_df = x_df,
-         train_colnames = train_colnames)
+         train_colnames = train_colnames,
+         earth_import = ek)
   }
 
   # ── Compute per-term contributions ───────────────────────────────
@@ -272,42 +331,36 @@ function(input, output, session) {
   # Helper: extract parent variable from an earth column name
   hinge_var_ <- function(h) {
     inner <- sub("^h\\(", "", sub("\\)$", "", h))
+    # Handle negative knots: h(-121.45-var) has inner "-121.45-var"
     parts <- strsplit(inner, "-", fixed = TRUE)[[1]]
-    if (length(parts) >= 2) {
-      first <- parts[1]
-      rest  <- paste(parts[-1], collapse = "-")
-      if (suppressWarnings(!is.na(as.numeric(first)))) rest else first
-    } else {
-      inner
+    parts <- parts[nzchar(parts)]
+    for (pt in parts) {
+      if (suppressWarnings(is.na(as.numeric(pt)))) return(pt)
     }
+    inner
   }
 
   compute_contributions_ <- function(x_full, beta, train_colnames,
                                      term_labels, formula_str, x_df_complete) {
     all_colnames <- colnames(x_full)
-    # earthUI import is inactive
-    ek <- NULL
+    ek <- earth_import_r()
 
     if (!is.null(ek)) {
-      # Use earth's g-functions with earth's own coefficients.
-      # glmnet's non-zero coefs determine which terms survive,
-      # but earth's coefficients produce clean contributions.
-      # Use earth's training data (has correct factor types).
-      earth_data <- ek$data
-      # Align rows: earth_data may have different row count than x_full
-      n_earth <- nrow(earth_data)
-      n_xfull <- nrow(x_full)
-      if (n_earth == n_xfull) {
-        eval_data <- earth_data
-      } else if (n_earth > n_xfull) {
-        # Earth has more rows (e.g., includes subject with weight=0)
-        # Use first n_xfull rows of earth data after excluding subject
-        eval_data <- earth_data[(n_earth - n_xfull + 1):n_earth, , drop = FALSE]
-      } else {
-        eval_data <- earth_data
+      # Earth path: glmnet's coefficients * basis columns,
+      # grouped by parent predictor. Positional indexing only.
+      beta_pos <- as.numeric(beta)
+      col_parent <- glmnetUI:::earth_col_to_pred_(all_colnames, ek$predictors)
+      unique_parents <- unique(col_parent[nzchar(col_parent)])
+      contribs <- list()
+      for (parent in unique_parents) {
+        idx <- which(col_parent == parent)
+        if (all(beta_pos[idx] == 0)) next
+        contrib_vec <- rep(0, nrow(x_full))
+        for (j in idx) {
+          contrib_vec <- contrib_vec + beta_pos[j] * x_full[, j]
+        }
+        contribs[[parent]] <- contrib_vec
       }
-      contribs <- compute_earth_contributions(
-        ek, eval_data, glmnet_coefs = beta)
       return(contribs)
     }
 
@@ -396,9 +449,24 @@ function(input, output, session) {
         resid_col[complete] <- export_df[[response]][complete] - pv
 
         # --- Per-term contributions ---
-        contribs <- compute_contributions_(
-          x_full, beta, train_colnames, term_labels,
-          em$formula_str, em$x_df[complete, , drop = FALSE])
+        ek_export <- em$earth_import
+        if (!is.null(ek_export)) {
+          beta_num <- as.numeric(beta)
+          cp <- glmnetUI:::earth_col_to_pred_(
+            colnames(x_full), ek_export$predictors)
+          contribs <- list()
+          for (p in unique(cp[nzchar(cp)])) {
+            idx <- which(cp == p)
+            if (all(beta_num[idx] == 0)) next
+            v <- rep(0, nrow(x_full))
+            for (j in idx) v <- v + beta_num[j] * x_full[, j]
+            contribs[[p]] <- v
+          }
+        } else {
+          contribs <- compute_contributions_(
+            x_full, beta, train_colnames, term_labels,
+            em$formula_str, em$x_df[complete, , drop = FALSE])
+        }
 
         export_df[["basis"]] <- NA_real_
         export_df[["basis"]][complete] <- round(intercept, 1)
@@ -540,13 +608,16 @@ function(input, output, session) {
       }
 
       em <- build_export_matrix_()
+      if (is.null(em) || is.null(em$x_full)) {
+        stop("Could not build model matrix for export. ",
+             "Check that predictor columns match the fitted model.")
+      }
       x_full         <- em$x_full
       complete       <- em$complete
       beta           <- em$beta
       intercept      <- em$intercept
       term_labels    <- em$term_labels
       train_colnames <- em$train_colnames
-      shiny::req(x_full)
 
       # --- Predictions for all rows ---
       pred_args <- list(model, newx = x_full, s = lambda, type = "response")
@@ -650,13 +721,30 @@ function(input, output, session) {
       }
 
       # --- Per-term contributions ---
-      contribs <- compute_contributions_(
-        x_full, beta, train_colnames, term_labels,
-        em$formula_str, em$x_df[complete, , drop = FALSE])
+      # Compute directly: beta[j] * x_full[,j] grouped by parent predictor.
+      # No separate function, no reactive lookups.
+      ek_for_contrib <- em$earth_import
+      beta_numeric <- as.numeric(beta)
 
-      # For earth path, use earth's intercept for the basis column
-      earth_intercept <- attr(contribs, "intercept")
-      basis_val <- if (!is.null(earth_intercept)) earth_intercept else intercept
+      if (!is.null(ek_for_contrib)) {
+        col_parent <- glmnetUI:::earth_col_to_pred_(
+          colnames(x_full), ek_for_contrib$predictors)
+        parents <- unique(col_parent[nzchar(col_parent)])
+        contribs <- list()
+        for (p in parents) {
+          idx <- which(col_parent == p)
+          if (all(beta_numeric[idx] == 0)) next
+          v <- rep(0, nrow(x_full))
+          for (j in idx) v <- v + beta_numeric[j] * x_full[, j]
+          contribs[[p]] <- v
+        }
+      } else {
+        contribs <- compute_contributions_(
+          x_full, beta, train_colnames, term_labels,
+          em$formula_str, em$x_df[complete, , drop = FALSE])
+      }
+
+      basis_val <- intercept
 
       # Expand contributions to full data (NA for incomplete rows)
       contribs_full <- list()
@@ -683,6 +771,7 @@ function(input, output, session) {
         subject_contrib <- contribs_full[[tl]][1L]
         adjustment <- subject_contrib - contribs_full[[tl]]
         export_df[[adj_col_name]] <- round(adjustment, 1)
+        # Accumulate UNROUNDED adjustments for accurate totals
         adj_sum   <- adj_sum + ifelse(is.na(adjustment), 0, adjustment)
         gross_sum <- gross_sum + ifelse(is.na(adjustment), 0, abs(adjustment))
       }
@@ -1142,7 +1231,8 @@ function(input, output, session) {
         standardize   = TRUE,
         relaxed       = !is.null(gamma),
         lambda_method = if (inherits(model, "cv.glmnet")) "cv" else "manual",
-        data_file_name = as.character(data_out$file_name() %||% "")
+        data_file_name = as.character(data_out$file_name() %||% ""),
+        earth_import = tryCatch(earth_import_r(), error = function(e) NULL)
       )
       message("[glmnetUI S9] assets_dir=", assets_dir)
       message("[glmnetUI S9] Assets dir exists: ", dir.exists(assets_dir))

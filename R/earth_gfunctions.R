@@ -1,7 +1,3 @@
-# NOTE: This code is currently INACTIVE in the UI. The earthUI import
-# feature has been removed from the interface but the code is retained
-# for potential future use with small datasets.
-
 #' Build G-Function Groups from Earth Model
 #'
 #' Groups earth's selected basis terms into g-functions by variable set,

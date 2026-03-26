@@ -1,7 +1,3 @@
-# NOTE: This code is currently INACTIVE in the UI. The earthUI import
-# feature (Section 2) has been removed from the interface but the code
-# is retained for potential future use with small datasets.
-
 #' Import an Earth Model for Use with glmnet
 #'
 #' Reads a saved `earthUI_result` object (`.rds` file) produced by the
@@ -128,6 +124,27 @@ build_earth_basis <- function(data, earth_import) {
   if (is.null(data)) {
     bx <- stats::model.matrix(model)
   } else {
+    # Align column types with earth's expectations.
+    # earth::model.matrix silently drops factors that aren't factors
+    # in the new data, so we must match types exactly.
+    xlevels <- model$xlevels
+    if (!is.null(xlevels)) {
+      for (cn in names(xlevels)) {
+        if (cn %in% names(data)) {
+          data[[cn]] <- factor(data[[cn]], levels = xlevels[[cn]])
+        }
+      }
+    }
+    # Also match types from earth's training data
+    train_data <- earth_import$data
+    if (!is.null(train_data)) {
+      for (cn in intersect(names(data), names(train_data))) {
+        if (is.factor(train_data[[cn]]) && !is.factor(data[[cn]])) {
+          data[[cn]] <- factor(data[[cn]],
+                               levels = levels(train_data[[cn]]))
+        }
+      }
+    }
     bx <- tryCatch(
       stats::model.matrix(model, x = data),
       error = function(e) {

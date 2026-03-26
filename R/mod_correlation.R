@@ -14,6 +14,7 @@ correlationUI <- function(id) {
 #'
 #' @param id Module namespace ID.
 #' @param data_module Reactive list from [dataImportServer()].
+#' @return No return value, called for side effects (renders UI outputs).
 #' @export
 correlationServer <- function(id, data_module) {
   shiny::moduleServer(id, function(input, output, session) {

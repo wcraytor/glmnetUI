@@ -10,8 +10,12 @@ earthImportServer(id)
 \item{id}{Shiny module namespace ID.}
 }
 \value{
-A reactive containing a \code{glmnetUI_earth_knots} object, or
-\code{NULL}.
+A list with components:
+\describe{
+\item{earth_import}{Reactive containing a \code{glmnetUI_earth_import}
+object, or \code{NULL}.}
+\item{reset}{Function to clear the imported earth data.}
+}
 }
 \description{
 Earth Import Module -- Server

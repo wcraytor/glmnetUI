@@ -563,7 +563,7 @@ test_that("Ukraine uses space thousands, comma decimal, dmy dates", {
   expect_equal(glmnetUI:::locale_big_mark_(), " ")
   expect_equal(glmnetUI:::locale_csv_dec_(), ",")
   fmts <- glmnetUI:::locale_date_formats_()
-  expect_equal(fmts[1], "%d/%m/%Y")
+  expect_equal(fmts[1], "%d/%m/%y")
   glmnetUI:::set_locale_("us")
 })
 
@@ -586,7 +586,7 @@ test_that("Estonia uses space thousands, semicolon CSV, dmy dates", {
   expect_equal(glmnetUI:::locale_big_mark_(), " ")
   expect_equal(glmnetUI:::locale_csv_sep_(), ";")
   fmts <- glmnetUI:::locale_date_formats_()
-  expect_equal(fmts[1], "%d/%m/%Y")
+  expect_equal(fmts[1], "%d/%m/%y")
   glmnetUI:::set_locale_("us")
 })
 
@@ -594,7 +594,7 @@ test_that("Latvia uses space thousands, dmy dates", {
   glmnetUI:::set_locale_("lv")
   expect_equal(glmnetUI:::locale_big_mark_(), " ")
   fmts <- glmnetUI:::locale_date_formats_()
-  expect_equal(fmts[1], "%d/%m/%Y")
+  expect_equal(fmts[1], "%d/%m/%y")
   glmnetUI:::set_locale_("us")
 })
 
@@ -677,7 +677,7 @@ test_that("Australia uses comma thousands, comma CSV, dmy dates", {
   expect_equal(glmnetUI:::locale_csv_sep_(), ",")
   expect_equal(glmnetUI:::locale_paper_(), "a4")
   fmts <- glmnetUI:::locale_date_formats_()
-  expect_equal(fmts[1], "%d/%m/%Y")
+  expect_equal(fmts[1], "%d/%m/%y")
   glmnetUI:::set_locale_("us")
 })
 
@@ -686,7 +686,7 @@ test_that("New Zealand uses comma thousands, dmy dates, A4 paper", {
   expect_equal(glmnetUI:::locale_big_mark_(), ",")
   expect_equal(glmnetUI:::locale_paper_(), "a4")
   fmts <- glmnetUI:::locale_date_formats_()
-  expect_equal(fmts[1], "%d/%m/%Y")
+  expect_equal(fmts[1], "%d/%m/%y")
   glmnetUI:::set_locale_("us")
 })
 
