@@ -368,7 +368,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         type_el <- shiny::tags$select(
           id = ns(paste0("type_", col_name)),
           class = "form-control glmnet-type-sel",
-          style = "width:58px; padding:1px 2px; font-size:0.72em; border:1px solid #ccc; border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
+          style = "width:58px; padding:1px 2px; font-size:0.72em; border:1px solid var(--bs-border-color, #4c566a); border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
           `data-col` = col_name,
           type_options
         )
@@ -376,7 +376,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         sign_el <- shiny::tags$select(
           id = ns(paste0("sign_", col_name)),
           class = "form-control glmnet-sign-sel",
-          style = "width:52px; padding:1px 2px; font-size:0.72em; border:1px solid #ccc; border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
+          style = "width:52px; padding:1px 2px; font-size:0.72em; border:1px solid var(--bs-border-color, #4c566a); border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
           `data-col` = col_name,
           shiny::tags$option(value = "either", "either"),
           shiny::tags$option(value = "positive", "positive"),
@@ -391,7 +391,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
           shiny::tags$select(
             id = ns(paste0("special_", col_name)),
             class = "form-control glmnet-special-sel",
-            style = "width:68px; padding:1px 2px; font-size:0.75em; border:1px solid #ccc; border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
+            style = "width:68px; padding:1px 2px; font-size:0.75em; border:1px solid var(--bs-border-color, #4c566a); border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
             `data-col` = col_name,
             special_opts
           )

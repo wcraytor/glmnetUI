@@ -146,6 +146,21 @@ $(document).on("shiny:connected", function() {
   if (ld) {
     Shiny.setInputValue("glmnet_locale_defaults", ld, {priority: "event"});
   }
+
+  // Restore last-used purpose
+  var lastPurpose = null;
+  try { lastPurpose = localStorage.getItem("glmnetUI_last_purpose"); } catch(e) {}
+  if (lastPurpose) {
+    var radio = $("input[name='purpose'][value='" + lastPurpose + "']");
+    if (radio.length) {
+      radio.prop("checked", true).trigger("change");
+    }
+  }
+});
+
+// Save purpose whenever it changes
+$(document).on("change", "input[name='purpose']", function() {
+  try { localStorage.setItem("glmnetUI_last_purpose", $(this).val()); } catch(e) {}
 });
 
 // Save locale defaults to localStorage
