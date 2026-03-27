@@ -42,8 +42,13 @@ A **Purpose** radio button at the top of the sidebar selects:
 - **Market Area Analysis** --- For analyzing groups of properties with optional
   first row exclusion.
 
-Settings are saved per file and purpose combination, so switching modes
-preserves each mode's configuration independently.
+The last-used purpose is automatically saved to browser localStorage and
+restored when the app is relaunched, so the app remembers which mode you
+were in. Settings are saved per file and purpose combination, so switching
+modes preserves each mode's configuration independently. Note that
+changing the Purpose resets both the data import (Section 1) and the
+earthUI import (Section 2) --- you must re-import your data after
+switching purpose.
 
 ### Launching the Application
 
@@ -67,7 +72,15 @@ Click **"Upload CSV or Excel File"** in the sidebar. Supported formats:
 
 Column names are automatically converted to `snake_case` on import.
 
-### 2. Configure Variables
+### 2. Import from earthUI (Optional)
+
+Section 2 of the sidebar lets you import an earthUI result `.rds` file.
+This allows glmnetUI to use earth's hinge basis functions (piecewise
+linear terms) with glmnet's elastic net regularization. The browse button
+is styled to match the Section 1 file upload. This step is optional ---
+skip it if you do not have an earthUI result to import.
+
+### 3. Configure Variables
 
 After importing, a predictor table shows each column with:
 
@@ -82,9 +95,9 @@ After importing, a predictor table shows each column with:
 Select your **response variable** from the dropdown, then check/uncheck
 predictors as needed.
 
-### 3. Set Model Parameters
+### 4. Set Model Parameters
 
-Under **"4. glmnet Call Parameters"**:
+Under **"5. glmnet Call Parameters"**:
 
 - **Alpha**: 0 = Ridge, 1 = Lasso (default), or use grid search
 - **Lambda**: Cross-validation (recommended) or manual entry
@@ -97,7 +110,7 @@ Under **"4. glmnet Call Parameters"**:
   (Warning: glmnet interactions produce adjustments that can be hard to
   interpret in court or audit settings.)
 
-### 4. Fit the Model
+### 5. Fit the Model
 
 Click **"Fit Model"**. The application:
 
@@ -106,7 +119,7 @@ Click **"Fit Model"**. The application:
 3. Fits the final model
 4. Populates all result tabs
 
-### 5. Review Results
+### 6. Review Results
 
 Results appear in the main panel tabs:
 
@@ -122,7 +135,7 @@ Results appear in the main panel tabs:
 - **Diagnostics** --- Coefficient path, CV error, actual vs predicted, residuals
 - **Report** --- Configure and export reports
 
-### 6. Export
+### 7. Export
 
 - **Download Output** (all modes): Excel with predictions, residuals, CQA
   scores, and per-variable contributions

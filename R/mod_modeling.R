@@ -1416,7 +1416,23 @@ modelingServer <- function(id, data_module,
       fitted = shiny::reactive(rv$fitted),
       fit_count = shiny::reactive(rv$fit_count),
       seed_used = shiny::reactive(rv$seed_used),
-      earth_import = earth_import_r
+      earth_import = earth_import_r,
+      reset = function() {
+        rv$model <- NULL
+        rv$lambda <- NULL
+        rv$gamma_used <- NULL
+        rv$x_matrix <- NULL
+        rv$y_vector <- NULL
+        rv$weights_used <- NULL
+        rv$fitted <- FALSE
+        rv$fit_count <- 0L
+        rv$alpha_used <- NULL
+        rv$family_used <- NULL
+        rv$nfolds_used <- NULL
+        rv$n_obs <- NULL
+        rv$n_excluded <- 0L
+        rv$seed_used <- NULL
+      }
     ))
   })
 }

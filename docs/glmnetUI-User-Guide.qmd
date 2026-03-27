@@ -118,6 +118,7 @@ format:
   \begin{itemize}
     \item Overview
     \item The Sidebar Workflow
+    \item Import from earthUI (Optional)
     \item Main Panel Tabs
     \item Settings Persistence
     \item Dark Mode
@@ -344,13 +345,14 @@ When either **For Appraisal** or **Market Area Analysis** is selected, glmnetUI 
 To use glmnetUI:
 
 1. **Install the package** in R: `install.packages("glmnetUI")` or install from source.
-2. **Launch the application**: run `glmnetUI::glmnetUI()` in R. The app opens in your web browser on port 7879. You can also access the app directly by navigating to `http://localhost:7879` in your browser.
+2. **Launch the application**: run `glmnetUI::glmnetUI()` in R. The app opens in your web browser on port 7879. You can also access the app directly by navigating to `http://localhost:7879` in your browser. The app remembers your last-used purpose mode and restores it automatically.
 3. **Import your data** using the file upload in Section 1 of the sidebar. glmnetUI accepts CSV and Excel files.
-4. **Select your Purpose** (General, For Appraisal, or Market Area Analysis).
-5. **Configure variables** --- choose your target and predictors, set data types, expected signs, and assign any special column roles.
-6. **Set glmnet parameters** --- alpha, lambda, family, sign constraints, interactions, and other options.
-7. **Fit the model** --- click "Fit Glmnet Model" and review the results in the main panel.
-8. **Export** --- download predictions as Excel, generate reports, or (in appraisal mode) compute RCA adjustments.
+4. **Import from earthUI (optional)** --- Section 2 lets you import an earthUI result `.rds` file to use earth's hinge basis functions with glmnet's regularization. Skip this step if you do not have an earthUI result.
+5. **Select your Purpose** (General, For Appraisal, or Market Area Analysis). Note that changing the purpose resets both the data import and the earthUI import --- you must re-import after switching.
+6. **Configure variables** --- choose your target and predictors, set data types, expected signs, and assign any special column roles.
+7. **Set glmnet parameters** --- alpha, lambda, family, sign constraints, interactions, and other options.
+8. **Fit the model** --- click "Fit Glmnet Model" and review the results in the main panel.
+9. **Export** --- download predictions as Excel, generate reports, or (in appraisal mode) compute RCA adjustments.
 
 Settings are automatically persisted in your browser's local storage and restored when you reload the same input file.
 
@@ -488,17 +490,25 @@ The sidebar is organized into numbered, collapsible sections that guide you from
 
 **1. Import Data** --- File upload accepting CSV and Excel files. For Excel files with multiple sheets, a sheet selector appears. Column names are automatically converted to snake\_case.
 
-**2. Project Output Folder** --- A text field specifying where downloads are saved (defaults to `~/Downloads`).
+**2. Import from earthUI (optional)** --- Import an earthUI result \texttt{.rds} file to use earth's hinge basis functions with glmnet's elastic net regularization. The browse button is styled to match the Section 1 file upload. This step is optional --- skip it if you do not have an earthUI result to import.
 
-**3. Variable Configuration** --- Target variable selector, predictor table with checkboxes for Include, Force, and Sign. The Special column (for designating contract dates, coordinates, etc.) appears only in Appraisal and Market modes. See Chapter 6 for full details.
+**3. Project Output Folder** --- A text field specifying where downloads are saved (defaults to `~/Downloads`).
 
-**4. glmnet Call Parameters** --- All model configuration: alpha, lambda, family, standardize, sign constraints, relaxed lasso, interaction matrix, and advanced parameters (lambda.min.ratio, nlambda, CV loss metric, convergence threshold, max iterations, intercept). See Chapter 7 for the complete parameter reference.
+**4. Variable Configuration** --- Target variable selector, predictor table with checkboxes for Include, Force, and Sign. The Special column (for designating contract dates, coordinates, etc.) appears only in Appraisal and Market modes. See Chapter 6 for full details.
 
-**5. Fit Glmnet Model** --- A single green button that runs the model.
+**5. glmnet Call Parameters** --- All model configuration: alpha, lambda, family, standardize, sign constraints, relaxed lasso, interaction matrix, and advanced parameters (lambda.min.ratio, nlambda, CV loss metric, convergence threshold, max iterations, intercept). See Chapter 7 for the complete parameter reference.
 
-**6. Download Output** --- Exports predictions, residuals, CQA scores, and per-variable contributions as an Excel file. Available in all purpose modes.
+**6. Fit Glmnet Model** --- The button that runs the model.
 
-**7. Download Report** --- Generates a formatted report (Word, PDF, or HTML) saved to the output folder. See Chapter 13. Steps 7--8 (RCA Adjustments and Sales Grid) appear only in Appraisal mode; in General mode the report step is numbered 7.
+**7. Download Output** --- Exports predictions, residuals, CQA scores, and per-variable contributions as an Excel file. Available in all purpose modes.
+
+**8. Download Report** --- Generates a formatted report (Word, PDF, or HTML) saved to the output folder. See Chapter 13. Steps 8--9 (RCA Adjustments and Sales Grid) appear only in Appraisal mode; in General mode the report step is numbered 8.
+
+## Import from earthUI (Optional)
+
+Section 2 of the sidebar --- **Import from earthUI** --- lets you import an earthUI result \texttt{.rds} file. This allows glmnetUI to use earth's hinge basis functions (piecewise linear terms) with glmnet's elastic net regularization, combining earth's automatic nonlinearity detection with glmnet's variable selection and coefficient constraints.
+
+The browse button is styled to match the Section 1 file upload. This step is entirely optional --- if you do not have an earthUI result file, simply skip Section 2 and proceed to Section 3.
 
 ## Main Panel Tabs
 
@@ -537,7 +547,7 @@ RCA Adjustments & RCA analysis results (appraisal mode, after computation). \\
 
 ## Settings Persistence
 
-glmnetUI automatically saves your configuration to the browser's local storage, keyed by the input filename. When you reload the same file, all settings are restored: target selection, predictor checkboxes, data types, expected signs, glmnet parameters, and interaction matrix. Three options are available:
+glmnetUI automatically saves your configuration to the browser's local storage, keyed by the input filename. When you reload the same file, all settings are restored: target selection, predictor checkboxes, data types, expected signs, glmnet parameters, and interaction matrix. The last-used purpose mode is also persisted globally and restored when the app is relaunched. Three options are available:
 
 - **Use last settings for input file** --- restore saved settings for this specific file
 - **Use default settings** --- apply your saved global defaults
@@ -598,7 +608,7 @@ In appraisal and market modes, a **Special** dropdown appears for each predictor
 
 ## RCA Adjustments Overview
 
-The **Calculate RCA Adjustments \& Download** button (sidebar section 7, visible only in appraisal mode after fitting) computes market-derived adjustments for each comparable relative to the subject. The full RCA workflow is described in Chapter 11.
+The **Calculate RCA Adjustments \& Download** button (sidebar section 8, visible only in appraisal mode after fitting) computes market-derived adjustments for each comparable relative to the subject. The full RCA workflow is described in Chapter 11.
 
 \begin{tcolorbox}[colback=nordblue!5, colframe=nordblue!40, title=]
 \small\textit{\textbf{Tip:} The CQA score you assign to the subject controls how much of the residual distribution is attributed to the subject. A score of 5.00 places the subject at the median of the comparables.}
@@ -648,7 +658,7 @@ Market Area Analysis mode is appropriate when you are:
 
 \bigskip
 
-Section 3 of the sidebar --- **Variable Configuration** --- is where you choose which columns participate in the model and how they are treated.
+Section 4 of the sidebar --- **Variable Configuration** --- is where you choose which columns participate in the model and how they are treated.
 
 ## Target Variable
 
@@ -735,7 +745,7 @@ In appraisal and market modes, the **Special** dropdown provides the following o
 
 \bigskip
 
-Section 4 of the sidebar --- **glmnet Call Parameters** --- provides access to all configuration options for the elastic net model. Each parameter has a blue help icon (**?**) with a tooltip explanation.
+Section 5 of the sidebar --- **glmnet Call Parameters** --- provides access to all configuration options for the elastic net model. Each parameter has a blue help icon (**?**) with a tooltip explanation.
 
 ## Alpha (Mixing Parameter)
 
@@ -862,7 +872,7 @@ Click **Save current as default** to store all current settings as the global de
 
 ## The Fit Button
 
-Section 5 of the sidebar contains the **Fit Glmnet Model** button. Clicking it runs the model with your current configuration.
+Section 6 of the sidebar contains the **Fit Glmnet Model** button. Clicking it runs the model with your current configuration.
 
 ## What Happens During Fitting
 
@@ -998,7 +1008,7 @@ Configure report fields (appraiser name, property address, report date, file num
 
 \bigskip
 
-After fitting, the **Download Output** button (sidebar section 6, appraisal/market modes) exports an Excel file with predictions and diagnostics.
+After fitting, the **Download Output** button (sidebar section 7, appraisal/market modes) exports an Excel file with predictions and diagnostics.
 
 ## Output Columns
 
@@ -1049,11 +1059,11 @@ In appraisal/market modes, rows are sorted by `residual_sf` descending when a `l
 
 \bigskip
 
-The RCA (Reconciliation by Comparable Adjustment) workflow is available in **Appraisal** mode only, after fitting the model and downloading the output (Step 6).
+The RCA (Reconciliation by Comparable Adjustment) workflow is available in **Appraisal** mode only, after fitting the model and downloading the output (Step 7).
 
 ## Opening the RCA Dialog
 
-Click the **Calculate RCA Adjustments \& Download** button in sidebar section 7. Choose:
+Click the **Calculate RCA Adjustments \& Download** button in sidebar section 8. Choose:
 
 - **CQA** or **CQA per SF** score type. If "CQA per SF" is selected, the subject's residual is scaled by living area.
 - Enter the subject's CQA score (0.00--9.99, default 5.00)
@@ -1101,11 +1111,11 @@ A white checkmark appears on the button after successful computation.
 
 \bigskip
 
-The Sales Comparison Grid is available in **Appraisal** mode only, after computing RCA adjustments (Step 7). It generates a formatted Excel workbook suitable for inclusion in appraisal reports.
+The Sales Comparison Grid is available in **Appraisal** mode only, after computing RCA adjustments (Step 8). It generates a formatted Excel workbook suitable for inclusion in appraisal reports.
 
 ## Comp Selection Dialog
 
-Clicking the **Sales Grid** button in sidebar section 8 opens a modal dialog listing all comparable sales from the RCA output. Comps are split into two groups:
+Clicking the **Sales Grid** button in sidebar section 9 opens a modal dialog listing all comparable sales from the RCA output. Comps are split into two groups:
 
 - **Recommended comps** (pre-checked): Gross adjustment < 25\% of sale price, sorted by sale age (most recent first).
 - **Other comps** (unchecked by default): Remaining comps, sorted by sale age.
@@ -1212,7 +1222,7 @@ Relaxed fitting & Relaxed lasso available & Not applicable \\
 \hline
 Alpha tuning & Grid search available & Not applicable (no mixing parameter) \\
 \hline
-Sales Comparison Grid & Available (Step 8) & Available (Step 8) \\
+Sales Comparison Grid & Available (Step 9) & Available (Step 8) \\
 \hline
 g-Function plots & Not applicable & Grouped term visualization \\
 \hline
@@ -1338,6 +1348,6 @@ This is not real data, but is based on a realistic neighborhood in Northern Cali
 7. Keep alpha = 1 (Lasso), CV with lambda.1se
 8. Click **Fit Glmnet Model**
 9. Review Summary, Coefficients, and Diagnostics tabs
-10. Download output (Step 6), review the CQA ranking
-11. Compute RCA adjustments (Step 7) with a CQA score of ~5.00
-12. Generate a Sales Comparison Grid (Step 8) with recommended comps
+10. Download output (Step 7), review the CQA ranking
+11. Compute RCA adjustments (Step 8) with a CQA score of ~5.00
+12. Generate a Sales Comparison Grid (Step 9) with recommended comps

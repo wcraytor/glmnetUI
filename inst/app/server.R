@@ -91,13 +91,18 @@ function(input, output, session) {
   diagnosticsServer("diag", model_out)
   reportServer("report", model_out, coef_out, data_out)
 
-  # Reset data and earth imports when purpose changes
+  # Reset data, earth imports, model state, and RCA when purpose changes
   shiny::observeEvent(input$purpose, {
     data_out$rv$data <- NULL
     data_out$rv$file_name <- NULL
     data_out$rv$col_types <- NULL
     data_out$rv$sheets <- NULL
     earth_mod$reset()
+    model_out$reset()
+    rv_rca$pct_data <- NULL
+    rv_rca$rca_df <- NULL
+    rv_rca$sg_recommended <- NULL
+    rv_rca$sg_others <- NULL
     # Reset fileInput UI (clear displayed filename)
     session$sendCustomMessage("glmnet-reset-file-input",
                               list(id = "data-file_input"))

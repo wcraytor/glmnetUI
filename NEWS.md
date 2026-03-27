@@ -1,3 +1,24 @@
+# glmnetUI 0.5.0 — Consistent Theme & Purpose-Aware State Management
+
+## Theme & Visual Consistency
+
+* **Nord palette enforcement**: All interactive buttons now use Frost colors (nord8/nord9/nord10) exclusively. Aurora colors (red/green/yellow) are reserved for warnings and error indicators only — never on buttons. This convention applies consistently across earthUI, glmnetUI, and mgcvUI.
+* **Matched browse controls**: The earthUI import browse button (Section 2) now matches the native `fileInput` appearance in Section 1 — same font, color, and layout via CSS class `.glmnet-earth-browse`.
+* **Visible dropdown borders**: Variable Configuration dropdowns (Type, Special, Sign) now use `var(--bs-border-color)` instead of the nearly invisible `#ccc`, making them clearly visible in both light and dark modes.
+* **Right-aligned info icons**: Section header help icons (`?`) are now right-aligned via flexbox and use Nord Frost colors (nord8 `#88c0d0` / nord10 `#5e81ac`) instead of Bootstrap defaults (`#5bc0de`).
+* **Dark mode**: Snow Storm (light, nord6 background) and Polar Night (dark, nord0 background) themes documented and enforced. Theme preference persists via localStorage.
+
+## Purpose-Aware State Management
+
+* **Purpose persistence**: The last-used purpose mode is saved to localStorage (`glmnetUI_last_purpose`) and restored automatically when the app is relaunched. Each sibling app (earthUI, glmnetUI, mgcvUI) persists independently.
+* **Full reset on purpose change**: Changing the Purpose radio button now clears all state — data import, earth import, model results, RCA adjustments, and Sales Grid — so no stale results carry over between modes. All result tabs return to their empty/waiting state. FileInput and earth path displays are also cleared visually.
+
+## Documentation
+
+* **CLAUDE.md**: New project-level instructions file with shared UI conventions for all three sibling apps (Nord palette rules, Frost-only button classes, purpose persistence, sales_grid.R exception).
+* **Vignettes updated**: Getting Started and User Guide vignettes reflect the new Section 2 (earthUI import), renumbered sidebar workflow (1–10), purpose persistence, and purpose-change reset behavior.
+* **User Guide (PDF)**: Updated chapter references, sidebar section numbering, Getting Started steps, and settings persistence documentation.
+
 # glmnetUI 0.4.0
 
 ## Report Generation — Fixed and Enhanced

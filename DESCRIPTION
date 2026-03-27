@@ -1,6 +1,6 @@
 Package: glmnetUI
 Title: Interactive 'shiny' Interface for Elastic Net Modeling with 'glmnet'
-Version: 0.4.0
+Version: 0.5.0
 Authors@R:
     person("William", "Craytor", , "bcraytor@proton.me", role = c("aut", "cre"))
 Description: A self-contained 'shiny' application for interactive elastic net
