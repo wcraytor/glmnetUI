@@ -107,6 +107,9 @@ bslib::page_fluid(
       border-color: var(--bs-success);
     }
 
+    /* Wrap long file paths in notifications */
+    .shiny-notification { word-wrap: break-word; overflow-wrap: anywhere; }
+
     /* Settings dropdown on title bar */
     .glmnet-navbar {
       display: flex; align-items: center; padding: 10px 15px; gap: 8px;
