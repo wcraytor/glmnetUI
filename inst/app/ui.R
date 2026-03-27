@@ -139,20 +139,44 @@ bslib::page_fluid(
     .glmnet-param-help {
       position: absolute; top: 0; right: 0;
       width: 18px; height: 18px; border-radius: 50%;
-      background: #5bc0de; color: #fff;
+      background: #88c0d0; color: #2e3440;
       font-size: 11px; font-weight: bold;
       text-align: center; line-height: 18px;
       cursor: pointer; z-index: 10;
     }
-    .glmnet-param-help:hover { background: #31b0d5; }
+    .glmnet-param-help:hover { background: #5e81ac; color: #eceff4; }
     .glmnet-help-icon {
       display: inline-block; width: 18px; height: 18px;
-      border-radius: 50%; background: #5bc0de; color: #fff;
+      border-radius: 50%; background: #88c0d0; color: #2e3440;
       text-align: center; font-size: 11px; font-weight: bold;
       line-height: 18px; cursor: pointer;
       margin-left: 6px; vertical-align: middle;
     }
-    .glmnet-help-icon:hover { background: #31b0d5; }
+    .glmnet-help-icon:hover { background: #5e81ac; color: #eceff4; }
+
+    /* --- shinyFiles browse: mimic native fileInput btn-file appearance --- */
+    .glmnet-earth-browse .shinyFiles {
+      width: auto !important;
+      flex: 0 0 auto;
+      background-color: transparent !important;
+      border: 1px solid var(--bs-secondary) !important;
+      color: var(--bs-secondary) !important;
+      border-top-left-radius: 0.375rem !important;
+      border-bottom-left-radius: 0.375rem !important;
+      border-top-right-radius: 0 !important;
+      border-bottom-right-radius: 0 !important;
+      font-size: 1rem;
+      padding: 0.375rem 0.75rem;
+      line-height: 1.5;
+      height: auto;
+    }
+    .glmnet-earth-browse .shinyFiles:hover {
+      background-color: var(--bs-secondary) !important;
+      color: var(--bs-body-bg) !important;
+    }
+    .glmnet-earth-browse .form-control {
+      font-size: 1rem;
+    }
 
     /* Collapsible sections */
     .glmnet-section > summary {
@@ -162,21 +186,25 @@ bslib::page_fluid(
     .glmnet-section > summary::-webkit-details-marker {
       display: none;
     }
+    .glmnet-section > summary h4 {
+      display: flex; align-items: center; margin: 0;
+    }
     .glmnet-section > summary h4::before {
       content: "\\25B6";
       font-size: 0.7em;
       transition: transform 0.2s;
       display: inline-block;
       margin-right: 0.8em;
+      flex-shrink: 0;
     }
     .glmnet-section-info {
-      display: inline-block; width: 16px; height: 16px;
-      border-radius: 50%; background: #5bc0de; color: #fff;
-      text-align: center; font-size: 10px; font-weight: bold;
-      line-height: 16px; cursor: pointer;
-      margin-left: 8px; vertical-align: middle;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 16px; height: 16px; flex-shrink: 0;
+      border-radius: 50%; background: #88c0d0; color: #2e3440;
+      font-size: 10px; font-weight: bold;
+      cursor: pointer; margin-left: auto;
     }
-    .glmnet-section-info:hover { background: #31b0d5; }
+    .glmnet-section-info:hover { background: #5e81ac; color: #eceff4; }
     .glmnet-section[open] > summary h4::before {
       transform: rotate(90deg);
     }
@@ -189,9 +217,28 @@ bslib::page_fluid(
       cursor: not-allowed;
       opacity: 0.8;
     }
-    [data-bs-theme="dark"] .glmnet-int-earth-cell {
+    [data-glmnet-theme="dark"] .glmnet-int-earth-cell {
       background-color: rgba(235, 203, 139, 0.2);
     }
+    [data-glmnet-theme="dark"] .glmnet-var-hdr { background: #3b4252; }
+    [data-glmnet-theme="dark"] .glmnet-var-row { border-color: #434c5e; }
+    [data-glmnet-theme="dark"] .glmnet-var-row select {
+      background: #3b4252 !important; color: #d8dee9 !important;
+      border-color: #434c5e !important;
+    }
+    [data-glmnet-theme="dark"] details > summary { color: #d8dee9 !important; }
+    [data-glmnet-theme="dark"] .nav-tabs .nav-link.active {
+      color: #d8dee9 !important; background-color: #2e3440 !important;
+      border-color: #434c5e #434c5e #2e3440 !important;
+    }
+    [data-glmnet-theme="dark"] .nav-tabs .nav-link { color: #81a1c1; }
+    [data-glmnet-theme="dark"] .nav-tabs .nav-link:hover {
+      color: #d8dee9; border-color: #434c5e;
+    }
+    [data-glmnet-theme="dark"] .modal .btn-outline-primary { color: #88c0d0; border-color: #88c0d0; }
+    [data-glmnet-theme="dark"] .modal .btn-outline-primary:hover { background: #88c0d0; color: #2e3440; }
+    [data-glmnet-theme="dark"] .modal .btn-outline-secondary { color: #81a1c1; border-color: #81a1c1; }
+    [data-glmnet-theme="dark"] .modal .btn-outline-secondary:hover { background: #81a1c1; color: #2e3440; }
   ')),
 
   # --- Theme toggle button (repositioned into navbar below) ---
@@ -279,7 +326,7 @@ bslib::page_fluid(
             `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
             `data-bs-content` = "Load a CSV data file containing the response variable, predictors, and optional weight column.",
             "?"),
-          style = "display:inline;")),
+        )),
         dataImportUI("data")
       ),
       shiny::hr(),
@@ -291,8 +338,8 @@ bslib::page_fluid(
           shiny::tags$span(class = "glmnet-section-info",
             `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
             `data-bs-content` = "Import an earthUI result (.rds) to use earth's hinge basis functions for nonlinear modeling. Earth defines the basis; glmnet applies regularization.",
-            "?"),
-          style = "display:inline;")),
+            "?")
+        )),
         shiny::tags$div(style = "padding-top: 6px;",
           earthImportUI("earth")
         )
@@ -309,8 +356,8 @@ bslib::page_fluid(
             shiny::tags$span(class = "glmnet-section-info",
               `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
               `data-bs-content` = "Set the directory where output files (Excel, PDF reports, sales grids) will be saved.",
-              "?"),
-            style = "display:inline;")),
+              "?")
+          )),
           shiny::textInput("output_folder", NULL,
                            value = path.expand("~/Downloads"))
         ),
@@ -323,8 +370,8 @@ bslib::page_fluid(
             shiny::tags$span(class = "glmnet-section-info",
               `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
               `data-bs-content` = "Select the response variable, predictors, weight column, factor variables, expected signs, and force-in variables.",
-              "?"),
-            style = "display:inline;")),
+              "?")
+          )),
           shiny::conditionalPanel(
             condition = "input.purpose !== 'general'",
             shiny::dateInput("effective_date", "Effective Date",
@@ -341,8 +388,8 @@ bslib::page_fluid(
             shiny::tags$span(class = "glmnet-section-info",
               `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
               `data-bs-content` = "Configure alpha (ridge/lasso mix), lambda selection method (CV or manual), cross-validation folds, and advanced parameters.",
-              "?"),
-            style = "display:inline;")),
+              "?")
+          )),
           shiny::tags$div(
             style = "margin-bottom: 4px; font-size: 0.85em;",
             shiny::radioButtons(
@@ -370,8 +417,8 @@ bslib::page_fluid(
             shiny::tags$span(class = "glmnet-section-info",
               `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
               `data-bs-content` = "Fit the elastic net model with the configured parameters. Results appear in the tabs on the right.",
-              "?"),
-            style = "display:inline;")),
+              "?")
+          )),
           fitModelUI("model")
         ),
 
@@ -383,7 +430,7 @@ bslib::page_fluid(
             shiny::tags$summary(shiny::uiOutput("download_heading",
                                                  inline = TRUE)),
             shiny::actionButton("export_data", "Download Output (Excel)",
-                                class = "btn-success",
+                                class = "btn-primary",
                                 style = "width: 100%;")
           )
         ),
@@ -398,11 +445,11 @@ bslib::page_fluid(
               shiny::tags$span(class = "glmnet-section-info",
                 `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
                 `data-bs-content` = "Compute per-variable RCA adjustments for each comparable, interpolate the subject residual via CQA, and download the results.",
-                "?"),
-              style = "display:inline;")),
+                "?")
+            )),
             shiny::actionButton("rca_output_btn",
                                 "Calculate RCA Adjustments & Download",
-                                class = "btn-success",
+                                class = "btn-primary",
                                 style = "width: 100%;")
           )
         ),
@@ -417,11 +464,11 @@ bslib::page_fluid(
               shiny::tags$span(class = "glmnet-section-info",
                 `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
                 `data-bs-content` = "Generate the Intermediate Sales Comparable Grid for the appraisal report, ranking comparables by gross adjustment percentage.",
-                "?"),
-              style = "display:inline;")),
+                "?")
+            )),
             shiny::actionButton("sales_grid_btn",
                                 "Generate Sales Grid & Download",
-                                class = "btn-success",
+                                class = "btn-primary",
                                 style = "width: 100%;")
           )
         ),
@@ -438,7 +485,7 @@ bslib::page_fluid(
                                            "PDF" = "pdf",
                                            "HTML" = "html")),
             shiny::actionButton("export_report_btn", "Download Report",
-                                class = "btn-success",
+                                class = "btn-primary",
                                 style = "width: 100%;")
           )
         )

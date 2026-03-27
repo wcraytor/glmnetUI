@@ -21,7 +21,7 @@ reportUI <- function(id) {
     shiny::textInput(ns("file_number"), "File Number", value = ""),
     shiny::hr(),
     shiny::downloadButton(ns("dl_word"), "Export to Word (.docx)",
-                          class = "btn-success"),
+                          class = "btn-primary"),
     shiny::br(), shiny::br(),
     shiny::downloadButton(ns("dl_pdf"), "Export to PDF",
                           class = "btn-info")

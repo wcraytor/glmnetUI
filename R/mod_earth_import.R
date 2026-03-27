@@ -20,15 +20,19 @@ earthImportUI <- function(id) {
     shiny::tags$div(
       style = "margin-bottom:8px;",
       shiny::tags$label("earthUI Result (.rds)", class = "control-label"),
-      shinyFiles::shinyFilesButton(
-        ns("earth_browse"), "Browse",
-        title = "Select earthUI Result (.rds)",
-        multiple = FALSE,
-        class = "btn-sm btn-primary",
-        style = "width:100%; margin-top:4px;"
-      ),
-      shiny::textOutput(ns("loaded_path"),
-                        inline = TRUE)
+      shiny::tags$div(
+        class = "input-group glmnet-earth-browse",
+        shinyFiles::shinyFilesButton(
+          ns("earth_browse"), "Browse...",
+          title = "Select earthUI Result (.rds)",
+          multiple = FALSE
+        ),
+        shiny::tags$input(
+          type = "text", class = "form-control", readonly = "readonly",
+          id = ns("earth_path_display"),
+          placeholder = "No file selected"
+        )
+      )
     ),
     shiny::conditionalPanel(
       condition = sprintf("output['%s']", ns("has_earth")),
@@ -39,7 +43,7 @@ earthImportUI <- function(id) {
                               class = "btn-sm btn-outline-secondary",
                               style = "flex:1;"),
         shiny::actionButton(ns("clear_earth"), "Clear",
-                            class = "btn-sm btn-outline-danger",
+                            class = "btn-sm btn-outline-secondary",
                             style = "flex:0 0 auto;")
       )
     )
@@ -72,6 +76,14 @@ earthImportServer <- function(id) {
     output$loaded_path <- shiny::renderText({
       f <- loaded_file()
       if (is.null(f)) "" else paste0("Loaded: ", f)
+    })
+
+    shiny::observe({
+      f <- loaded_file()
+      val <- if (is.null(f)) "" else basename(f)
+      session$sendCustomMessage("glmnet-update-input", list(
+        id = session$ns("earth_path_display"), value = val
+      ))
     })
 
     # Load and cache helper

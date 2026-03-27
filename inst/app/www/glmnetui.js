@@ -17,6 +17,8 @@ var glmnetCurrentMode = "light";
 
 function glmnetToggleTheme() {
   glmnetCurrentMode = (glmnetCurrentMode === "dark") ? "light" : "dark";
+  console.log("[glmnetUI] Toggle clicked, new mode:", glmnetCurrentMode);
+  document.body.setAttribute("data-glmnet-theme", glmnetCurrentMode);
   Shiny.setInputValue("dark_mode", glmnetCurrentMode, {priority: "event"});
   glmnetUpdateIcon(glmnetCurrentMode);
   try { localStorage.setItem("glmnetUI_theme", glmnetCurrentMode); } catch(e) {}
@@ -35,9 +37,11 @@ $(document).on("shiny:connected", function() {
   try { saved = localStorage.getItem("glmnetUI_theme"); } catch(e) {}
   if (saved === "dark") {
     glmnetCurrentMode = "dark";
+    document.body.setAttribute("data-glmnet-theme", "dark");
     glmnetUpdateIcon("dark");
     Shiny.setInputValue("dark_mode", "dark", {priority: "event"});
   } else {
+    document.body.setAttribute("data-glmnet-theme", "light");
     Shiny.setInputValue("dark_mode", "light", {priority: "event"});
   }
 });
@@ -81,6 +85,22 @@ Shiny.addCustomMessageHandler("report_timer", function(msg) {
     if (_reportTimer) { clearInterval(_reportTimer); _reportTimer = null; }
     if (_reportTimerDiv) _reportTimerDiv.style.display = "none";
   }
+});
+
+// Update a text input value from server
+Shiny.addCustomMessageHandler("glmnet-update-input", function(msg) {
+  var el = document.getElementById(msg.id);
+  if (el) el.value = msg.value || "";
+});
+
+// Reset a fileInput widget (clear filename display and file reference)
+Shiny.addCustomMessageHandler("glmnet-reset-file-input", function(msg) {
+  var container = document.getElementById(msg.id);
+  if (!container) return;
+  var fileInput = container.querySelector("input[type='file']");
+  if (fileInput) fileInput.value = "";
+  var textInput = container.querySelector("input[type='text']");
+  if (textInput) textInput.value = "";
 });
 
 // Show white checkmark on button after successful action

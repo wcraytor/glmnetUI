@@ -4,10 +4,13 @@ function(input, output, session) {
   shiny::observe({
     mode <- input$dark_mode
     shiny::req(mode)
-    tryCatch(
-      session$setCurrentTheme(
-        if (mode == "dark") nord_dark else nord_light
-      ),
+    message("[glmnetUI] Theme switch requested: mode = ", mode)
+    new_theme <- if (mode == "dark") nord_dark else nord_light
+    message("[glmnetUI] Theme object class: ", paste(class(new_theme), collapse = ", "))
+    tryCatch({
+      session$setCurrentTheme(new_theme)
+      message("[glmnetUI] Theme switch completed successfully")
+    },
       error = function(e) {
         message("Theme switch error (non-fatal): ", conditionMessage(e))
       }
@@ -95,6 +98,12 @@ function(input, output, session) {
     data_out$rv$col_types <- NULL
     data_out$rv$sheets <- NULL
     earth_mod$reset()
+    # Reset fileInput UI (clear displayed filename)
+    session$sendCustomMessage("glmnet-reset-file-input",
+                              list(id = "data-file_input"))
+    # Reset earth path display
+    session$sendCustomMessage("glmnet-update-input",
+                              list(id = "earth-earth_path_display", value = ""))
   }, ignoreInit = TRUE)
 
   # --- Model fitted flag for conditionalPanel ---
@@ -572,7 +581,7 @@ function(input, output, session) {
       footer = shiny::tagList(
         shiny::modalButton("Cancel"),
         shiny::actionButton("export_rca", "Generate",
-                            class = "btn-success")
+                            class = "btn-primary")
       ),
       easyClose = TRUE
     ))
@@ -1049,7 +1058,7 @@ function(input, output, session) {
       footer = shiny::tagList(
         shiny::modalButton("Cancel"),
         shiny::actionButton("sg_confirm", "Generate Sales Grid",
-                            class = "btn-success")
+                            class = "btn-primary")
       )
     ))
   })
