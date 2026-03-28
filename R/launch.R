@@ -17,6 +17,10 @@
 #'   glmnetUI()
 #' }
 glmnetUI <- function(port = 7879L, ...) {
+  if (getRversion() < "4.1.0") {
+    stop("glmnetUI requires R >= 4.1.0 (you have ", getRversion(), "). ",
+         "Please update R from https://cran.r-project.org/", call. = FALSE)
+  }
   required <- c("shiny", "glmnet", "readxl", "DT",
                 "ggplot2", "officer", "rmarkdown", "jsonlite",
                 "bslib")

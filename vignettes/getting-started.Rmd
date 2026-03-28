@@ -15,6 +15,18 @@ knitr::opts_chunk$set(
 )
 ```
 
+## Prerequisites
+
+glmnetUI works on macOS, Windows, and Linux with R >= 4.1.0. All features
+work out of the box except:
+
+- **PDF reports** require a LaTeX installation. Install with
+  `tinytex::install_tinytex()`. If LaTeX is not detected, the PDF
+  option is automatically hidden and HTML/Word reports remain available.
+- **Roboto Condensed font** is downloaded from Google Fonts for plot
+  styling. If your machine is offline, the app uses the system
+  sans-serif font automatically.
+
 ## Introduction
 
 `glmnetUI` provides an interactive Shiny interface for elastic net regression
