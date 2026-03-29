@@ -484,9 +484,16 @@ bslib::page_fluid(
             shiny::tags$summary(shiny::uiOutput("report_heading",
                                                  inline = TRUE)),
             shiny::selectInput("export_format", "Format",
-                               choices = c("Word" = "docx",
-                                           "PDF" = "pdf",
-                                           "HTML" = "html")),
+                               choices = {
+                                 has_pandoc <- tryCatch(rmarkdown::pandoc_available(),
+                                                       error = function(e) FALSE)
+                                 fmts <- c("Word" = "docx")
+                                 if (has_pandoc) fmts <- c("HTML" = "html", fmts)
+                                 if (has_pandoc && glmnetUI:::has_latex_()) {
+                                   fmts <- c(fmts, "PDF" = "pdf")
+                                 }
+                                 fmts
+                               }),
             shiny::actionButton("export_report_btn", "Download Report",
                                 class = "btn-primary",
                                 style = "width: 100%;")

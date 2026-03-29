@@ -106,3 +106,20 @@ These conventions apply consistently across all three sibling apps:
 - Earth provides basis definitions; glmnetUI provides data for fitting.
   Use glmnetUI's data, not earth's stored data.
 - `hinge_var_` must handle `h(-121.45-var)` with negative knots.
+- **R `tryCatch` scoping bug**: `doc <- ...` inside `tryCatch({...})`
+  silently writes to a local copy when nested inside `for` loops
+  within Shiny `observeEvent` callbacks. The outer variable is never
+  updated — no error, no warning. **Workaround**: never mix mutable
+  state (`doc <-`) with `tryCatch`. Instead, do pure
+  computation/file-generation inside `tryCatch` (return data or
+  NULL), then do all state updates (`doc <-`) in straight-line code
+  outside the `tryCatch`. This applies to all three sibling apps.
+- **Shiny scoping traps**: `observeEvent`, `observe`, `reactive`,
+  `renderUI`, and `renderPlot` all create function scopes.
+  Assigning to a local variable inside these (especially when
+  nested with `tryCatch` or `for` loops) silently creates a local
+  copy — the outer scope is never updated. Use `reactiveVal` or
+  `reactiveValues` for shared state, and call `rv(new_value)` not
+  `rv <- new_value` (the latter silently overwrites the reactive
+  with a plain value). Same workaround: keep `tryCatch` for pure
+  computation only; do all side effects in straight-line code.

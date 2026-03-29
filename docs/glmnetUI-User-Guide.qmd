@@ -1152,9 +1152,9 @@ Each sheet is protected with a password to prevent accidental edits, but the res
 
 Three formats are available:
 
-- **Word (.docx)** --- Formatted document. Suitable for editing and distribution.
-- **PDF** --- Generated via Quarto with LaTeX. Paper size follows the locale setting (Letter or A4).
-- **HTML** --- Self-contained HTML document. Ideal for sharing electronically.
+- **HTML** --- Self-contained HTML document. Works on all platforms with no extra software. Recommended default.
+- **Word (.docx)** --- Formatted document. Suitable for editing and distribution. Works on all platforms.
+- **PDF** --- Generated via Quarto with LaTeX. Paper size follows the locale setting (Letter or A4). **Requires a LaTeX installation** (see System Requirements appendix). If no LaTeX is detected, the PDF option is automatically hidden from the format dropdown.
 
 Reports are generated using Quarto when available, with a fallback to rmarkdown.
 
@@ -1351,3 +1351,50 @@ This is not real data, but is based on a realistic neighborhood in Northern Cali
 10. Download output (Step 7), review the CQA ranking
 11. Compute RCA adjustments (Step 8) with a CQA score of ~5.00
 12. Generate a Sales Comparison Grid (Step 9) with recommended comps
+
+\newpage
+
+<!-- APPENDIX: SYSTEM REQUIREMENTS -->
+\begin{flushleft}
+{\color{nordblue}\small\textbf{APPENDIX}}\\[2pt]
+{\Huge\textbf{System Requirements \& Troubleshooting}}
+\end{flushleft}
+
+\noindent\textcolor{nordblue}{\rule{\textwidth}{2pt}}
+
+\bigskip
+
+## Supported Platforms
+
+glmnetUI runs on **macOS**, **Windows**, and **Linux**. RStudio Desktop (2023.06+) is strongly recommended --- it bundles **pandoc** needed for reports.
+
+## Optional Dependencies
+
+- **LaTeX** (TinyTeX, MiKTeX, or MacTeX): PDF report generation only. If not detected, the PDF option is automatically hidden. Install with: `tinytex::install_tinytex()`
+- **sysfonts + showtext**: Roboto Condensed font for plots. Falls back to system sans-serif automatically if unavailable or offline.
+- **earth** ($\geq$ 5.3.0): Only needed for the earthUI import pipeline.
+
+## Platform Notes
+
+**macOS**: Fewest issues. Install TinyTeX for PDF: `tinytex::install_tinytex()`
+
+**Windows**: Works well with RStudio. Corporate/locked-down machines may have temp directory restrictions --- the app will warn in the console but continue without settings persistence.
+
+**Linux**: May need system libraries: `sudo apt install libcurl4-openssl-dev libssl-dev libxml2-dev libsqlite3-dev libfontconfig1-dev`
+
+## Graceful Degradation
+
+| Missing Component | Behavior |
+|---|---|
+| No LaTeX | PDF option hidden. HTML and Word still available. |
+| No internet / fonts fail | System sans-serif used. Console message logged. |
+| No RSQLite / read-only filesystem | Settings don't persist. App runs normally. |
+| Temp directory not writable | Report generation fails with clear error. Set `TMPDIR` to a writable location. |
+
+## Troubleshooting
+
+**"PDF option not available"**: Run `tinytex::install_tinytex()` in R, restart app.
+
+**"Settings will not persist"**: Check permissions on the user data directory (macOS: `~/Library/Application Support/R/glmnetUI/`, Linux: `~/.local/share/R/glmnetUI/`, Windows: `%APPDATA%/R/data/glmnetUI/`).
+
+**Port 7879 already in use**: Run `lsof -ti:7879 | xargs kill` (macOS/Linux) or `Stop-Process -Id (Get-NetTCPConnection -LocalPort 7879).OwningProcess` (Windows PowerShell).
