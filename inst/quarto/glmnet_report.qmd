@@ -108,7 +108,7 @@ knitr::kable(.assets$coef_df, digits = 4)
 
 \begin{landscape}
 
-## Variable Importance
+\subsection{Variable Importance}
 
 ```{r importance-plot, results='asis'}
 include_plot("importance")
@@ -126,7 +126,11 @@ knitr::kable(.assets$importance_df, digits = 4)
 contrib_names <- .assets$contrib_names
 for (vname in contrib_names) {
   safe_name <- gsub("[^a-zA-Z0-9_]", "_", vname)
-  cat(sprintf("\n### %s\n\n", vname))
+  if (knitr::is_latex_output()) {
+    cat(sprintf("\n\\subsection{%s}\n\n", vname))
+  } else {
+    cat(sprintf("\n### %s\n\n", vname))
+  }
   is_int <- grepl(":", vname, fixed = TRUE)
   if (is_int) {
     # Interaction: scatter + heatmap + 3D persp

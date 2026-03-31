@@ -502,7 +502,7 @@ bslib::page_fluid(
       )
     ),
     shiny::mainPanel(
-      width = 8,
+      width = 9,
       shiny::conditionalPanel(
         condition = "!output['data-data_loaded']",
         shiny::tags$div(
@@ -513,6 +513,7 @@ bslib::page_fluid(
             style = "font-size:1.2em; color: var(--bs-secondary-color);"
           ),
           shiny::tags$p(
+            style = "max-width: 480px; margin: 0 auto;",
             "This application provides an interactive interface for ",
             "elastic net regression modeling using glmnet. ",
             "Designed for real estate appraisers and general regression users."

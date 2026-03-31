@@ -1307,8 +1307,24 @@ function(input, output, session) {
                 paste(e$stderr, collapse = "\n"))
       }
       session$sendCustomMessage("report_timer", list(action = "stop"))
-      shiny::showNotification(paste("Report error:", e$message),
-                              type = "error", duration = 10)
+      err_msg <- e$message
+      if (!is.null(e$parent)) {
+        err_msg <- paste0(err_msg, "\n\nCaused by: ", e$parent$message)
+      }
+      if (inherits(e, "callr_status_error") ||
+          inherits(e, "rlib_error_3_0")) {
+        stderr_lines <- paste(utils::tail(e$stderr, 20), collapse = "\n")
+        if (nzchar(stderr_lines)) {
+          err_msg <- paste0(err_msg, "\n\nDetails:\n", stderr_lines)
+        }
+      }
+      shiny::showModal(shiny::modalDialog(
+        title = "Report Generation Error",
+        shiny::tags$pre(style = "white-space: pre-wrap; max-height: 400px; overflow-y: auto;",
+                        err_msg),
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      ))
     })
   })
 

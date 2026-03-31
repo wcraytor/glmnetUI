@@ -300,21 +300,37 @@ contributionsServer <- function(id, model_module, data_module) {
                                   linewidth = 1, se = FALSE)
         }
 
-        p <- p +
-          ggplot2::scale_color_manual(
-            name = NULL,
-            values = c("Observations" = "#5e81ac",
-                       "Coefficient line" = "#bf616a",
-                       "Fitted trend" = "#bf616a"),
-            guide = ggplot2::guide_legend(
-              override.aes = list(
-                shape = c(16, NA, NA),
-                linetype = c(NA, 1, 1),
-                linewidth = c(NA, 1, 1),
-                alpha = c(0.6, 1, 1)
+        if (!is.null(slope_val) && !is.na(slope_val) && slope_val != 0) {
+          p <- p +
+            ggplot2::scale_color_manual(
+              name = NULL,
+              values = c("Observations" = "#5e81ac",
+                         "Coefficient line" = "#bf616a"),
+              guide = ggplot2::guide_legend(
+                override.aes = list(
+                  shape = c(16, NA),
+                  linetype = c(NA, 1),
+                  linewidth = c(NA, 1),
+                  alpha = c(0.6, 1)
+                )
               )
             )
-          )
+        } else {
+          p <- p +
+            ggplot2::scale_color_manual(
+              name = NULL,
+              values = c("Observations" = "#5e81ac",
+                         "Fitted trend" = "#bf616a"),
+              guide = ggplot2::guide_legend(
+                override.aes = list(
+                  shape = c(16, NA),
+                  linetype = c(NA, 1),
+                  linewidth = c(NA, 1),
+                  alpha = c(0.6, 1)
+                )
+              )
+            )
+        }
 
         p +
           ggplot2::labs(
