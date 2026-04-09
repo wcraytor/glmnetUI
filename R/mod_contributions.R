@@ -244,6 +244,7 @@ contributionsServer <- function(id, model_module, data_module) {
       shiny::plotOutput(ns("contrib_plot"), height = h)
     })
 
+    d_ <- plot_dims_(session, "contrib_plot")
     output$contrib_plot <- shiny::renderPlot({
       shiny::req(contrib_data(), input$contrib_var)
 
@@ -464,7 +465,7 @@ contributionsServer <- function(id, model_module, data_module) {
           ggplot2::scale_x_continuous(labels = glmnet_axis_labels_) +
           glmnet_diag_theme_(font_fam)
       }
-    })
+    }, width = d_$width, height = d_$height, res = 96)
 
     # 3D surface for interactions: plotly if available, else static persp
     output$contrib_persp_ui <- shiny::renderUI({
@@ -530,6 +531,7 @@ contributionsServer <- function(id, model_module, data_module) {
       })
     }
 
+    d_ <- plot_dims_(session, "contrib_persp_static")
     output$contrib_persp_static <- shiny::renderPlot({
       shiny::req(contrib_data(), input$contrib_var)
       cd <- contrib_data()
@@ -587,6 +589,6 @@ contributionsServer <- function(id, model_module, data_module) {
                       xlab = var1, ylab = var2,
                       zlab = "Contribution",
                       main = paste("3D Surface:", var1, "\u00d7", var2))
-    })
+    }, width = d_$width, height = d_$height, res = 96)
   })
 }

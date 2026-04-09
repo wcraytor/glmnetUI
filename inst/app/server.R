@@ -1,5 +1,16 @@
 function(input, output, session) {
 
+  # --- Plot dimension helper (clientData width/height, fixed res=96) ---
+  plot_dims_ <- function(session, id) {
+    full_id <- if (!is.null(session$ns)) session$ns(id) else id
+    w_key <- paste0("output_", full_id, "_width")
+    h_key <- paste0("output_", full_id, "_height")
+    list(
+      width  = function() session$clientData[[w_key]],
+      height = function() session$clientData[[h_key]]
+    )
+  }
+
   # --- Nord theme switching ---
   shiny::observe({
     mode <- input$dark_mode
@@ -914,26 +925,29 @@ function(input, output, session) {
       )
   }
 
+  d_ <- plot_dims_(session, "rca_resid_pct_plot")
   output$rca_resid_pct_plot <- shiny::renderPlot({
     shiny::req(rv_rca$pct_data)
     rca_pct_histogram_(rv_rca$pct_data$residual_adj_pct,
                        "Residual Adjustment %",
                        "Residual Adj. %", "#88c0d0")
-  })
+  }, width = d_$width, height = d_$height, res = 96)
 
+  d_ <- plot_dims_(session, "rca_net_pct_plot")
   output$rca_net_pct_plot <- shiny::renderPlot({
     shiny::req(rv_rca$pct_data)
     rca_pct_histogram_(rv_rca$pct_data$net_adj_pct,
                        "Net Adjustment %",
                        "Net Adj. %", "#5e81ac")
-  })
+  }, width = d_$width, height = d_$height, res = 96)
 
+  d_ <- plot_dims_(session, "rca_gross_pct_plot")
   output$rca_gross_pct_plot <- shiny::renderPlot({
     shiny::req(rv_rca$pct_data)
     rca_pct_histogram_(rv_rca$pct_data$gross_adj_pct,
                        "Gross Adjustment %",
                        "Gross Adj. %", "#a3be8c")
-  })
+  }, width = d_$width, height = d_$height, res = 96)
 
   # --- 8. Generate Sales Grid & Download (Appraisal only) ---
   observeEvent(input$sales_grid_btn, {
