@@ -25,6 +25,7 @@ correlationServer <- function(id, data_module) {
       shiny::plotOutput(ns("correlation_plot"), height = "700px", width = "100%")
     })
 
+    d_ <- plot_dims_(session, "correlation_plot")
     output$correlation_plot <- shiny::renderPlot({
       shiny::req(data_module$data())
 
@@ -95,6 +96,6 @@ correlationServer <- function(id, data_module) {
           legend.position = "right"
         ) +
         ggplot2::coord_fixed(expand = FALSE)
-    }, res = 120)
+    }, width = d_$width, height = d_$height, res = 96)
   })
 }

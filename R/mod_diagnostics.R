@@ -226,10 +226,18 @@ diagnosticsServer <- function(id, model_module) {
         glmnet_diag_theme_(font_fam)
     })
 
-    output$coef_path_plot <- shiny::renderPlot({ coef_path_gg() })
-    output$cv_plot <- shiny::renderPlot({ cv_gg() })
-    output$avp_plot <- shiny::renderPlot({ avp_gg() })
-    output$resid_plot <- shiny::renderPlot({ resid_gg() })
+    d_ <- plot_dims_(session, "coef_path_plot")
+    output$coef_path_plot <- shiny::renderPlot({ coef_path_gg() },
+      width = d_$width, height = d_$height, res = 96)
+    d_ <- plot_dims_(session, "cv_plot")
+    output$cv_plot <- shiny::renderPlot({ cv_gg() },
+      width = d_$width, height = d_$height, res = 96)
+    d_ <- plot_dims_(session, "avp_plot")
+    output$avp_plot <- shiny::renderPlot({ avp_gg() },
+      width = d_$width, height = d_$height, res = 96)
+    d_ <- plot_dims_(session, "resid_plot")
+    output$resid_plot <- shiny::renderPlot({ resid_gg() },
+      width = d_$width, height = d_$height, res = 96)
 
     output$dl_coef_path <- shiny::downloadHandler(
       filename = function() "coefficient_path.png",

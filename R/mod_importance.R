@@ -191,6 +191,7 @@ importanceServer <- function(id, model_module, data_module) {
     }
 
     # Static ggplot fallback
+    d_ <- plot_dims_(session, "importance_plot")
     output$importance_plot <- shiny::renderPlot({
       shiny::req(importance_df())
       df <- importance_df()
@@ -231,7 +232,7 @@ importanceServer <- function(id, model_module, data_module) {
           axis.text = ggplot2::element_text(size = 13),
           axis.title = ggplot2::element_text(size = 14)
         )
-    })
+    }, width = d_$width, height = d_$height, res = 96)
 
     output$importance_table <- DT::renderDT({
       shiny::req(importance_df())

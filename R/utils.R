@@ -101,3 +101,25 @@ glmnet_font_family_ <- function() {
     "sans"
   }
 }
+
+#' Plot Dimension Helper (internal)
+#'
+#' Returns \code{width} and \code{height} functions that read the plot
+#' container size from \code{session$clientData}. Used with
+#' \code{renderPlot(width = d$width, height = d$height, res = 96)} to
+#' normalise rendering across platforms (macOS, Windows, Linux).
+#'
+#' @param session The Shiny session object.
+#' @param id Character output ID (un-namespaced; namespacing is handled
+#'   automatically for modules).
+#' @return A list with \code{width} and \code{height} functions.
+#' @keywords internal
+plot_dims_ <- function(session, id) {
+  full_id <- if (!is.null(session$ns)) session$ns(id) else id
+  w_key <- paste0("output_", full_id, "_width")
+  h_key <- paste0("output_", full_id, "_height")
+  list(
+    width  = function() session$clientData[[w_key]],
+    height = function() session$clientData[[h_key]]
+  )
+}
