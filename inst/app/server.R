@@ -68,15 +68,42 @@ function(input, output, session) {
                            paper = paper)
   })
 
-  # Save locale as default
-  shiny::observeEvent(input$locale_save_default, {
+  # Settings "Save": persist locale defaults + the regProj root, and keep the
+  # Settings panel open so the user can review/adjust the other fields.
+  shiny::observeEvent(input$settings_save, {
+    # 1) Locale defaults -> localStorage
     session$sendCustomMessage("save_locale_defaults", list(
       locale_country = input$locale_country,
       locale_paper   = input$locale_paper,
       locale_import  = input[["data-locale_import"]]
     ))
-    shiny::showNotification("Locale saved as default.",
+    # 2) regProj root -> per-user prefs (only if a non-empty, usable path)
+    p <- trimws(input$regproj_root %||% "")
+    root_msg <- ""
+    if (nzchar(p)) {
+      p <- path.expand(p)
+      ok <- dir.exists(p) || tryCatch({ dir.create(p, recursive = TRUE); TRUE },
+                                      error = function(e) FALSE,
+                                      warning = function(w) FALSE)
+      if (ok && dir.exists(p)) {
+        prefs <- glmnetui_prefs_read()
+        prefs$regproj_root <- p
+        glmnetui_prefs_write(prefs)
+        rv_proj$project_refresh_token <- rv_proj$project_refresh_token + 1L
+        root_msg <- paste0(" regProj root: ", p)
+      } else {
+        shiny::showNotification(sprintf("Cannot create or access: %s", p),
+                                type = "error", duration = 6)
+        return()
+      }
+    }
+    shiny::showNotification(paste0("Settings saved.", root_msg),
                             type = "message", duration = 4)
+  })
+
+  # Settings "Close": dismiss the Settings panel (does not save).
+  shiny::observeEvent(input$settings_close, {
+    session$sendCustomMessage("close_settings_dropdown", list())
   })
 
   # Wrap global inputs as reactives for module consumption
@@ -87,9 +114,30 @@ function(input, output, session) {
     else isTRUE(input$skip_subject_row)
   })
 
+  # ===== regProj project state (shared root + DBs with earthUI/mgcvUI) =====
+  rv_proj <- shiny::reactiveValues(
+    active_project        = NULL,   # one-row data.frame or NULL
+    project_sort          = "recent",
+    project_refresh_token = 0L
+  )
+  active_project_r <- shiny::reactive(rv_proj$active_project)
+
+  # Per-session DB connections (shared geo.sqlite / projects.sqlite).
+  geo_con_      <- tryCatch(regproj_geo_db_connect(),
+                            error = function(e) NULL)
+  projects_con_ <- tryCatch(regproj_projects_db_connect(),
+                            error = function(e) NULL)
+  session$onSessionEnded(function() {
+    if (!is.null(geo_con_))      try(DBI::dbDisconnect(geo_con_),      silent = TRUE)
+    if (!is.null(projects_con_)) try(DBI::dbDisconnect(projects_con_), silent = TRUE)
+  })
+
+  output$has_active_project <- shiny::reactive(!is.null(rv_proj$active_project))
+  shiny::outputOptions(output, "has_active_project", suspendWhenHidden = FALSE)
+
   earth_mod <- earthImportServer("earth")
   earth_import_r <- earth_mod$earth_import
-  data_out <- dataImportServer("data", purpose)
+  data_out <- dataImportServer("data", purpose, active_project_r)
   model_out <- modelingServer("model", data_out, purpose, effective_date,
                                skip_first_row, earth_import_r)
   coef_out <- coefficientsServer("coefs", model_out, data_out)
@@ -102,8 +150,18 @@ function(input, output, session) {
   diagnosticsServer("diag", model_out)
   reportServer("report", model_out, coef_out, data_out)
 
-  # Reset data, earth imports, model state, and RCA when purpose changes
-  shiny::observeEvent(input$purpose, {
+  # When the active project changes (open / close / switch): set the hidden
+  # Purpose radio + the derived output folder (<os>_out_glmnet) and reset all
+  # per-file state. mod_data picks up the project's last-used file and loads
+  # it. Forward references to rv_rca are fine — this observer fires during
+  # flush, after the server function has finished defining it.
+  shiny::observeEvent(rv_proj$active_project, ignoreNULL = FALSE, {
+    p <- rv_proj$active_project
+    pur <- if (is.null(p)) "general" else
+      switch(p$purpose, gen = "general", appr = "appraisal",
+             mktarea = "market", "general")
+    shiny::updateRadioButtons(session, "purpose", selected = pur)
+
     data_out$rv$data <- NULL
     data_out$rv$file_name <- NULL
     data_out$rv$col_types <- NULL
@@ -114,13 +172,29 @@ function(input, output, session) {
     rv_rca$rca_df <- NULL
     rv_rca$sg_recommended <- NULL
     rv_rca$sg_others <- NULL
-    # Reset fileInput UI (clear displayed filename)
-    session$sendCustomMessage("glmnet-reset-file-input",
-                              list(id = "data-file_input"))
     # Reset earth path display
     session$sendCustomMessage("glmnet-update-input",
                               list(id = "earth-earth_path_display", value = ""))
-  }, ignoreInit = TRUE)
+
+    if (is.null(p)) {
+      shiny::updateTextInput(session, "output_folder", value = "")
+    } else {
+      parsed <- regproj_parse_flat(basename(p$project_path))
+      # Derive the output folder from the project's ACTUAL path so it lands
+      # under the project's real regProj root. (regproj_path() recomputes from
+      # default_regproj_root(), which sends output to the wrong root when the
+      # active project lives under a custom root.)
+      out_dir <- file.path(p$project_path, paste0(os_detect(), "_out_glmnet"))
+      if (!dir.exists(out_dir))
+        dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+      shiny::updateTextInput(session, "output_folder", value = out_dir)
+      # Keep the projects DB row fresh (shared with earthUI/mgcvUI).
+      tryCatch(
+        register_project(p$project_path, p$purpose, parsed$country,
+                         parsed$levels, parsed$project_name),
+        error = function(e) NULL)
+    }
+  })
 
   # --- Model fitted flag for conditionalPanel ---
   output$model_fitted <- shiny::reactive(isTRUE(model_out$fitted()))
@@ -164,6 +238,358 @@ function(input, output, session) {
   output$rca_computed <- shiny::reactive(!is.null(rv_rca$pct_data))
   shiny::outputOptions(output, "rca_computed", suspendWhenHidden = FALSE)
 
+  # ===== Settings: regProj root folder =====
+
+  # Drive browser (shared by regProj root + the Convert .qmd picker).
+  volumes <- c(Home = path.expand("~"), shinyFiles::getVolumes()())
+  if (.Platform$OS.type == "unix" && dir.exists("/Volumes"))
+    volumes <- c(volumes, Volumes = "/Volumes")
+  if (.Platform$OS.type == "unix" && dir.exists("/media"))
+    volumes <- c(volumes, Media = "/media")
+  if (.Platform$OS.type == "unix" && dir.exists("/mnt"))
+    volumes <- c(volumes, Mounts = "/mnt")
+
+  # Populate the regProj root field once at session start.
+  shiny::observe({
+    shiny::isolate({
+      if (is.null(input$regproj_root) || !nzchar(input$regproj_root %||% ""))
+        shiny::updateTextInput(session, "regproj_root",
+                               value = default_regproj_root())
+    })
+  })
+
+  shinyFiles::shinyDirChoose(input, "regproj_root_browse", roots = volumes,
+                             session = session,
+                             restrictions = system.file(package = "base"))
+  shiny::observeEvent(input$regproj_root_browse, {
+    d <- shinyFiles::parseDirPath(volumes, input$regproj_root_browse)
+    if (length(d) > 0 && nzchar(d))
+      shiny::updateTextInput(session, "regproj_root", value = as.character(d))
+  })
+
+  # ===== Section 1: Project picker / creator =====
+
+  # Pending location prefill for the New Project modal.
+  np_prefill_ <- shiny::reactiveVal(NULL)
+
+  level_has_shipped_ <- function(country, level_idx) {
+    country == "us" && level_idx %in% c(1L, 2L)
+  }
+
+  # Choices for a level dropdown: "Full Name (code)" -> code.
+  build_level_choices_ <- function(country, parent_codes, level_idx) {
+    if (is.null(geo_con_)) return(character(0))
+    parent_path <- paste(parent_codes, collapse = "/")
+    res <- DBI::dbGetQuery(geo_con_,
+      "SELECT code, name FROM admin_entries
+        WHERE country = ? AND level = ? AND parent_codes = ?
+        ORDER BY name",
+      params = list(country, as.integer(level_idx), parent_path))
+    if (nrow(res) == 0L) return(character(0))
+    stats::setNames(res$code, paste0(res$name, " (", res$code, ")"))
+  }
+
+  projects_df_ <- shiny::reactive({
+    rv_proj$project_refresh_token
+    regproj_list_projects(sort_by = rv_proj$project_sort)
+  })
+
+  output$regproj_project_ui <- shiny::renderUI({
+    df <- projects_df_()
+    active <- rv_proj$active_project
+    if (!is.null(active)) {
+      pur_label <- switch(active$purpose, gen = "General", appr = "Appraisal",
+                          mktarea = "Market Area", active$purpose)
+      loc_friendly <- paste(pur_label, "·", toupper(active$country), "·",
+                            toupper(active$state), "·", active$county, "·",
+                            active$city)
+      return(shiny::tagList(
+        shiny::tags$div(style = "margin-bottom:4px;",
+                        shiny::strong(active$project_name)),
+        shiny::tags$div(class = "small text-muted",
+                 style = "margin-bottom:8px; word-break: break-all;",
+                 loc_friendly),
+        shiny::tags$div(style = "display:flex; gap:6px; flex-wrap: wrap;",
+          shiny::actionButton("regproj_project_close", "Close Project",
+                       class = "btn btn-outline-secondary btn-sm"),
+          shiny::actionButton("regproj_project_info", "Info",
+                       class = "btn btn-outline-secondary btn-sm"),
+          shiny::actionButton("regproj_project_new", "+ New…",
+                       class = "btn btn-outline-primary btn-sm"))
+      ))
+    }
+    if (nrow(df) == 0L) {
+      return(shiny::tagList(
+        shiny::tags$div(class = "small text-muted", style = "margin-bottom:8px;",
+                 "(no projects yet — click + New to create one)"),
+        shiny::actionButton("regproj_project_new", "+ New…",
+                     class = "btn btn-outline-primary btn-sm")))
+    }
+    labels <- paste0(df$project_name, "  —  ", df$purpose, " / ", df$country,
+                     " / ", df$state, " / ", df$county, " / ", df$city)
+    choices <- stats::setNames(df$project_path, labels)
+    shiny::tagList(
+      shiny::selectizeInput("regproj_project_pick", NULL,
+                     choices = c("(select a project)" = "", choices),
+                     selected = "", width = "100%"),
+      shiny::tags$div(style = "display:flex; gap:6px; align-items:center;",
+        shiny::radioButtons("regproj_project_sort", NULL,
+                     choices = c("Recent" = "recent", "A-Z" = "alpha"),
+                     selected = rv_proj$project_sort, inline = TRUE),
+        shiny::actionButton("regproj_project_new", "+ New…",
+                     class = "btn btn-outline-primary btn-sm"))
+    )
+  })
+
+  shiny::observeEvent(input$regproj_project_sort, {
+    rv_proj$project_sort <- input$regproj_project_sort
+  }, ignoreInit = TRUE)
+
+  shiny::observeEvent(input$regproj_project_pick, {
+    p <- input$regproj_project_pick
+    if (is.null(p) || !nzchar(p)) return()
+    df <- projects_df_()
+    row <- df[df$project_path == p, , drop = FALSE]
+    if (nrow(row) == 1L) rv_proj$active_project <- row
+  }, ignoreInit = TRUE)
+
+  shiny::observeEvent(input$regproj_project_close, {
+    rv_proj$active_project <- NULL
+  })
+
+  shiny::observeEvent(input$regproj_project_new, {
+    src <- rv_proj$active_project
+    if (is.null(src)) {
+      recent <- tryCatch(regproj_list_projects(sort_by = "recent"),
+                         error = function(e) NULL)
+      if (!is.null(recent) && nrow(recent) > 0L)
+        src <- recent[1L, , drop = FALSE]
+    }
+    parsed <- if (!is.null(src))
+                regproj_parse_flat(basename(src$project_path)) else NULL
+    pf_country <- if (!is.null(parsed)) parsed$country else "us"
+    pf_levels  <- if (!is.null(parsed)) as.character(parsed$levels) else character(0)
+    np_prefill_(if (length(pf_levels) > 0L)
+                  list(country = pf_country, levels = pf_levels) else NULL)
+    shiny::showModal(shiny::modalDialog(
+      title = "Create New Project", size = "l", easyClose = FALSE,
+      footer = shiny::tagList(shiny::modalButton("Cancel"),
+        shiny::actionButton("np_create", "Create Project", class = "btn-primary")),
+      shiny::tags$div(class = "small text-muted", style = "margin-bottom: 12px;",
+        "Country, State, County, City, and Purpose are locked once the project is created."),
+      shiny::textInput("np_project_name", "Project Name * (max 8 chars)",
+                placeholder = "max 8 chars; a date-time prefix is added automatically",
+                width = "100%"),
+      shiny::radioButtons("np_purpose", "Purpose *",
+                   choices = c("General" = "gen", "For Appraisal" = "appr",
+                               "Market Area Analysis" = "mktarea"),
+                   selected = "appr", inline = TRUE),
+      shiny::hr(), shiny::tags$h5("Project Location"),
+      shiny::uiOutput("np_country_ui"), shiny::uiOutput("np_levels_ui"),
+      shiny::hr(), shiny::tags$h5("Initial Data File", style = "margin-bottom:4px;"),
+      shiny::tags$div(class = "small text-muted", style = "margin-bottom:8px;",
+        "Optional — copied into the project's in/ folder; the name is preserved."),
+      shiny::fileInput("np_data_file", NULL, accept = c(".csv", ".xlsx", ".xls"),
+                width = "100%")
+    ))
+  })
+
+  output$np_country_ui <- shiny::renderUI({
+    ref <- regproj_reference()
+    labels <- paste0(unlist(ref$countries), " (", names(ref$countries), ")")
+    choices <- stats::setNames(names(ref$countries), labels)
+    pf <- np_prefill_()
+    sel_cc <- if (!is.null(pf) && nzchar(pf$country %||% "")) pf$country else "us"
+    shiny::selectInput("np_country", "Country *", choices = choices,
+                selected = sel_cc, width = "100%")
+  })
+
+  output$np_levels_ui <- shiny::renderUI({
+    cc <- input$np_country %||% "us"
+    schema <- country_schema(cc)
+    if (length(schema) == 0L)
+      return(shiny::tags$div(class = "small text-muted",
+                      "(no admin levels for this country)"))
+    pf <- np_prefill_()
+    pf_levels <- if (!is.null(pf) && identical(pf$country, cc))
+                   pf$levels else character(0)
+    last_idx <- length(schema)
+    parent_codes <- character(0)
+    inputs <- lapply(seq_along(schema), function(i) {
+      lbl <- tools::toTitleCase(gsub("_", " ", schema[i]))
+      if (i < last_idx) {
+        sel_val <- input[[paste0("np_level_", i)]]
+        if ((is.null(sel_val) || !nzchar(sel_val)) &&
+            length(pf_levels) >= i && nzchar(pf_levels[i]))
+          sel_val <- pf_levels[i]
+        if (!is.null(sel_val) && nzchar(sel_val)) parent_codes[i] <<- sel_val
+        sel <- if (!is.null(sel_val) && nzchar(sel_val)) sel_val else NULL
+      } else {
+        sel <- NULL
+        if (length(pf_levels) >= i && nzchar(pf_levels[i]) &&
+            (i == 1L || isTRUE(all(parent_codes[seq_len(i - 1L)] ==
+                                   pf_levels[seq_len(i - 1L)]))))
+          sel <- pf_levels[i]
+      }
+      ch <- build_level_choices_(cc, parent_codes[seq_len(i - 1L)], i)
+      if (level_has_shipped_(cc, i)) {
+        shiny::selectInput(paste0("np_level_", i), paste0(lbl, " *"),
+                    choices = c("(pick…)" = "", ch), selected = sel,
+                    width = "100%")
+      } else if (i == last_idx) {
+        ch_pairs <- ch
+        names_only <- character(0)
+        choices <- if (length(ch_pairs) == 0L) {
+          c("(pick a city or type new)" = "")
+        } else {
+          labels <- names(ch_pairs)
+          names_only <- sub(" \\([^)]*\\)$", "", labels)
+          c("(pick a city or type new)" = "", stats::setNames(names_only, labels))
+        }
+        sel_city <- ""
+        if (!is.null(sel) && nzchar(sel) && length(ch_pairs) > 0L) {
+          midx <- match(sel, unname(ch_pairs))
+          if (!is.na(midx)) sel_city <- names_only[midx]
+        }
+        shiny::selectizeInput(paste0("np_level_", i), paste0(lbl, " *"),
+                       choices = choices, selected = sel_city,
+                       options = list(create = TRUE,
+                         placeholder = "Pick existing or type a new full name"),
+                       width = "100%")
+      } else {
+        shiny::selectizeInput(paste0("np_level_", i), paste0(lbl, " *"),
+                       choices = ch, selected = sel,
+                       options = list(create = TRUE,
+                         placeholder = "Pick existing or type a new name"),
+                       width = "100%")
+      }
+    })
+    do.call(shiny::tagList, inputs)
+  })
+
+  shiny::observeEvent(input$np_create, {
+    cc <- input$np_country %||% ""
+    schema <- country_schema(cc)
+    last_idx <- length(schema)
+    pur <- input$np_purpose %||% "appr"
+    # Validate the typed name (<= 8 chars) and prepend the creation timestamp.
+    # Country-agnostic: works for any country's admin-level depth.
+    proj <- tryCatch(
+      regproj_new_project_name(trimws(input$np_project_name %||% "")),
+      error = function(e) {
+        shiny::showNotification(conditionMessage(e),
+                                type = "error", duration = 5)
+        NULL
+      })
+    if (is.null(proj)) return()
+    if (length(schema) == 0L) {
+      shiny::showNotification("This country has no admin levels defined.",
+                       type = "error", duration = 5); return()
+    }
+    levels <- character(length(schema))
+    parent_codes <- character(0)
+    for (i in seq_along(schema)) {
+      val <- input[[paste0("np_level_", i)]]
+      val <- if (is.null(val)) "" else trimws(as.character(val))
+      if (level_has_shipped_(cc, i)) {
+        if (!nzchar(val)) {
+          shiny::showNotification(sprintf("Missing %s.", schema[i]),
+                           type = "error", duration = 5); return()
+        }
+        levels[i] <- val
+      } else if (i == last_idx) {
+        full_name <- val
+        if (!nzchar(full_name)) {
+          shiny::showNotification("City is required.", type = "error", duration = 5); return()
+        }
+        scope <- paste(c(cc, parent_codes), collapse = "/")
+        existing_code <- regproj_index_get(scope, full_name)
+        if (!is.null(existing_code)) {
+          levels[i] <- existing_code
+        } else {
+          existing <- unname(unlist(build_level_choices_(cc, parent_codes, i)))
+          new_code <- city_abbreviation(full_name, existing)
+          regproj_index_put(scope, full_name, new_code)
+          levels[i] <- new_code
+        }
+      } else {
+        ch <- build_level_choices_(cc, parent_codes, i)
+        if (val %in% ch) {
+          levels[i] <- val
+        } else {
+          existing <- unname(unlist(ch))
+          code <- city_abbreviation(val, existing)
+          regproj_index_put(paste(c(cc, parent_codes), collapse = "/"), val, code)
+          levels[i] <- code
+        }
+      }
+      parent_codes[i] <- levels[i]
+    }
+    flat <- tryCatch(regproj_flat_segment(cc, levels, proj),
+                     error = function(e) {
+                       shiny::showNotification(paste("Path error:", conditionMessage(e)),
+                                        type = "error", duration = 5); NULL
+                     })
+    if (is.null(flat)) return()
+    proj_root <- file.path(default_regproj_root(), pur, flat)
+    if (dir.exists(proj_root)) {
+      shiny::showNotification(sprintf("A project named '%s' already exists in this location.", proj),
+                       type = "error", duration = 5); return()
+    }
+    # Create the full multi-OS / multi-method tree so any sibling app can use it.
+    in_dir <- NULL
+    for (os_seg in c("mac", "ubuntu", "win11")) {
+      io_in <- regproj_path(pur, cc, levels, proj, os = os_seg,
+                            in_or_out = "in", create = TRUE)
+      for (m in c("earth", "glmnet", "mgcv", "combined"))
+        regproj_path(pur, cc, levels, proj, os = os_seg,
+                     in_or_out = "out", method = m, create = TRUE)
+      if (os_seg == os_detect()) in_dir <- io_in
+    }
+    fi <- input$np_data_file
+    last_file <- NULL
+    if (!is.null(fi) && nrow(fi) >= 1L && !is.null(in_dir)) {
+      last_file <- fi$name[1L]
+      file.copy(fi$datapath[1L], file.path(in_dir, last_file), overwrite = FALSE)
+    }
+    tryCatch(register_project(proj_root, pur, cc, levels, proj,
+                              last_file = last_file),
+             error = function(e) NULL)
+    np_prefill_(NULL)
+    rv_proj$project_refresh_token <- rv_proj$project_refresh_token + 1L
+    df <- regproj_list_projects(sort_by = rv_proj$project_sort)
+    new_row <- df[df$project_path == proj_root, , drop = FALSE]
+    if (nrow(new_row) == 1L) rv_proj$active_project <- new_row
+    shiny::removeModal()
+    shiny::showNotification(sprintf("Created project '%s'", proj),
+                     type = "message", duration = 6)
+  })
+
+  shiny::observeEvent(input$regproj_project_info, {
+    p <- rv_proj$active_project
+    if (is.null(p)) return()
+    pur_label <- switch(p$purpose, gen = "General", appr = "For Appraisal",
+                        mktarea = "Market Area Analysis", p$purpose)
+    shiny::showModal(shiny::modalDialog(
+      title = "Project Info", easyClose = TRUE, footer = shiny::modalButton("Close"),
+      shiny::tags$dl(
+        shiny::tags$dt("Project"), shiny::tags$dd(p$project_name),
+        shiny::tags$dt("Purpose"), shiny::tags$dd(pur_label),
+        shiny::tags$dt("Location"),
+        shiny::tags$dd(paste(toupper(p$country), "·", toupper(p$state), "·",
+                      p$county, "·", p$city)),
+        shiny::tags$dt("Folder"),
+        shiny::tags$dd(shiny::tags$code(p$project_path)),
+        shiny::tags$dt("Inputs"),
+        shiny::tags$dd(shiny::tags$code(file.path(p$project_path,
+                                    paste0(os_detect(), "_in")))),
+        shiny::tags$dt("Outputs (glmnet)"),
+        shiny::tags$dd(shiny::tags$code(file.path(p$project_path,
+                                    paste0(os_detect(), "_out_glmnet"))))
+      )
+    ))
+  })
+
   # --- Dynamic step headings ---
   output$download_heading <- shiny::renderUI({
     label <- if (identical(input$purpose, "general")) {
@@ -180,13 +606,26 @@ function(input, output, session) {
       style = "display:inline;")
   })
 
-  output$report_heading <- shiny::renderUI({
-    n <- if (identical(input$purpose, "appraisal")) "10" else "8"
+  output$generate_qmd_heading <- shiny::renderUI({
+    n <- switch(input$purpose %||% "general",
+                appraisal = "10", market = "9", "8")
     shiny::h4(
-      paste0(n, ". Download Report"),
+      paste0(n, ". Generate Quarto Report"),
       shiny::tags$span(class = "glmnet-section-info",
         `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
-        `data-bs-content` = "Generate a PDF or Word report with model equation, coefficients, variable importance, contribution plots, and diagnostic charts.",
+        `data-bs-content` = "Write a self-contained Quarto bundle (.qmd source + plots + report_data.rds + reference.docx) to the project's glmnet output folder. Convert it to HTML / Word / PDF in the next section.",
+        "?"),
+      style = "display:inline;")
+  })
+
+  output$convert_qmd_heading <- shiny::renderUI({
+    n <- switch(input$purpose %||% "general",
+                appraisal = "11", market = "10", "9")
+    shiny::h4(
+      paste0(n, ". Convert Quarto Report"),
+      shiny::tags$span(class = "glmnet-section-info",
+        `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+        `data-bs-content` = "Render any Quarto .qmd to HTML / Word / PDF. Defaults to the most recently generated bundle, but you can browse to any .qmd.",
         "?"),
       style = "display:inline;")
   })
@@ -259,11 +698,25 @@ function(input, output, session) {
     }
     formula_str <- paste("~", paste(formula_parts, collapse = " + "), "- 1")
 
-    # --- Build model matrix for complete rows ---
-    complete <- stats::complete.cases(x_df)
+    # --- Determine complete rows ---
+    # With an earth import, completeness must be judged on the columns the
+    # earth basis actually consumes (ek$predictors), NOT glmnet's selected
+    # predictors. preds_col can include display-only columns (e.g. address,
+    # city) that the earth basis never uses; requiring them complete would
+    # wrongly gate out rows (and zero out the whole set if any is all-NA).
+    ek <- tryCatch(earth_import_r(), error = function(e) NULL)
+    if (!is.null(ek)) {
+      earth_complete_cols <- intersect(ek$predictors, names(export_df))
+      complete <- if (length(earth_complete_cols) > 0L) {
+        stats::complete.cases(export_df[, earth_complete_cols, drop = FALSE])
+      } else {
+        stats::complete.cases(x_df)
+      }
+    } else {
+      complete <- stats::complete.cases(x_df)
+    }
     x_full <- NULL
     assign_attr <- NULL
-    ek <- tryCatch(earth_import_r(), error = function(e) NULL)
 
     if (any(complete)) {
       if (!is.null(ek)) {
@@ -336,10 +789,21 @@ function(input, output, session) {
           paste(ek$predictors, collapse = ","),
           ", ek_data_rows=", if (!is.null(ek$data)) nrow(ek$data) else "NULL")
       }
+      # Identify the columns driving the incompleteness so the message is
+      # actionable (which predictor is all/mostly NA).
+      check_cols <- if (has_earth)
+        intersect(ek$predictors, names(export_df)) else names(x_df)
+      na_counts <- vapply(check_cols, function(cc)
+        sum(is.na(export_df[[cc]])), integer(1))
+      worst <- sort(na_counts[na_counts > 0L], decreasing = TRUE)
+      na_info <- if (length(worst))
+        paste0(", NA-columns=", paste(sprintf("%s(%d)", names(worst), worst),
+                                      collapse = ", "))
+      else ", NA-columns=none"
       stop("build_export_matrix_ returned x_full=NULL. ",
            "complete_rows=", sum(complete), "/", length(complete),
            ", earth_import=", has_earth,
-           ", ek_class=", ek_class, ek_info,
+           ", ek_class=", ek_class, ek_info, na_info,
            ", formula=", formula_str,
            ", train_cols=", length(train_colnames))
     }
@@ -443,7 +907,14 @@ function(input, output, session) {
       return()
     }
 
-    folder <- input$output_folder
+    # Derive the output folder from the ACTIVE project's real path so it can
+    # never go stale (the output_folder text field could lag a project switch).
+    folder <- local({
+      .ap <- rv_proj$active_project
+      if (!is.null(.ap))
+        file.path(.ap$project_path, paste0(os_detect(), "_out_glmnet"))
+      else input$output_folder
+    })
     if (is.null(folder) || !nzchar(folder)) folder <- path.expand("~/Downloads")
     if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
 
@@ -613,7 +1084,14 @@ function(input, output, session) {
       return()
     }
 
-    folder <- input$output_folder
+    # Derive the output folder from the ACTIVE project's real path so it can
+    # never go stale (the output_folder text field could lag a project switch).
+    folder <- local({
+      .ap <- rv_proj$active_project
+      if (!is.null(.ap))
+        file.path(.ap$project_path, paste0(os_detect(), "_out_glmnet"))
+      else input$output_folder
+    })
     if (is.null(folder) || !nzchar(folder)) folder <- path.expand("~/Downloads")
     if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
 
@@ -1123,7 +1601,14 @@ function(input, output, session) {
     gap <- ifelse(!is.na(sp) & sp != 0, abs(gross / sp), NA_real_)
     comp_rows <- comp_rows[order(gap, na.last = TRUE)]
 
-    folder <- input$output_folder
+    # Derive the output folder from the ACTIVE project's real path so it can
+    # never go stale (the output_folder text field could lag a project switch).
+    folder <- local({
+      .ap <- rv_proj$active_project
+      if (!is.null(.ap))
+        file.path(.ap$project_path, paste0(os_detect(), "_out_glmnet"))
+      else input$output_folder
+    })
     if (is.null(folder) || !nzchar(folder)) folder <- path.expand("~/Downloads")
     if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
 
@@ -1198,34 +1683,33 @@ function(input, output, session) {
   })
 
   # --- 9. Download Report (to output folder) ---
-  observeEvent(input$export_report_btn, {
-    message("[glmnetUI S9] ====== export_report_btn clicked ======")
+  # --- Section 10: Generate Quarto Report (writes <base>_qmd bundle into the
+  #     project's <os>_out_glmnet folder) ---
+  observeEvent(input$generate_qmd_btn, {
     shiny::req(model_out$fitted())
 
-    folder <- input$output_folder
-    if (is.null(folder) || !nzchar(folder)) folder <- path.expand("~/Downloads")
+    folder <- local({
+      .ap <- rv_proj$active_project
+      if (!is.null(.ap))
+        file.path(.ap$project_path, paste0(os_detect(), "_out_glmnet"))
+      else input$output_folder
+    })
+    if (is.null(folder) || !nzchar(folder)) {
+      shiny::showNotification(
+        "Open a project first — the report bundle is written to its glmnet output folder.",
+        type = "error", duration = 6)
+      return()
+    }
     if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
+    base <- tools::file_path_sans_ext(data_out$file_name() %||% "glmnet_report")
 
-    fmt <- input$export_format
-    ext <- switch(fmt, docx = ".docx", html = ".html", ".pdf")
-    base <- tools::file_path_sans_ext(data_out$file_name() %||% "glmnetui")
-    out_path <- file.path(folder, paste0(base, "_report_",
-                          format(Sys.time(), "%Y%m%d_%H%M%S"), ext))
-    message("[glmnetUI S9] format=", fmt, " output=", out_path)
-
-    tryCatch({
+    session$sendCustomMessage("report_timer", list(action = "start"))
+    # Heavy work inside tryCatch returns the qmd path (or the error); all
+    # reactive/state updates happen in straight-line code afterwards.
+    qmd_path <- tryCatch({
       model <- model_out$model()
       lambda <- model_out$lambda()
       gamma <- model_out$gamma()
-      x_mat <- model_out$x_matrix()
-      y_vec <- model_out$y_vector()
-      coef_df <- coef_out$coef_df()
-      message("[glmnetUI S9] model class: ", paste(class(model), collapse = ", "))
-      message("[glmnetUI S9] lambda=", lambda, " gamma=", gamma)
-      message("[glmnetUI S9] x_mat: ", nrow(x_mat), "x", ncol(x_mat),
-              " y_vec: ", length(y_vec), " coef_df: ", nrow(coef_df), " rows")
-
-      # Determine alpha — guard against NULL/language objects from do.call
       alpha_val <- tryCatch({
         a <- if (inherits(model, "cv.glmnet")) {
           model$glmnet.fit$call$alpha
@@ -1234,21 +1718,13 @@ function(input, output, session) {
         }
         if (is.null(a) || is.language(a)) 1 else as.numeric(a)
       }, error = function(e) 1)
-
-      # Prepare assets (all plots and data)
-      session$sendCustomMessage("report_timer", list(action = "start"))
-      message("[glmnetUI S9] alpha_val=", alpha_val,
-              " purpose=", input$purpose,
-              " family=", model_out$family(),
-              " file_name=", data_out$file_name())
-      message("[glmnetUI S9] Calling prepare_report_assets()...")
-      assets_dir <- prepare_report_assets(
+      assets_args <- list(
         model         = model,
         lambda        = lambda,
         gamma         = gamma,
-        x_mat         = x_mat,
-        y_vec         = y_vec,
-        coef_df       = coef_df,
+        x_mat         = model_out$x_matrix(),
+        y_vec         = model_out$y_vector(),
+        coef_df       = coef_out$coef_df(),
         predictors    = data_out$predictors() %||% character(0),
         response      = data_out$response() %||% "y",
         data          = data_out$data(),
@@ -1260,86 +1736,69 @@ function(input, output, session) {
         relaxed       = !is.null(gamma),
         lambda_method = if (inherits(model, "cv.glmnet")) "cv" else "manual",
         data_file_name = as.character(data_out$file_name() %||% ""),
-        earth_import = tryCatch(earth_import_r(), error = function(e) NULL)
+        earth_import  = tryCatch(earth_import_r(), error = function(e) NULL)
       )
-      message("[glmnetUI S9] assets_dir=", assets_dir)
-      message("[glmnetUI S9] Assets dir exists: ", dir.exists(assets_dir))
-      message("[glmnetUI S9] report_data.rds exists: ",
-              file.exists(file.path(assets_dir, "report_data.rds")))
-      plots_dir <- file.path(assets_dir, "plots")
-      if (dir.exists(plots_dir)) {
-        message("[glmnetUI S9] Plot files: ",
-                paste(list.files(plots_dir), collapse = ", "))
-      }
+      generate_quarto_report(assets_args, dest_dir = folder, base = base)
+    }, error = function(e) e)
+    session$sendCustomMessage("report_timer", list(action = "stop"))
+    session$sendCustomMessage("btn_done", list(id = "generate_qmd_btn"))
 
-      # Render report via callr::r() (clean R process) — render_report()
-      # now has Quarto→rmarkdown fallback built in
-      message("[glmnetUI S9] Starting render_report() via callr::r()...")
-      if (requireNamespace("callr", quietly = TRUE)) {
-        result <- callr::r(
-          function(assets_dir, output_format, output_file) {
-            glmnetUI::render_report(
-              output_format = output_format,
-              output_file   = output_file,
-              assets_dir    = assets_dir
-            )
-          },
-          args = list(assets_dir = assets_dir, output_format = fmt,
-                       output_file = out_path),
-          wd = tempdir(),
-          show = TRUE
-        )
-        message("[glmnetUI S9] callr::r() returned: ", result)
-      } else {
-        message("[glmnetUI S9] callr not available, rendering in-process")
-        render_report(
-          output_format = fmt,
-          output_file   = out_path,
-          assets_dir    = assets_dir
-        )
-      }
-
-      message("[glmnetUI S9] Output file exists: ", file.exists(out_path))
-      if (file.exists(out_path)) {
-        message("[glmnetUI S9] Output file size: ", file.size(out_path), " bytes")
-      }
-
-      session$sendCustomMessage("report_timer", list(action = "stop"))
-      shiny::showNotification(paste0("Report saved to: ", out_path),
-                              type = "message", duration = 8)
-      session$sendCustomMessage("btn_done", list(id = "export_report_btn"))
-    }, error = function(e) {
-      message("[glmnetUI S9] ====== ERROR: ", e$message, " ======")
-      message("[glmnetUI S9] Error class: ", paste(class(e), collapse = ", "))
-      if (!is.null(e$parent)) {
-        message("[glmnetUI S9] Parent error: ", e$parent$message)
-      }
-      # Print full traceback for callr errors
-      if (inherits(e, "callr_status_error") ||
-          inherits(e, "rlib_error_3_0")) {
-        message("[glmnetUI S9] callr stderr:\n",
-                paste(e$stderr, collapse = "\n"))
-      }
-      session$sendCustomMessage("report_timer", list(action = "stop"))
-      err_msg <- e$message
-      if (!is.null(e$parent)) {
-        err_msg <- paste0(err_msg, "\n\nCaused by: ", e$parent$message)
-      }
-      if (inherits(e, "callr_status_error") ||
-          inherits(e, "rlib_error_3_0")) {
-        stderr_lines <- paste(utils::tail(e$stderr, 20), collapse = "\n")
-        if (nzchar(stderr_lines)) {
-          err_msg <- paste0(err_msg, "\n\nDetails:\n", stderr_lines)
-        }
-      }
+    if (inherits(qmd_path, "error")) {
       shiny::showModal(shiny::modalDialog(
         title = "Report Generation Error",
         shiny::tags$pre(style = "white-space: pre-wrap; max-height: 400px; overflow-y: auto;",
-                        err_msg),
-        easyClose = TRUE,
-        footer = shiny::modalButton("Close")
-      ))
-    })
+                        conditionMessage(qmd_path)),
+        easyClose = TRUE, footer = shiny::modalButton("Close")))
+      return()
+    }
+    shiny::updateTextInput(session, "convert_qmd_path", value = qmd_path)
+    shiny::showNotification(
+      paste0("Quarto bundle generated. Source: ", qmd_path),
+      type = "message", duration = 8)
+  })
+
+  # --- Section 11: Convert Quarto Report (.qmd -> HTML/Word/PDF) ---
+  shinyFiles::shinyFileChoose(input, "convert_qmd_browse", roots = volumes,
+                              session = session, filetypes = c("qmd"))
+  observeEvent(input$convert_qmd_browse, {
+    fi <- shinyFiles::parseFilePaths(volumes, input$convert_qmd_browse)
+    if (nrow(fi) >= 1L)
+      shiny::updateTextInput(session, "convert_qmd_path",
+                             value = as.character(fi$datapath[1L]))
+  })
+
+  observeEvent(input$convert_qmd_btn, {
+    qmd <- trimws(input$convert_qmd_path %||% "")
+    if (!nzchar(qmd) || !file.exists(qmd)) {
+      shiny::showNotification("Choose a Quarto (.qmd) source first.",
+                              type = "error", duration = 5)
+      return()
+    }
+    fmts <- input$convert_formats
+    if (is.null(fmts) || length(fmts) == 0L) {
+      shiny::showNotification("Pick at least one output format.",
+                              type = "error", duration = 5)
+      return()
+    }
+    session$sendCustomMessage("report_timer", list(action = "start"))
+    res <- tryCatch(
+      convert_quarto_file(qmd, formats = fmts,
+                          paper_size = glmnetUI:::locale_paper_()),
+      error = function(e) e)
+    session$sendCustomMessage("report_timer", list(action = "stop"))
+    session$sendCustomMessage("btn_done", list(id = "convert_qmd_btn"))
+
+    if (inherits(res, "error")) {
+      shiny::showModal(shiny::modalDialog(
+        title = "Report Conversion Error",
+        shiny::tags$pre(style = "white-space: pre-wrap; max-height: 400px; overflow-y: auto;",
+                        conditionMessage(res)),
+        easyClose = TRUE, footer = shiny::modalButton("Close")))
+      return()
+    }
+    shiny::showNotification(
+      paste0("Rendered: ", paste(basename(res), collapse = ", ")),
+      type = "message", duration = 8)
   })
 
   # --- Settings defaults radio ---

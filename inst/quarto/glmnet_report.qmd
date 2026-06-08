@@ -28,6 +28,7 @@ format:
         \usepackage{lscape}
   docx:
     toc: true
+    reference-doc: reference.docx
 params:
   data_file: ""
 ---
@@ -96,9 +97,21 @@ include_plot <- function(name, width = 8, height = 5) {
 
 ## Model Equation
 
-$$
-`r .assets$equation_latex`
-$$
+```{r equation, results='asis'}
+# `\small` is a text-mode command, invalid inside `$$...$$` math; it breaks
+# pandoc's LaTeX -> Word (OMML) conversion (raw LaTeX in the doc). Strip for
+# Word only. Emit as a standalone block (blank lines around `$$`) via cat so
+# the multi-line equation is parsed as display math in every format.
+.eq <- .assets$equation_latex
+if (identical(fmt, "docx")) {
+  .eq <- gsub("\\\\small", "", .eq)
+  # Drop any now-blank lines: a blank line inside `$$...$$` terminates the math
+  # block for pandoc and breaks the Word (OMML) conversion.
+  .lines <- strsplit(.eq, "\n", fixed = TRUE)[[1]]
+  .eq <- paste(.lines[nzchar(trimws(.lines))], collapse = "\n")
+}
+cat("\n$$\n", .eq, "\n$$\n\n", sep = "")
+```
 
 ## Coefficients
 
@@ -106,9 +119,7 @@ $$
 knitr::kable(.assets$coef_df, digits = 4)
 ```
 
-\begin{landscape}
-
-\subsection{Variable Importance}
+## Variable Importance
 
 ```{r importance-plot, results='asis'}
 include_plot("importance")
@@ -118,19 +129,16 @@ include_plot("importance")
 knitr::kable(.assets$importance_df, digits = 4)
 ```
 
-\end{landscape}
-
 ## Contributions
 
 ```{r contributions, results='asis'}
 contrib_names <- .assets$contrib_names
 for (vname in contrib_names) {
   safe_name <- gsub("[^a-zA-Z0-9_]", "_", vname)
-  if (knitr::is_latex_output()) {
-    cat(sprintf("\n\\subsection{%s}\n\n", vname))
-  } else {
-    cat(sprintf("\n### %s\n\n", vname))
-  }
+  # Use a markdown heading with the variable name as inline code. Pandoc then
+  # escapes underscores/specials correctly for every format. Emitting raw
+  # LaTeX (\subsection{living_sqft}) breaks PDF with "Missing $ inserted".
+  cat(sprintf("\n### `%s`\n\n", vname))
   is_int <- grepl(":", vname, fixed = TRUE)
   if (is_int) {
     # Interaction: scatter + heatmap + 3D persp

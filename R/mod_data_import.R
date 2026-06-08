@@ -21,7 +21,8 @@ dataImportUI <- function(id) {
     shiny::tags$div(
       class = "glmnet-locale-row",
       style = "display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;",
-      shiny::tags$label(class = "control-label", "Choose CSV or Excel file"),
+      shiny::tags$label(class = "control-label",
+                        "Pick a file from the project's in/"),
       shiny::tags$div(
         style = "display:flex; align-items:center; gap:6px;",
         shiny::tags$label(class = "control-label",
@@ -34,12 +35,19 @@ dataImportUI <- function(id) {
         )
       )
     ),
-    shiny::fileInput(ns("file_input"), NULL,
-                     accept = c(".csv", ".xls", ".xlsx")),
-    shiny::conditionalPanel(
-      condition = paste0("output['", ns("has_sheets"), "']"),
-      shiny::selectInput(ns("sheet"), "Excel Sheet", choices = NULL)
-    )
+    shiny::uiOutput(ns("file_picker")),
+    shiny::tags$div(
+      style = "display:flex; gap:12px; align-items:center; margin-top:4px;",
+      shinyFiles::shinyFilesButton(
+        ns("file_browse"), "Browse…",
+        title = "Select a CSV or Excel file to import into this project",
+        multiple = FALSE,
+        class = "btn btn-outline-secondary btn-sm"),
+      shiny::actionLink(ns("files_refresh"), "Refresh file list",
+                        style = "font-size: 0.85em; color: #5e81ac;")
+    ),
+    shiny::uiOutput(ns("in_folder_caption")),
+    shiny::uiOutput(ns("sheet_selector"))
   )
 }
 
@@ -106,7 +114,11 @@ variableConfigUI <- function(id) {
       style = paste0("max-height: 400px; overflow-y: auto; ",
                      "border: 1px solid #ddd; border-radius: 4px;"),
       shiny::uiOutput(ns("variable_table"))
-    )
+    ),
+    shiny::actionButton(ns("save_varconfig"),
+                        "Save current settings as default",
+                        class = "btn-outline-primary btn-sm",
+                        style = "width:100%; margin-top:8px;")
   )
 }
 
@@ -151,6 +163,10 @@ dataPreviewUI <- function(id) {
 #' @param id Module namespace ID.
 #' @param purpose Reactive returning the current purpose mode
 #'   (\code{"general"}, \code{"appraisal"}, or \code{"market"}).
+#' @param active_project_r Reactive returning the active regProj project (a
+#'   one-row data frame with a \code{project_path} column) or \code{NULL} when
+#'   no project is open. Files are listed/loaded from the project's
+#'   \code{<os>_in/} folder.
 #'
 #' @return A reactive list containing:
 #' \describe{
@@ -170,7 +186,8 @@ dataPreviewUI <- function(id) {
 #'                                  shiny::reactiveVal("general"))
 #'   }
 #' }
-dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
+dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
+                             active_project_r = shiny::reactiveVal(NULL)) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -180,13 +197,12 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
       sheets = NULL,
       file_name = NULL
     )
+    file_path     <- shiny::reactiveVal(NULL)   # full path of the loaded file
+    loaded_key    <- shiny::reactiveVal(NULL)   # "<project>||<file>" guard
+    refresh_token <- shiny::reactiveVal(0L)
 
-    # Cache directory for persisting uploaded files across sessions
-    cache_dir <- file.path(tools::R_user_dir("glmnetUI", "data"), "cache")
-    if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
-
-    # Load, cache, and populate helper
-    load_and_cache_ <- function(path, name, sheet = 1L) {
+    # Parse + populate helper (reads from the project's in/ folder).
+    load_file_ <- function(path, name, sheet = 1L) {
       ext <- tolower(tools::file_ext(name))
       if (ext == "csv") {
         rv$data <- utils::read.csv(
@@ -197,11 +213,10 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
         rv$sheets <- NULL
       } else if (ext %in% c("xls", "xlsx")) {
         rv$sheets <- readxl::excel_sheets(path)
+        sh <- if (is.character(sheet)) sheet else rv$sheets[sheet]
         rv$data <- as.data.frame(
-          readxl::read_excel(path, sheet = sheet)
+          readxl::read_excel(path, sheet = sh)
         )
-        shiny::updateSelectInput(session, "sheet", choices = rv$sheets,
-                                 selected = rv$sheets[sheet])
       } else {
         stop("Unsupported file type.")
       }
@@ -216,66 +231,175 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
       shiny::updateSelectInput(session, "response",
                                choices = all_cols,
                                selected = default_response)
-
-      # Cache a copy for next session
-      cached <- file.path(cache_dir, name)
-      tryCatch(file.copy(path, cached, overwrite = TRUE),
-               error = function(e) NULL)
-      last_file <- file.path(cache_dir, ".last_data")
-      tryCatch(writeLines(name, last_file), error = function(e) NULL)
-
       rv$data
     }
 
-    # No auto-load: user must import data via the file input
+    # --- Files in the active project's in/ folder ---
+    project_in_files_ <- shiny::reactive({
+      refresh_token()                     # bump to force a re-walk
+      p <- active_project_r()
+      if (is.null(p)) return(character(0))
+      regproj_in_files(p$project_path)
+    })
 
-    # --- File import ---
-    shiny::observeEvent(input$file_input, {
-      req_file <- input$file_input
+    shiny::observeEvent(input$files_refresh, {
+      refresh_token(refresh_token() + 1L)
+    })
+
+    # --- Browse to any folder, copy the chosen file into the project's in/
+    #     folder, and load it. Lets users import from anywhere while keeping
+    #     the file tied to the project. ---
+    volumes <- c(Home = path.expand("~"), shinyFiles::getVolumes()())
+    if (.Platform$OS.type == "unix" && dir.exists("/Volumes"))
+      volumes <- c(volumes, Volumes = "/Volumes")
+    if (.Platform$OS.type == "unix" && dir.exists("/media"))
+      volumes <- c(volumes, Media = "/media")
+    if (.Platform$OS.type == "unix" && dir.exists("/mnt"))
+      volumes <- c(volumes, Mounts = "/mnt")
+    shinyFiles::shinyFileChoose(input, "file_browse", roots = volumes,
+                                session = session,
+                                filetypes = c("csv", "xls", "xlsx"))
+
+    shiny::observeEvent(input$file_browse, {
+      p <- active_project_r()
+      if (is.null(p)) {
+        shiny::showNotification("Open a project first, then browse for a file.",
+                                type = "warning", duration = 5)
+        return()
+      }
+      fi <- shinyFiles::parseFilePaths(volumes, input$file_browse)
+      if (nrow(fi) == 0L) return()
+      src <- as.character(fi$datapath[1L])
+      if (!nzchar(src) || !file.exists(src)) return()
+      nm <- basename(src)
+      in_dir <- file.path(p$project_path, paste0(os_detect(), "_in"))
+      if (!dir.exists(in_dir))
+        dir.create(in_dir, recursive = TRUE, showWarnings = FALSE)
+      dest <- file.path(in_dir, nm)
+      ok <- tryCatch({
+        if (normalizePath(src, mustWork = FALSE) !=
+            normalizePath(dest, mustWork = FALSE)) {
+          file.copy(src, dest, overwrite = TRUE)
+        }
+        TRUE
+      }, error = function(e) {
+        shiny::showNotification(paste("Copy failed:", e$message),
+                                type = "error", duration = 8); FALSE
+      })
+      if (!ok) return()
+      regproj_last_file_set(p$project_path, nm)
+      refresh_token(refresh_token() + 1L)   # re-walk so the dropdown lists it
+      file_path(dest)
+      loaded_key(paste(p$project_path, nm, sep = "||"))
       tryCatch({
-        load_and_cache_(req_file$datapath, req_file$name)
+        load_file_(dest, nm, sheet = 1L)
+        shiny::showNotification(
+          paste0("Imported '", nm, "' (", nrow(rv$data), " rows) into ", in_dir),
+          type = "message", duration = 6)
       }, error = function(e) {
         shiny::showNotification(paste("Import error:", e$message),
-                                type = "error")
+                                type = "error", duration = 15)
       })
     })
 
-    shiny::observeEvent(input$sheet, {
-      if (is.null(rv$file_name)) return()
-      # Only applies to Excel files
-      ext <- tolower(tools::file_ext(rv$file_name))
-      if (!ext %in% c("xls", "xlsx")) return()
-      # Skip if sheets haven't been set yet (initial load)
-      if (is.null(rv$sheets)) return()
+    # Show the project's import folder so its location is never hidden.
+    output$in_folder_caption <- shiny::renderUI({
+      p <- active_project_r()
+      if (is.null(p)) return(NULL)
+      in_dir <- file.path(p$project_path, paste0(os_detect(), "_in"))
+      shiny::tags$div(
+        class = "small text-muted",
+        style = "margin-top:4px; word-break:break-all;",
+        "Import folder: ", shiny::tags$code(in_dir))
+    })
 
-      # Use cached file (Shiny temp files may be gone)
-      cached_path <- file.path(cache_dir, rv$file_name)
-      req_file <- input$file_input
-      path <- if (!is.null(req_file) && file.exists(req_file$datapath)) {
-        req_file$datapath
-      } else if (file.exists(cached_path)) {
-        cached_path
-      } else {
-        return()
+    # When the active project changes, clear per-file state so the picker
+    # re-renders and (re)loads the new project's last-used file.
+    shiny::observeEvent(active_project_r(), ignoreNULL = FALSE, {
+      rv$data <- NULL
+      rv$file_name <- NULL
+      rv$col_types <- NULL
+      rv$sheets <- NULL
+      file_path(NULL)
+      loaded_key(NULL)
+    })
+
+    output$file_picker <- shiny::renderUI({
+      files <- project_in_files_()
+      p <- active_project_r()
+      ns <- session$ns
+      if (is.null(p)) {
+        return(shiny::tags$div(class = "small text-muted",
+                               "(open a project first)"))
       }
+      last <- regproj_last_file_get(p$project_path)
+      if (length(files) == 0L) {
+        return(shiny::tags$div(class = "small text-muted",
+          "(no files in this project's in/ folder yet — drop CSV/Excel files into ",
+          shiny::tags$code(file.path(p$project_path, paste0(os_detect(), "_in"))),
+          " and click Refresh)"))
+      }
+      sel <- if (!is.null(last) && last %in% files) last else files[[1L]]
+      shiny::selectInput(ns("file_pick"), NULL,
+                         choices = files, selected = sel, width = "100%")
+    })
+
+    # Load the selected file. Keyed on (project || file) so switching to a
+    # different project whose in/ holds a same-named file still re-imports.
+    shiny::observe({
+      f <- input$file_pick
+      p <- active_project_r()
+      files <- project_in_files_()
+      if (is.null(p) || is.null(f) || !nzchar(f)) return()
+      if (!(f %in% files)) return()       # stale picker value mid-switch
+      key <- paste(p$project_path, f, sep = "||")
+      if (identical(shiny::isolate(loaded_key()), key)) return()
+      in_dir <- file.path(p$project_path, paste0(os_detect(), "_in"))
+      full <- file.path(in_dir, f)
+      if (!file.exists(full)) {
+        shiny::showNotification(sprintf("File not found: %s", full),
+                                type = "error", duration = 6); return()
+      }
+      loaded_key(key)
+      regproj_last_file_set(p$project_path, f)
+      file_path(full)
       tryCatch({
-        rv$data <- as.data.frame(
-          readxl::read_excel(path, sheet = input$sheet)
-        )
-        names(rv$data) <- to_snake_case(names(rv$data))
-        rv$data <- auto_parse_dates_(rv$data)
-        rv$col_types <- detect_column_types(rv$data)
-        all_cols <- names(rv$data)
+        load_file_(full, f, sheet = 1L)
+        shiny::showNotification(
+          paste("Loaded", nrow(rv$data), "rows,", ncol(rv$data), "columns"),
+          type = "message")
+      }, error = function(e) {
+        shiny::showNotification(paste("Import error:", e$message),
+                                type = "error", duration = 15)
+      })
+    })
 
-        default_response <- if (length(all_cols) > 0) all_cols[1] else NULL
-        shiny::updateSelectInput(session, "response",
-                                 choices = all_cols,
-                                 selected = default_response)
+    output$sheet_selector <- shiny::renderUI({
+      shiny::req(rv$sheets)
+      ns <- session$ns
+      shiny::selectInput(ns("sheet"), "Excel Sheet", choices = rv$sheets,
+                         selected = rv$sheets[1])
+    })
 
+    shiny::observeEvent(input$sheet, {
+      shiny::req(file_path(), input$sheet)
+      ext <- tolower(tools::file_ext(file_path()))
+      if (!ext %in% c("xls", "xlsx")) return()
+      tryCatch({
+        load_file_(file_path(), rv$file_name, sheet = input$sheet)
       }, error = function(e) {
         shiny::showNotification(paste("Sheet error:", e$message),
-                                type = "error")
+                                type = "error", duration = 15)
       })
+    })
+
+    # --- Section 4: "Save current settings as default" (variable config only) ---
+    shiny::observeEvent(input$save_varconfig, {
+      shiny::req(rv$file_name)
+      session$sendCustomMessage("collect_and_save_varconfig",
+                                list(filename = rv$file_name))
+      shiny::showNotification("Variable configuration saved as default.",
+                              type = "message", duration = 3)
     })
 
     # --- Candidate columns: everything except response ---
@@ -320,11 +444,13 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
                      "Date", "POSIXct")
 
       appraiser <- purpose() %in% c("appraisal", "market")
+      # Keep this list identical to mgcvUI / earthUI's special-column options so
+      # the three sibling apps share the same designations.
       special_options <- if (appraiser) {
-        c("no", "weight", "actual_age", "area", "concessions",
-          "contract_date", "display_only", "dom", "effective_age",
-          "latitude", "listing_date", "living_area", "longitude",
-          "lot_size", "sale_age", "site_dimensions")
+        c("actual_age", "area", "concessions", "contract_date",
+          "display_only", "dom", "effective_age", "latitude",
+          "listing_date", "living_area", "longitude", "lot_size",
+          "no", "sale_age", "sale_type", "site_dimensions", "weight")
       } else {
         c("no", "weight")
       }
@@ -383,8 +509,15 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general")) {
           shiny::tags$option(value = "negative", "negative")
         )
 
+        # Pre-select the Special tag most similar to the column name (or "no"
+        # if none is a reasonable match). Saved values are restored by JS
+        # afterwards and take precedence.
+        def_special <- special_default_for_(col_name, special_options)
         special_opts <- lapply(special_options, function(sp) {
-          shiny::tags$option(value = sp, sp)
+          if (identical(sp, def_special))
+            shiny::tags$option(value = sp, sp, selected = NA)
+          else
+            shiny::tags$option(value = sp, sp)
         })
         special_el <- shiny::tags$div(
           style = "width:72px; text-align:center;",

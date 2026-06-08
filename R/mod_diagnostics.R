@@ -45,7 +45,13 @@ diagnosticsUI <- function(id) {
 # Axis label formatter: no scientific notation, with comma separators
 #' @noRd
 glmnet_axis_labels_ <- function(x) {
-  formatC(x, format = "f", digits = 0, big.mark = ",")
+  # Compact labels (e.g. -4M, 500K) so large contributions don't make very wide
+  # tick labels that collide with the axis title / run off the margin.
+  if (requireNamespace("scales", quietly = TRUE)) {
+    scales::label_number(scale_cut = scales::cut_short_scale())(x)
+  } else {
+    formatC(x, format = "f", digits = 0, big.mark = ",")
+  }
 }
 
 # Common theme for diagnostic plots

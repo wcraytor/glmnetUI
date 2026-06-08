@@ -135,6 +135,11 @@ bslib::page_fluid(
     .glmnet-navbar .dropdown.open .glmnet-dropdown-menu { display: block; }
     .glmnet-navbar .glmnet-spacer { flex: 1; }
 
+    /* File/dir chooser modals must sit ABOVE the open Settings dropdown
+       (z-index 10001) so their folder list and Select button are clickable. */
+    .modal { z-index: 20002 !important; }
+    .modal-backdrop { z-index: 20001 !important; }
+
     /* Locale row in import section */
     .glmnet-locale-row .form-group { margin-bottom: 0; }
 
@@ -266,7 +271,11 @@ bslib::page_fluid(
   ')),
 
   # --- Settings dropdown + Theme toggle JS + settings message handlers ---
-  shiny::tags$script(src = "glmnetui.js"),
+  # Cache-bust on the file's mtime so the browser always loads the current
+  # glmnetui.js (a stale cached copy was keeping old dropdown behavior).
+  shiny::tags$script(src = sprintf("glmnetui.js?v=%s",
+    tryCatch(as.integer(file.info(system.file("app/www/glmnetui.js",
+      package = "glmnetUI"))$mtime), error = function(e) 0L))),
 
   shiny::tags$head(
     shiny::tags$link(rel = "icon", type = "image/png", href = "favicon.png")
@@ -294,8 +303,26 @@ bslib::page_fluid(
         shiny::selectInput("locale_paper", "Paper",
                            choices = c("Letter" = "letter", "A4" = "a4"),
                            selected = "letter", width = "100%"),
-        shiny::actionLink("locale_save_default", "Save as my default",
-                          style = "font-size: 0.85em; color: #5e81ac; display: block; margin-top: 4px;")
+        shiny::tags$hr(style = "margin: 10px 0;"),
+        shiny::tags$label(class = "control-label", "regProj root folder"),
+        shiny::tags$div(style = "display:flex; gap:6px; align-items:flex-end;",
+          shiny::tags$div(style = "flex:1;",
+            shiny::textInput("regproj_root", NULL, value = "", width = "100%")),
+          shinyFiles::shinyDirButton("regproj_root_browse", "Browse…",
+                                     "Choose the regProj root folder",
+                                     class = "btn btn-outline-secondary btn-sm",
+                                     style = "margin-bottom:0;")
+        ),
+        shiny::tags$p(style = "font-size: 0.75em; color: var(--bs-secondary-color); margin-top: 4px;",
+                      "Shared with earthUI / mgcvUI. Projects, input files, and outputs live here."),
+        shiny::tags$hr(style = "margin: 10px 0;"),
+        shiny::tags$div(style = "display:flex; gap:6px;",
+          shiny::actionButton("settings_save", "Save",
+                              class = "btn-primary btn-sm", style = "flex:1;"),
+          shiny::actionButton("settings_close", "Close",
+                              class = "btn-outline-secondary btn-sm",
+                              style = "flex:1;")
+        )
       )
     ),
     shiny::tags$div(class = "glmnet-spacer"),
@@ -305,9 +332,9 @@ bslib::page_fluid(
     shiny::sidebarPanel(
       width = 3,
 
-      # --- Purpose Mode ---
-      shiny::tags$div(
-        style = "font-weight:bold;",
+      # --- Purpose Mode (derived from the active project; hidden in the DOM
+      #     so existing input$purpose-based logic continues to work) ---
+      shiny::conditionalPanel(condition = "false",
         shiny::radioButtons("purpose", "Purpose:",
                             choices = c("General" = "general",
                                         "For Appraisal" = "appraisal",
@@ -315,56 +342,64 @@ bslib::page_fluid(
                             selected = "general", inline = TRUE)
       ),
       shiny::conditionalPanel(
-        condition = "input.purpose !== 'appraisal'",
+        condition = "output.has_active_project && input.purpose !== 'appraisal'",
         shiny::checkboxInput("skip_subject_row", "Skip first row",
                              value = FALSE)
       ),
-      shiny::hr(),
 
-      # --- 1. Import Data ---
-      shiny::tags$details(class = "glmnet-section",
+      # --- 1. Project ---
+      shiny::tags$details(class = "glmnet-section", open = NA,
         shiny::tags$summary(shiny::h4(
-          "1. Import Data",
+          "1. Project",
           shiny::tags$span(class = "glmnet-section-info",
             `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
-            `data-bs-content` = "Load a CSV data file containing the response variable, predictors, and optional weight column.",
-            "?"),
-        )),
-        dataImportUI("data")
-      ),
-      shiny::hr(),
-
-      # --- 2. Import from earthUI (optional) ---
-      shiny::tags$details(class = "glmnet-section",
-        shiny::tags$summary(shiny::h4(
-          "2. Import from earthUI (optional)",
-          shiny::tags$span(class = "glmnet-section-info",
-            `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
-            `data-bs-content` = "Import an earthUI result (.rds) to use earth's hinge basis functions for nonlinear modeling. Earth defines the basis; glmnet applies regularization.",
+            `data-bs-content` = "Active project sets the location (purpose, country, state, county, city) and the input/output folders. Pick an existing project or create a new one. Projects are shared with earthUI and mgcvUI. Click Close Project to switch.",
             "?")
         )),
-        shiny::tags$div(style = "padding-top: 6px;",
-          earthImportUI("earth")
-        )
+        shiny::uiOutput("regproj_project_ui")
       ),
       shiny::hr(),
 
       shiny::conditionalPanel(
-        condition = "output['data-data_loaded']",
+        condition = "output.has_active_project",
 
-        # --- 3. Project Output Folder ---
-        shiny::tags$details(class = "glmnet-section",
+        # --- 2. Import Data (from the project's in/ folder) ---
+        shiny::tags$details(class = "glmnet-section", open = NA,
           shiny::tags$summary(shiny::h4(
-            "3. Project Output Folder",
+            "2. Import Data",
             shiny::tags$span(class = "glmnet-section-info",
               `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
-              `data-bs-content` = "Set the directory where output files (Excel, PDF reports, sales grids) will be saved.",
-              "?")
+              `data-bs-content` = "Pick a CSV or Excel file from the active project's in/ folder. Add files to the project's <os>_in/ folder via Finder/Explorer, then click Refresh.",
+              "?"),
           )),
-          shiny::textInput("output_folder", NULL,
-                           value = path.expand("~/Downloads"))
+          dataImportUI("data")
         ),
         shiny::hr(),
+
+        # --- 3. Import from earthUI (optional) ---
+        shiny::tags$details(class = "glmnet-section",
+          shiny::tags$summary(shiny::h4(
+            "3. Import from earthUI (optional)",
+            shiny::tags$span(class = "glmnet-section-info",
+              `data-bs-toggle` = "popover", `data-bs-trigger` = "hover",
+              `data-bs-content` = "Import an earthUI result (.rds) to use earth's hinge basis functions for nonlinear modeling. Earth defines the basis; glmnet applies regularization.",
+              "?")
+          )),
+          shiny::tags$div(style = "padding-top: 6px;",
+            earthImportUI("earth")
+          )
+        ),
+        shiny::hr()
+      ),
+
+      shiny::conditionalPanel(
+        condition = "output['data-data_loaded']",
+
+        # output_folder is derived from the active project (hidden in the DOM
+        # so existing input$output_folder readers keep working).
+        shiny::conditionalPanel(condition = "false",
+          shiny::textInput("output_folder", NULL, value = "")
+        ),
 
         # --- 4. Variable Configuration ---
         shiny::tags$details(class = "glmnet-section",
@@ -403,13 +438,12 @@ bslib::page_fluid(
               selected = "last", inline = TRUE
             )
           ),
+          modelingUI("model"),
           shiny::actionButton(
-            "glmnet_save_defaults", "Save current as default",
-            class = "btn-dark btn-sm",
-            style = paste0("padding: 2px 8px; font-size: 0.85em; ",
-                           "margin-bottom: 8px;")
-          ),
-          modelingUI("model")
+            "glmnet_save_defaults", "Save current settings as default",
+            class = "btn-outline-primary btn-sm",
+            style = "width:100%; margin-top:8px;"
+          )
         ),
         shiny::hr(),
 
@@ -438,9 +472,9 @@ bslib::page_fluid(
           )
         ),
 
-        # --- 8. Calculate RCA Adjustments (Appraisal only) ---
+        # --- 8. Calculate RCA Adjustments (Appraisal / Market) ---
         shiny::conditionalPanel(
-          condition = "output.model_fitted && input.purpose === 'appraisal'",
+          condition = "output.model_fitted && (input.purpose === 'appraisal' || input.purpose === 'market')",
           shiny::hr(),
           shiny::tags$details(class = "glmnet-section",
             shiny::tags$summary(shiny::h4(
@@ -476,14 +510,36 @@ bslib::page_fluid(
           )
         ),
 
-        # --- 10. Download Report ---
+        # --- 10. Generate Quarto Report (writes the .qmd bundle) ---
         shiny::conditionalPanel(
           condition = "output.model_fitted",
           shiny::hr(),
           shiny::tags$details(class = "glmnet-section",
-            shiny::tags$summary(shiny::uiOutput("report_heading",
+            shiny::tags$summary(shiny::uiOutput("generate_qmd_heading",
                                                  inline = TRUE)),
-            shiny::selectInput("export_format", "Format",
+            shiny::actionButton("generate_qmd_btn", "Generate Quarto Report",
+                                class = "btn-primary",
+                                style = "width: 100%;")
+          )
+        ),
+
+        # --- 11. Convert Quarto Report (.qmd -> HTML/Word/PDF) ---
+        shiny::conditionalPanel(
+          condition = "output.has_active_project",
+          shiny::hr(),
+          shiny::tags$details(class = "glmnet-section",
+            shiny::tags$summary(shiny::uiOutput("convert_qmd_heading",
+                                                 inline = TRUE)),
+            shiny::tags$div(style = "display:flex; gap:6px; align-items:flex-end;",
+              shiny::tags$div(style = "flex:1;",
+                shiny::textInput("convert_qmd_path", "Quarto source (.qmd)",
+                                 value = "")),
+              shinyFiles::shinyFilesButton("convert_qmd_browse", "Browse…",
+                                           "Choose a Quarto file", multiple = FALSE,
+                                           class = "btn btn-outline-secondary btn-sm",
+                                           style = "margin-bottom:15px;")
+            ),
+            shiny::checkboxGroupInput("convert_formats", "Output formats",
                                choices = {
                                  has_pandoc <- tryCatch(rmarkdown::pandoc_available(),
                                                        error = function(e) FALSE)
@@ -493,8 +549,13 @@ bslib::page_fluid(
                                    fmts <- c(fmts, "PDF" = "pdf")
                                  }
                                  fmts
-                               }),
-            shiny::actionButton("export_report_btn", "Download Report",
+                               },
+                               selected = "html", inline = TRUE),
+            if (!glmnetUI:::has_latex_())
+              shiny::tags$p(style = "font-size: 0.78em; color: #81A1C1; margin-top: -8px;",
+                     "PDF requires LaTeX: ",
+                     shiny::tags$code("tinytex::install_tinytex()")),
+            shiny::actionButton("convert_qmd_btn", "Convert",
                                 class = "btn-primary",
                                 style = "width: 100%;")
           )

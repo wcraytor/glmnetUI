@@ -137,6 +137,69 @@ In **Appraisal** mode, row 1 must be the subject property. In **Market**
 mode, placing the subject in row 1 is optional. In **General** mode, all
 rows are treated equally.
 
+## Projects
+
+glmnetUI organizes work into **projects** under a shared `regProj` root folder
+(the same tree used by earthUI and mgcvUI). Each project owns an input folder
+(`<os>_in`) and per-engine output folders (e.g. `<os>_out_glmnet`).
+
+### Creating a project
+
+In **Section 1 (Project)**, click **+ New…** and provide:
+
+- **Purpose** --- General, Appraisal, or Market Area.
+- **Location** --- the project's political/administrative hierarchy. The set of
+  levels you fill in depends on the **country** you choose, so foreign naming
+  conventions are supported automatically (see below).
+- **Project Name** --- a short label, **limited to 8 characters**
+  (letters, digits, `_` and `-`).
+
+### Automatic folder naming
+
+When you create a project, the app does **not** use your typed name verbatim.
+It builds a unique, time-stamped folder name by prepending the location codes
+and the **creation date-time** in front of your name:
+
+```
+<country>_<admin level codes…>_<YYYYMMDD-HHMMSS>_<your name>
+```
+
+For example, a U.S. project named `burl` created on 4 June 2026 at 13:15:00
+becomes:
+
+```
+us_ca_081_burlin_20260604-131500_burl
+```
+
+where `YYYYMMDD-HHMMSS` is the actual current date and time at the moment of
+creation. The 8-character limit applies only to the part **you** type; the
+country, admin-level, and timestamp segments are added for you.
+
+### Foreign political naming conventions
+
+The admin-level segments follow **each country's own hierarchy**, not a fixed
+state/county/city scheme. The number and meaning of the levels vary by country,
+for example:
+
+| Country     | Admin levels (top → bottom)                |
+|-------------|--------------------------------------------|
+| US          | state / county / city                      |
+| Great Britain | region / district / place                |
+| France      | region / département / commune             |
+| Germany     | bundesland / kreis / gemeinde              |
+| Japan       | prefecture / city-or-ward / district       |
+| Singapore   | planning area (single level)               |
+| *(other)*   | region / city (generic fallback)           |
+
+The timestamp-and-name portion is independent of the number of levels, so the
+naming works for any of these conventions. (For a U.S. project the prefix is
+`us_<state>_<county>_<city>_`; for a French one it is
+`fr_<region>_<département>_<commune>_`; for Singapore it is `sg_<area>_`.)
+
+**Existing projects are unaffected** --- only newly created projects get the
+timestamp prefix; projects already on disk keep their original names and remain
+fully accessible.
+
 ## The Sidebar Workflow
 
 The sidebar is organized into numbered sections:

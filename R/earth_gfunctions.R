@@ -93,7 +93,7 @@ build_g_groups_ <- function(earth_import) {
 #' `eval_g_function_()`.
 #'
 #' @param model The earth model object.
-#' @param group A g-function group from [build_g_groups_()].
+#' @param group A g-function group from `build_g_groups_()`.
 #' @param newdata Data frame with predictor columns.
 #' @return Numeric vector of contributions (length = nrow(newdata)).
 #' @noRd

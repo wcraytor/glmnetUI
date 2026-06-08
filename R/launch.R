@@ -23,7 +23,7 @@ glmnetUI <- function(port = 7879L, ...) {
   }
   required <- c("shiny", "glmnet", "readxl", "DT",
                 "ggplot2", "officer", "rmarkdown", "jsonlite",
-                "bslib")
+                "bslib", "shinyFiles", "DBI", "RSQLite")
   missing <- required[!vapply(required, requireNamespace,
                               quietly = TRUE, FUN.VALUE = logical(1))]
   if (length(missing) > 0L) {

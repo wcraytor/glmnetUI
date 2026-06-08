@@ -1,0 +1,530 @@
+# SQLite backends for regProj geo codes and project settings.
+# Both DBs live inside <REGPROJ_ROOT>/ so they sync with the project tree.
+#
+# Ported verbatim from earthUI (only the shipped-data package and log prefix
+# differ). The geo.sqlite and projects.sqlite are SHARED across the sibling
+# apps: the schema already carries per-method columns (earth/glmnet/mgcv) and
+# the init/migration logic is idempotent (CREATE IF NOT EXISTS + additive),
+# so whichever app connects first creates/migrates and the others no-op.
+
+
+# ---------- geo.sqlite ----------
+
+#' Path to the regProj geo SQLite database
+#'
+#' `<REGPROJ_ROOT>/geo.sqlite` — holds country codes and a flexible,
+#' variable-depth `admin_entries` table for state / county / city /
+#' deeper-level admin codes per country. Travels with the regProj tree.
+#'
+#' @param root regProj root. Defaults to [default_regproj_root()].
+#' @return Character scalar.
+#' @export
+regproj_geo_db_path <- function(root = default_regproj_root()) {
+  file.path(path.expand(root), "geo.sqlite")
+}
+
+#' Open (and initialize if needed) the regProj geo database
+#'
+#' Returns a `DBI` connection. Creates the schema on first call. The
+#' caller is responsible for `DBI::dbDisconnect()`.
+#'
+#' On first creation, the tables are seeded from:
+#' * the shipped reference data ([regproj_reference()]) — 24 countries,
+#'   51 US states, 3,076 US counties.
+#' * the shipped places data (`inst/extdata/regproj_geo.rds`) — US
+#'   incorporated places + GeoNames-derived city/admin data for GB, DE,
+#'   IT, FR, SE, SG.
+#' * any pre-existing `<REGPROJ_ROOT>/.regproj-index.json` (legacy
+#'   migration).
+#'
+#' @inheritParams regproj_geo_db_path
+#' @return A `DBIConnection` to the SQLite database.
+#' @export
+regproj_geo_db_connect <- function(root = default_regproj_root()) {
+  if (!requireNamespace("DBI", quietly = TRUE) ||
+      !requireNamespace("RSQLite", quietly = TRUE)) {
+    stop("Packages 'DBI' and 'RSQLite' are required.", call. = FALSE)
+  }
+  root <- path.expand(root)
+  if (!dir.exists(root)) dir.create(root, recursive = TRUE, showWarnings = FALSE)
+  p <- regproj_geo_db_path(root)
+  fresh <- !file.exists(p)
+  con <- DBI::dbConnect(RSQLite::SQLite(), p)
+  DBI::dbExecute(con, "PRAGMA foreign_keys = ON;")
+  regproj_geo_db_init_(con)
+  if (fresh) regproj_geo_db_seed_(con, root)
+  con
+}
+
+# Internal: create tables if missing.
+# Two tables only:
+#   countries   — code/name, top-level (no parent)
+#   admin_entries — variable-depth admin levels per country
+regproj_geo_db_init_ <- function(con) {
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS countries (
+      code TEXT PRIMARY KEY,
+      name TEXT NOT NULL
+    );")
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS admin_entries (
+      country      TEXT NOT NULL,
+      level        INTEGER NOT NULL,        -- 1 = top admin (state/regione/...)
+      parent_codes TEXT NOT NULL,            -- '' for level 1, 'ca' for level 2, 'ca/081' for level 3
+      code         TEXT NOT NULL,
+      name         TEXT NOT NULL,
+      PRIMARY KEY (country, level, parent_codes, code)
+    );")
+  DBI::dbExecute(con, "
+    CREATE INDEX IF NOT EXISTS idx_admin_lookup
+      ON admin_entries (country, level, parent_codes);")
+  invisible(NULL)
+}
+
+# Internal: bootstrap from shipped reference data + shipped places +
+# legacy JSON index.
+regproj_geo_db_seed_ <- function(con, root = default_regproj_root()) {
+  ref <- tryCatch(regproj_reference(), error = function(e) NULL)
+  DBI::dbWithTransaction(con, {
+    if (!is.null(ref)) {
+      # countries
+      if (length(ref$countries) > 0L) {
+        df <- data.frame(code = names(ref$countries),
+                         name = unname(unlist(ref$countries)),
+                         stringsAsFactors = FALSE)
+        DBI::dbWriteTable(con, "countries", df, append = TRUE)
+      }
+      # US states (level 1)
+      us_states <- ref$states$us
+      if (!is.null(us_states) && length(us_states) > 0L) {
+        df <- data.frame(country = "us", level = 1L, parent_codes = "",
+                         code = names(us_states),
+                         name = unname(unlist(us_states)),
+                         stringsAsFactors = FALSE)
+        DBI::dbWriteTable(con, "admin_entries", df, append = TRUE)
+      }
+      # US counties (level 2)
+      us_counties <- ref$counties$us
+      if (!is.null(us_counties) && length(us_counties) > 0L) {
+        rows <- list()
+        for (sc in names(us_counties)) {
+          cl <- us_counties[[sc]]; if (length(cl) == 0L) next
+          rows[[length(rows) + 1L]] <- data.frame(
+            country = "us", level = 2L, parent_codes = sc,
+            code = names(cl), name = unname(unlist(cl)),
+            stringsAsFactors = FALSE)
+        }
+        if (length(rows) > 0L)
+          DBI::dbWriteTable(con, "admin_entries",
+                            do.call(rbind, rows), append = TRUE)
+      }
+    }
+    # Shipped places (US cities + GeoNames international data)
+    places_path <- system.file("extdata", "regproj_geo.rds",
+                               package = "glmnetUI")
+    if (nzchar(places_path) && file.exists(places_path)) {
+      places <- tryCatch(readRDS(places_path), error = function(e) NULL)
+      if (!is.null(places) && nrow(places) > 0L) {
+        DBI::dbWriteTable(con, "admin_entries", places, append = TRUE)
+      }
+    }
+    # One-shot migration: import any pre-existing JSON index (overrides
+    # shipped entries on conflict, since user choices win)
+    json_path <- file.path(path.expand(root), ".regproj-index.json")
+    if (file.exists(json_path) &&
+        requireNamespace("jsonlite", quietly = TRUE)) {
+      idx <- tryCatch(jsonlite::fromJSON(json_path, simplifyVector = FALSE),
+                      error = function(e) NULL)
+      if (!is.null(idx)) regproj_geo_db_import_json_(con, idx)
+    }
+  })
+  invisible(NULL)
+}
+
+# Internal: import legacy JSON into admin_entries
+regproj_geo_db_import_json_ <- function(con, idx) {
+  for (scope in names(idx)) {
+    entries <- idx[[scope]]
+    if (length(entries) == 0L) next
+    if (!nzchar(scope)) {
+      # countries
+      for (nm in names(entries)) {
+        DBI::dbExecute(con,
+          "INSERT OR IGNORE INTO countries (code, name) VALUES (?, ?)",
+          params = list(entries[[nm]], nm))
+      }
+      next
+    }
+    parts <- strsplit(scope, "/", fixed = TRUE)[[1L]]
+    cc <- parts[1L]
+    level <- length(parts)              # parts of length 1 -> level 1, etc.
+    parent_codes <- if (length(parts) > 1L) {
+                      paste(parts[-1L], collapse = "/")
+                    } else ""
+    for (nm in names(entries)) {
+      DBI::dbExecute(con,
+        "INSERT OR REPLACE INTO admin_entries (country, level, parent_codes, code, name) VALUES (?, ?, ?, ?, ?)",
+        params = list(cc, level, parent_codes, entries[[nm]], nm))
+    }
+  }
+  invisible(NULL)
+}
+
+# Internal: parse a legacy scope string ("us/ca/081") into
+# (country, level, parent_codes) for the new schema.
+# Returns NULL for "" (countries — handled separately).
+regproj_geo_parse_scope_ <- function(scope) {
+  if (is.null(scope) || !nzchar(scope)) return(NULL)
+  parts <- strsplit(scope, "/", fixed = TRUE)[[1L]]
+  cc <- parts[1L]
+  level <- length(parts)               # "us" -> level 1, "us/ca" -> level 2, etc.
+  parent_codes <- if (length(parts) > 1L) {
+                    paste(parts[-1L], collapse = "/")
+                  } else ""
+  list(country = cc, level = level, parent_codes = parent_codes)
+}
+
+
+# ---------- projects.sqlite ----------
+
+#' Path to the regProj projects SQLite database
+#'
+#' `<REGPROJ_ROOT>/projects.sqlite` — one row per project, keyed by the
+#' flat segment (e.g. `"us_ca_081_burlin_20251231_j"`). Holds project
+#' metadata and per-method settings as JSON blobs.
+#'
+#' @inheritParams regproj_geo_db_path
+#' @return Character scalar.
+#' @export
+regproj_projects_db_path <- function(root = default_regproj_root()) {
+  file.path(path.expand(root), "projects.sqlite")
+}
+
+#' Open (and initialize if needed) the regProj projects database
+#'
+#' Returns a `DBI` connection. Creates the schema on first call. The
+#' caller is responsible for `DBI::dbDisconnect()`.
+#'
+#' @inheritParams regproj_geo_db_path
+#' @return A `DBIConnection` to the SQLite database.
+#' @export
+regproj_projects_db_connect <- function(root = default_regproj_root()) {
+  if (!requireNamespace("DBI", quietly = TRUE) ||
+      !requireNamespace("RSQLite", quietly = TRUE)) {
+    stop("Packages 'DBI' and 'RSQLite' are required.", call. = FALSE)
+  }
+  root <- path.expand(root)
+  if (!dir.exists(root)) dir.create(root, recursive = TRUE, showWarnings = FALSE)
+  p <- regproj_projects_db_path(root)
+  con <- DBI::dbConnect(RSQLite::SQLite(), p)
+  DBI::dbExecute(con, "PRAGMA foreign_keys = ON;")
+  # WAL journaling: a writer and reader don't block, and a crash mid-write
+  # rolls back to the last commit cleanly. Non-fatal if the filesystem (e.g.
+  # some network mounts) doesn't support it — SQLite falls back to the
+  # rollback journal, which is also atomic/crash-safe.
+  tryCatch(DBI::dbGetQuery(con, "PRAGMA journal_mode = WAL;"),
+           error = function(e) NULL)
+  regproj_projects_db_init_(con)
+  con
+}
+
+regproj_projects_db_init_ <- function(con) {
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS projects (
+      flat_segment      TEXT PRIMARY KEY,
+      purpose           TEXT NOT NULL,
+      country           TEXT NOT NULL,
+      state             TEXT,
+      county            TEXT,
+      city              TEXT,
+      project_name      TEXT NOT NULL,
+      created_at        INTEGER,
+      last_used_at      INTEGER,
+      last_file         TEXT
+    );")
+  # Per-project settings, scoped by (flat_segment, purpose). Settings follow
+  # the PROJECT and its purpose, NOT the individual data file — a project
+  # commonly holds several files (a small test extract, the full dataset)
+  # that share the same columns and therefore the same variable/parameter
+  # configuration. The key is (project, purpose) so switching files keeps
+  # the configuration. (The table is still named project_file_settings for
+  # historical reasons; file_basename was removed from the key.)
+  #
+  # Migration: earlier schemas keyed on file_basename — either
+  # (flat_segment, file_basename) or (flat_segment, file_basename, purpose).
+  # If a file_basename column is present, rebuild keyed by (flat_segment,
+  # purpose), collapsing the project's per-file rows into one per purpose and
+  # keeping the most recently updated (SQLite returns the bare columns from
+  # the MAX(updated_at) row).
+  new_schema_sql <- "
+    CREATE TABLE IF NOT EXISTS project_file_settings (
+      flat_segment       TEXT NOT NULL,
+      purpose            TEXT NOT NULL DEFAULT 'general',
+      earth_settings     TEXT,
+      earth_variables    TEXT,
+      earth_interactions TEXT,
+      glmnet_settings    TEXT,
+      glmnet_variables   TEXT,
+      mgcv_settings      TEXT,
+      mgcv_variables     TEXT,
+      updated_at         INTEGER,
+      PRIMARY KEY (flat_segment, purpose)
+    );"
+
+  # Crash recovery: a prior, pre-transactional migration could be interrupted
+  # after renaming the table aside but before the new table was rebuilt,
+  # leaving the data only in project_file_settings_old. Restore it before
+  # doing anything else so the data is never stranded.
+  tbls <- DBI::dbListTables(con)
+  if (("project_file_settings_old" %in% tbls) &&
+      !("project_file_settings" %in% tbls)) {
+    DBI::dbExecute(con,
+      "ALTER TABLE project_file_settings_old RENAME TO project_file_settings;")
+  }
+
+  existing_cols <- DBI::dbGetQuery(con, "PRAGMA table_info(project_file_settings)")
+  has_table    <- nrow(existing_cols) > 0L
+  has_file_col <- has_table && ("file_basename" %in% existing_cols$name)
+  has_purpose  <- has_table && ("purpose" %in% existing_cols$name)
+
+  if (has_file_col) {
+    # purpose source: keep the old purpose column if present, otherwise derive
+    # it from the project's purpose code.
+    purpose_sql <- if (has_purpose) "o.purpose" else
+      "CASE p.purpose WHEN 'gen' THEN 'general' WHEN 'appr' THEN 'appraisal'
+                      WHEN 'mktarea' THEN 'market' ELSE 'general' END"
+    # ATOMIC upgrade: rename -> create new -> copy (collapsed to one row per
+    # (flat,purpose), newest kept) -> drop old, all in one transaction. If the
+    # process dies at any point the whole thing rolls back to the original
+    # table — no orphaned _old, no half-copied data, no torn schema.
+    DBI::dbWithTransaction(con, {
+      DBI::dbExecute(con, "DROP TABLE IF EXISTS project_file_settings_old;")
+      DBI::dbExecute(con,
+        "ALTER TABLE project_file_settings RENAME TO project_file_settings_old;")
+      DBI::dbExecute(con, new_schema_sql)
+      DBI::dbExecute(con, sprintf("
+        INSERT OR REPLACE INTO project_file_settings
+          (flat_segment, purpose, earth_settings, earth_variables,
+           earth_interactions, glmnet_settings, glmnet_variables,
+           mgcv_settings, mgcv_variables, updated_at)
+        SELECT o.flat_segment, %s,
+               o.earth_settings, o.earth_variables, o.earth_interactions,
+               o.glmnet_settings, o.glmnet_variables, o.mgcv_settings,
+               o.mgcv_variables, MAX(o.updated_at)
+        FROM project_file_settings_old o
+        LEFT JOIN projects p ON p.flat_segment = o.flat_segment
+        GROUP BY o.flat_segment, %s;", purpose_sql, purpose_sql))
+      DBI::dbExecute(con, "DROP TABLE project_file_settings_old;")
+    })
+  } else {
+    DBI::dbExecute(con, new_schema_sql)
+    # Drop any fully-superseded leftover from a completed-but-not-cleaned
+    # migration (the main table is already the new schema).
+    DBI::dbExecute(con, "DROP TABLE IF EXISTS project_file_settings_old;")
+  }
+
+  # Self-heal: an earlier bug saved settings under purpose='general' (the write
+  # took purpose from a stale JS global instead of the active project), so
+  # appraisal/market projects couldn't restore. Re-key each row to its
+  # project's actual purpose. INSERT OR REPLACE-safe via tryCatch.
+  tryCatch(
+    DBI::dbExecute(con, "
+      UPDATE project_file_settings
+      SET purpose = (
+        SELECT CASE p.purpose
+                 WHEN 'gen' THEN 'general'
+                 WHEN 'appr' THEN 'appraisal'
+                 WHEN 'mktarea' THEN 'market'
+                 ELSE 'general' END
+        FROM projects p
+        WHERE p.flat_segment = project_file_settings.flat_segment)
+      WHERE EXISTS (
+              SELECT 1 FROM projects p
+              WHERE p.flat_segment = project_file_settings.flat_segment)
+        AND purpose <> (
+          SELECT CASE p.purpose
+                   WHEN 'gen' THEN 'general'
+                   WHEN 'appr' THEN 'appraisal'
+                   WHEN 'mktarea' THEN 'market'
+                   ELSE 'general' END
+          FROM projects p
+          WHERE p.flat_segment = project_file_settings.flat_segment);"),
+    error = function(e)
+      message("glmnetUI: purpose reconciliation skipped: ", e$message))
+
+  invisible(NULL)
+}
+
+# ---------- per-project settings CRUD (internal) ----------
+# Keyed by (flat_segment, purpose) — settings follow the project + purpose,
+# not the data file.
+
+project_file_settings_read_ <- function(con, flat_segment,
+                                         method = "glmnet",
+                                         purpose = "general") {
+  row <- DBI::dbGetQuery(con,
+    sprintf("SELECT %s_settings, %s_variables%s
+              FROM project_file_settings
+              WHERE flat_segment = ? AND purpose = ?",
+            method, method,
+            if (method == "earth") ", earth_interactions" else ""),
+    params = list(flat_segment, purpose))
+  if (nrow(row) == 0L) return(NULL)
+  vals <- list(
+    settings  = row[[paste0(method, "_settings")]][1L],
+    variables = row[[paste0(method, "_variables")]][1L]
+  )
+  if (method == "earth") {
+    vals$interactions <- row$earth_interactions[1L]
+  }
+  # If every method-specific column is NA/empty, the row was written by
+  # a different method and has no data for this one — treat as absent.
+  is_empty <- function(x) is.null(x) || is.na(x) || !nzchar(x)
+  if (all(vapply(vals, is_empty, logical(1)))) return(NULL)
+  # NA → NULL for any individually missing field
+  vals[vapply(vals, is_empty, logical(1))] <- list(NULL)
+  vals
+}
+
+project_file_settings_write_ <- function(con, flat_segment,
+                                          settings = NULL, variables = NULL,
+                                          interactions = NULL,
+                                          method = "glmnet",
+                                          purpose = "general") {
+  # Only write columns whose values were supplied (non-NULL). A NULL arg means
+  # "leave the existing value untouched", so a partial save (e.g. settings +
+  # variables persisted at fit time) does not clobber a column it isn't
+  # responsible for.
+  cols <- character(0)
+  vals <- list()
+  if (!is.null(settings)) {
+    cols <- c(cols, paste0(method, "_settings"));  vals <- c(vals, list(settings))
+  }
+  if (!is.null(variables)) {
+    cols <- c(cols, paste0(method, "_variables")); vals <- c(vals, list(variables))
+  }
+  if (method == "earth" && !is.null(interactions)) {
+    cols <- c(cols, "earth_interactions");         vals <- c(vals, list(interactions))
+  }
+  if (length(cols) == 0L) return(invisible(NULL))  # nothing supplied
+
+  ts <- as.integer(Sys.time())
+  # UPSERT: insert if missing, update only the supplied cols if present
+  set_clause <- paste(paste0(cols, " = ?"), collapse = ", ")
+  insert_cols <- c("flat_segment", "purpose", cols, "updated_at")
+  insert_vals <- c(list(flat_segment, purpose), vals, list(ts))
+  placeholders <- paste(rep("?", length(insert_cols)), collapse = ", ")
+  DBI::dbExecute(con,
+    sprintf("INSERT INTO project_file_settings (%s) VALUES (%s)
+              ON CONFLICT (flat_segment, purpose)
+              DO UPDATE SET %s, updated_at = excluded.updated_at",
+            paste(insert_cols, collapse = ", "),
+            placeholders, set_clause),
+    params = c(insert_vals, vals))
+  invisible(NULL)
+}
+
+
+# ---------- public API for ValEngr / external callers ----------
+
+#' Get model settings for a project
+#'
+#' Reads model settings for a project from `<REGPROJ_ROOT>/projects.sqlite`.
+#' Used by the Shiny UI to restore settings on file open, and by external
+#' tools (ValEngr, batch scripts) to inspect project state. Settings are
+#' scoped by project + purpose and are shared across all data files in the
+#' project (a small test extract and the full dataset share one config).
+#'
+#' @param project_path Absolute path to the project root.
+#' @param method One of `"earth"`, `"glmnet"`, `"mgcv"`. Default `"glmnet"`.
+#' @param purpose Settings scope: one of `"general"`, `"appraisal"`,
+#'   `"market"`. Settings are stored independently per purpose. Default
+#'   `"general"`.
+#' @param root regProj root. Defaults to [default_regproj_root()].
+#' @return Named list with `settings`, `variables`, and (for `earth`)
+#'   `interactions` (each a JSON string), or `NULL` if no row exists.
+#' @export
+get_project_settings <- function(project_path,
+                                 method = "glmnet",
+                                 purpose = "general",
+                                 root = default_regproj_root()) {
+  flat <- basename(path.expand(project_path))
+  con <- regproj_projects_db_connect(root)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  project_file_settings_read_(con, flat, method = method, purpose = purpose)
+}
+
+#' Set model settings for a project
+#'
+#' Writes model settings for a project to `<REGPROJ_ROOT>/projects.sqlite`.
+#' Used by the Shiny UI to persist settings, and by external tools to seed
+#' projects programmatically. Settings are scoped by project + purpose and
+#' shared across all data files in the project.
+#'
+#' @inheritParams get_project_settings
+#' @param settings,variables,interactions JSON strings (or `NULL` to
+#'   leave unchanged).
+#' @return Invisibly, `NULL`.
+#' @export
+set_project_settings <- function(project_path,
+                                 settings = NULL, variables = NULL,
+                                 interactions = NULL,
+                                 method = "glmnet",
+                                 purpose = "general",
+                                 root = default_regproj_root()) {
+  flat <- basename(path.expand(project_path))
+  con <- regproj_projects_db_connect(root)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  project_file_settings_write_(con, flat,
+                                settings = settings, variables = variables,
+                                interactions = interactions, method = method,
+                                purpose = purpose)
+}
+
+#' Register or update a project row in projects.sqlite
+#'
+#' Upserts the project's metadata (purpose, geo codes, name, timestamps,
+#' last-used file). Mirrors the row that earthUI writes so the shared
+#' projects DB stays consistent regardless of which app created the project.
+#'
+#' @param project_path Absolute path to the project root.
+#' @param purpose regProj purpose code: `"gen"`, `"appr"`, or `"mktarea"`.
+#' @param country Lowercase ISO country code.
+#' @param levels Character vector of admin codes (state/county/city).
+#' @param project_name Project leaf name.
+#' @param last_file Optional basename of the last-used input file.
+#' @param root regProj root. Defaults to [default_regproj_root()].
+#' @return Invisibly, the flat segment.
+#' @export
+register_project <- function(project_path, purpose, country, levels,
+                             project_name, last_file = NULL,
+                             root = default_regproj_root()) {
+  flat <- basename(path.expand(project_path))
+  st <- if (length(levels) >= 1L) levels[[1L]] else NA_character_
+  cn <- if (length(levels) >= 2L) levels[[2L]] else NA_character_
+  ci <- if (length(levels) >= 3L) levels[[3L]] else NA_character_
+  ts <- as.integer(Sys.time())
+  con <- regproj_projects_db_connect(root)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  existing <- DBI::dbGetQuery(con,
+    "SELECT created_at FROM projects WHERE flat_segment = ?",
+    params = list(flat))
+  created <- if (nrow(existing) > 0L && !is.na(existing$created_at[1L]))
+    existing$created_at[1L] else ts
+  # DBI params must be length-1; a NULL last_file becomes SQL NULL via NA.
+  if (is.null(last_file) || !nzchar(last_file)) last_file <- NA_character_
+  DBI::dbExecute(con,
+    "INSERT INTO projects
+       (flat_segment, purpose, country, state, county, city, project_name,
+        created_at, last_used_at, last_file)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (flat_segment) DO UPDATE SET
+       purpose = excluded.purpose, country = excluded.country,
+       state = excluded.state, county = excluded.county, city = excluded.city,
+       project_name = excluded.project_name,
+       last_used_at = excluded.last_used_at,
+       last_file = COALESCE(excluded.last_file, projects.last_file)",
+    params = list(flat, purpose, tolower(country), st, cn, ci, project_name,
+                  created, ts, last_file))
+  invisible(flat)
+}

@@ -73,6 +73,25 @@ This opens the application at `http://localhost:7879`.
 
 ## Basic Workflow
 
+### Create or open a project
+
+Work is organized into **projects** under a shared `regProj` folder. In
+**Section 1 (Project)**, click **+ New…**, choose a Purpose and a location
+(the administrative levels you fill in depend on the country, so foreign
+conventions are supported), and type a short **Project Name** of at most
+**8 characters**.
+
+The app automatically builds the project's folder name by prepending the
+location codes and the creation date-time:
+
+```
+<country>_<admin level codes…>_<YYYYMMDD-HHMMSS>_<your name>
+```
+
+e.g. `us_ca_081_burlin_20260604-131500_burl`. Only newly created projects get
+this prefix; existing projects keep their names. See the User Guide for
+details. Once a project is open, continue with the steps below.
+
 ### 1. Import Data
 
 Click **"Upload CSV or Excel File"** in the sidebar. Supported formats:

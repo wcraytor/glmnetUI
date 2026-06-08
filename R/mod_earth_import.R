@@ -118,17 +118,27 @@ earthImportServer <- function(id) {
       }
     }
 
-    # File browser with last-used directory as default
-    volumes <- c(Home = path.expand("~"), Root = "/")
+    # File browser. Expose Home + every mounted volume so the user can always
+    # navigate anywhere; the last-used directory is only a starting point and
+    # can always be overridden via the root selector.
+    volumes <- c(Home = path.expand("~"), shinyFiles::getVolumes()())
+    if (.Platform$OS.type == "unix" && dir.exists("/Volumes"))
+      volumes <- c(volumes, Volumes = "/Volumes")
+    if (.Platform$OS.type == "unix" && dir.exists("/media"))
+      volumes <- c(volumes, Media = "/media")
+    if (.Platform$OS.type == "unix" && dir.exists("/mnt"))
+      volumes <- c(volumes, Mounts = "/mnt")
     default_root <- "Home"
     default_path <- ""
-    # If last_dir is under Home, use relative path; otherwise add as root
     home <- path.expand("~")
-    if (startsWith(last_dir, home) && last_dir != home) {
-      default_path <- sub(paste0("^", home, "/?"), "", last_dir)
-    } else if (last_dir != home) {
-      volumes <- c("Last Folder" = last_dir, volumes)
-      default_root <- "Last Folder"
+    if (nzchar(last_dir) && dir.exists(last_dir) && last_dir != home) {
+      if (startsWith(last_dir, home)) {
+        default_path <- sub(paste0("^", home, "/?"), "", last_dir)
+      } else {
+        # Add as a convenience root, but Home + volumes stay available.
+        volumes <- c("Last Folder" = last_dir, volumes)
+        default_root <- "Last Folder"
+      }
     }
     shinyFiles::shinyFileChoose(input, "earth_browse", roots = volumes,
                                 defaultRoot = default_root,

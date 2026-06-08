@@ -22,6 +22,7 @@ prepare_report_assets(
   relaxed = FALSE,
   lambda_method = "cv",
   data_file_name = "",
+  earth_import = NULL,
   assets_dir = NULL
 )
 }

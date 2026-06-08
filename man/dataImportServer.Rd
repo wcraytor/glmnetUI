@@ -4,13 +4,22 @@
 \alias{dataImportServer}
 \title{Data Import Module Server}
 \usage{
-dataImportServer(id, purpose = shiny::reactiveVal("general"))
+dataImportServer(
+  id,
+  purpose = shiny::reactiveVal("general"),
+  active_project_r = shiny::reactiveVal(NULL)
+)
 }
 \arguments{
 \item{id}{Module namespace ID.}
 
 \item{purpose}{Reactive returning the current purpose mode
 (\code{"general"}, \code{"appraisal"}, or \code{"market"}).}
+
+\item{active_project_r}{Reactive returning the active regProj project (a
+one-row data frame with a \code{project_path} column) or \code{NULL} when
+no project is open. Files are listed/loaded from the project's
+\code{<os>_in/} folder.}
 }
 \value{
 A reactive list containing:

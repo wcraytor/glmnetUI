@@ -156,7 +156,11 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
   coef_names <- rownames(coef_sparse)[-1L]
   names(coef_vec) <- coef_names
 
-  imp_df <- compute_importance_(coef_vec, x_mat, predictors, col_types)
+  imp_df <- if (!is.null(earth_import)) {
+    compute_importance_earth_(coef_vec, x_mat, earth_import)
+  } else {
+    compute_importance_(coef_vec, x_mat, predictors, col_types)
+  }
   message("[glmnetUI ASSETS] importance computed: ", nrow(imp_df), " rows")
 
   # --- ANOVA ---
@@ -228,12 +232,15 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
   # Variable importance plot (landscape for many variables)
   if (nrow(imp_df) > 0) {
     n_vars <- nrow(imp_df)
-    imp_height <- max(5, n_vars * 0.4)
+    # Height scales with the number of bars; small enough that a single/few
+    # bars render as bars rather than a panel-filling block.
+    imp_height <- max(2, min(9, n_vars * 0.55 + 1))
     p_imp <- ggplot2::ggplot(
       imp_df,
       ggplot2::aes(x = stats::reorder(.data$Variable, .data$Importance),
                    y = .data$Importance)) +
-      ggplot2::geom_col(fill = "#5e81ac") +
+      ggplot2::geom_col(fill = "#5e81ac", width = 0.7) +
+      ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = 0.6)) +
       ggplot2::coord_flip() +
       ggplot2::labs(x = NULL, y = "Importance (|coef| \u00d7 sd(x))",
                     title = "Variable Importance") +
@@ -304,8 +311,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
               low = "#2166AC", mid = "#d0d0d0", high = "#B2182B",
               midpoint = 0, name = "Contrib.",
               labels = glmnet_axis_labels_) +
-            ggplot2::labs(title = paste("Scatter:", var1, "\u00d7", var2),
-                          x = var1, y = var2) +
+            ggplot2::labs(title = "Scatter", x = var1, y = var2) +
             ggplot2::scale_x_continuous(labels = glmnet_axis_labels_) +
             ggplot2::scale_y_continuous(labels = glmnet_axis_labels_) +
             glmnet_diag_theme_(font_fam)
@@ -320,8 +326,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
               low = "#2166AC", mid = "#d0d0d0", high = "#B2182B",
               midpoint = 0, name = "Mean\nContrib.",
               labels = glmnet_axis_labels_) +
-            ggplot2::labs(title = paste("Heatmap:", var1, "\u00d7", var2),
-                          x = var1, y = var2) +
+            ggplot2::labs(title = "Heatmap", x = var1, y = var2) +
             ggplot2::scale_x_continuous(labels = glmnet_axis_labels_) +
             ggplot2::scale_y_continuous(labels = glmnet_axis_labels_) +
             glmnet_diag_theme_(font_fam) +
@@ -347,13 +352,20 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
 
             col_pal <- grDevices::colorRampPalette(
               c("#2166AC", "white", "#B2182B"))(50)
-            z_range <- range(z_mat, na.rm = TRUE)
-            z_scaled <- (z_mat - z_range[1]) /
+            # persp() needs ONE colour per facet ((nr-1) x (nc-1)), not one per
+            # grid vertex (nr x nc). Colour each facet by the mean height of its
+            # four corners. (The old code reshaped nr*nc vertex colours into an
+            # (nr-1) x (nc-1) matrix, which recycled -> the "data length not a
+            # multiple" warning and mis-aligned the surface colours.)
+            nr <- nrow(z_mat); nc <- ncol(z_mat)
+            zfacet <- (z_mat[-1, -1] + z_mat[-1, -nc] +
+                       z_mat[-nr, -1] + z_mat[-nr, -nc]) / 4
+            z_range <- range(zfacet, na.rm = TRUE)
+            z_scaled <- (zfacet - z_range[1]) /
               max(z_range[2] - z_range[1], 1e-10)
-            z_cols <- col_pal[pmax(1L, pmin(50L,
-              as.integer(z_scaled * 49) + 1L))]
-            facet_col <- matrix(z_cols, nrow = nrow(z_mat) - 1,
-                                ncol = ncol(z_mat) - 1)
+            facet_col <- matrix(
+              col_pal[pmax(1L, pmin(50L, as.integer(z_scaled * 49) + 1L))],
+              nrow = nr - 1, ncol = nc - 1)
 
             for (ext in c("png", "pdf")) {
               path <- file.path(plots_dir,
@@ -371,7 +383,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
                 col = facet_col, border = NA, shade = 0.3,
                 ticktype = "detailed",
                 xlab = var1, ylab = var2, zlab = "Contribution",
-                main = paste("3D Surface:", var1, "\u00d7", var2))
+                main = "3D Surface")
               options(old_scipen)
               graphics::par(old_par)
               grDevices::dev.off()
@@ -394,8 +406,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
         p_c <- ggplot2::ggplot(plot_df,
           ggplot2::aes(x = .data$level, y = .data$contribution)) +
           ggplot2::geom_boxplot(fill = "#5e81ac", alpha = 0.6) +
-          ggplot2::labs(title = paste("Contribution:", vname),
-                        x = vname, y = "Contribution") +
+          ggplot2::labs(x = vname, y = "Contribution") +
           ggplot2::scale_y_continuous(labels = glmnet_axis_labels_) +
           glmnet_diag_theme_(font_fam) +
           ggplot2::theme(axis.text.x = ggplot2::element_text(
@@ -408,28 +419,32 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
       p_c <- ggplot2::ggplot(plot_df,
         ggplot2::aes(x = .data$x, y = .data$contribution)) +
         ggplot2::geom_point(ggplot2::aes(color = "Observations"),
-                            alpha = 0.3, size = 1) +
+                            alpha = 0.35, size = 1.4) +
         ggplot2::geom_smooth(method = "lm", formula = y ~ x,
                               ggplot2::aes(color = "Fitted trend"),
-                              linewidth = 1, se = FALSE) +
+                              linewidth = 1.1, se = FALSE) +
         ggplot2::scale_color_manual(
           name = NULL,
+          breaks = c("Observations", "Fitted trend"),
           values = c("Observations" = "#5e81ac",
                      "Fitted trend" = "#bf616a"),
           guide = ggplot2::guide_legend(
             override.aes = list(
-              shape = c(16, NA),
-              linetype = c(NA, 1),
-              linewidth = c(NA, 1),
-              alpha = c(0.6, 1)
+              linetype  = c("blank", "solid"),
+              shape     = c(16, NA),
+              linewidth = c(NA, 1.1),
+              alpha     = c(0.9, 1)
             )
           )
         ) +
-        ggplot2::labs(x = vname, y = "Contribution",
-                      title = paste("Contribution:", vname)) +
+        ggplot2::labs(x = vname, y = "Contribution") +
         ggplot2::scale_x_continuous(labels = glmnet_axis_labels_) +
         ggplot2::scale_y_continuous(labels = glmnet_axis_labels_) +
-        glmnet_diag_theme_(font_fam)
+        glmnet_diag_theme_(font_fam) +
+        # Legend at the bottom (so it can't be clipped by the right edge) and a
+        # right margin so the y-axis title/values have room.
+        ggplot2::theme(legend.position = "bottom",
+                       plot.margin = ggplot2::margin(8, 16, 8, 10))
       save_ggplot_(paste0("contrib_", safe_name), p_c)
     }
   }
@@ -632,7 +647,10 @@ render_report_quarto_ <- function(output_format, output_file, assets_dir) {
     execute_params = list(
       data_file = file.path(render_dir, "report_data.rds")
     ),
-    quiet = FALSE
+    # quiet = TRUE: avoid the `quarto` package echoing CLI output through cli,
+    # where a `{captions}` in PDF metadata is mis-read as a glue expression
+    # ("object 'captions' not found").
+    quiet = TRUE
   )
 
   # Find output file
@@ -701,7 +719,10 @@ render_report_rmarkdown_ <- function(output_format, output_file, assets_dir) {
       plot_dir         = assets_dir
     ),
     envir = new.env(parent = globalenv()),
-    quiet = FALSE
+    # quiet = TRUE: avoid the `quarto` package echoing CLI output through cli,
+    # where a `{captions}` in PDF metadata is mis-read as a glue expression
+    # ("object 'captions' not found").
+    quiet = TRUE
   )
   message("[glmnetUI REPORT] rmarkdown::render() completed, output exists: ",
           file.exists(output_file))
@@ -753,6 +774,53 @@ compute_importance_ <- function(coef_vec, x_mat, predictors, col_types) {
   if (nrow(imp) > 0) {
     max_imp <- max(imp$Importance)
     if (max_imp > 0) imp$Relative <- round(imp$Importance / max_imp * 100, 1)
+    imp <- imp[order(-imp$Importance), ]
+    rownames(imp) <- NULL
+  }
+  imp
+}
+
+# Variable importance for an EARTH-imported model. The glmnet model is fit on
+# the earth basis, whose column names (e.g. h(living_sqft-3335)) don't match the
+# original predictor names, so the plain compute_importance_() only ever credits
+# factor dummies. Here we attribute |coef| * sd(basis_col) to each g-function
+# group (variable / interaction set), the same grouping used by the equation.
+compute_importance_earth_ <- function(coef_vec, x_mat, earth_import) {
+  groups <- tryCatch(build_g_groups_(earth_import), error = function(e) NULL)
+  bx <- tryCatch(build_earth_basis(NULL, earth_import), error = function(e) NULL)
+  bx_colnames <- if (!is.null(bx)) colnames(bx) else colnames(x_mat)
+  if (is.null(groups) || length(bx_colnames) == 0L) {
+    return(data.frame(Variable = character(0), Importance = numeric(0),
+                      Relative = numeric(0), stringsAsFactors = FALSE))
+  }
+  xcols <- colnames(x_mat)
+  rows <- list()
+  for (grp in groups) {
+    if (isTRUE(grp$degree == 0L)) next  # intercept
+    total_imp <- 0
+    for (term in grp$terms) {
+      pos <- term$index - 1L            # basis columns exclude the intercept
+      if (pos < 1L || pos > length(bx_colnames)) next
+      cn <- bx_colnames[pos]
+      if (!cn %in% xcols) next
+      b <- coef_vec[cn]
+      if (!is.na(b) && b != 0) total_imp <- total_imp + abs(b) * stats::sd(x_mat[, cn])
+    }
+    if (total_imp > 0) {
+      lbl <- if (isTRUE(grp$degree > 1L)) {
+        paste(grp$base_vars, collapse = " × ")
+      } else grp$label
+      rows[[length(rows) + 1L]] <- data.frame(
+        Variable = lbl, Importance = total_imp, Relative = 0,
+        stringsAsFactors = FALSE)
+    }
+  }
+  imp <- if (length(rows)) do.call(rbind, rows) else
+    data.frame(Variable = character(0), Importance = numeric(0),
+               Relative = numeric(0), stringsAsFactors = FALSE)
+  if (nrow(imp) > 0) {
+    mx <- max(imp$Importance)
+    if (mx > 0) imp$Relative <- round(imp$Importance / mx * 100, 1)
     imp <- imp[order(-imp$Importance), ]
     rownames(imp) <- NULL
   }
@@ -917,4 +985,133 @@ compute_contrib_for_report_ <- function(coef_vec, x_mat, predictors,
   }
 
   list(contribs = contribs, x_values = x_values)
+}
+
+
+#' Generate a Quarto report bundle (without rendering)
+#'
+#' Writes a self-contained Quarto bundle under `<dest_dir>/<base>_qmd/`
+#' containing the populated `<base>.qmd`, all pre-generated plots, the report
+#' data RDS (`report_data.rds`), and `reference.docx`. Render it to HTML /
+#' Word / PDF with [convert_quarto_file()].
+#'
+#' @param assets_args Named list of arguments forwarded to
+#'   [prepare_report_assets()] (`model`, `lambda`, `gamma`, `x_mat`, `y_vec`,
+#'   `coef_df`, `predictors`, `response`, `data`, and the optional extras).
+#'   `assets_dir` is supplied by this function and must not be included.
+#' @param dest_dir Directory to write the bundle into (typically the project's
+#'   `<os>_out_glmnet` folder).
+#' @param base Bundle base name (no extension). Defaults to `"glmnet_report"`.
+#' @return Invisibly, the absolute path to the generated `.qmd` file.
+#' @export
+generate_quarto_report <- function(assets_args, dest_dir,
+                                   base = "glmnet_report") {
+  dest_dir <- path.expand(dest_dir)
+  bundle_dir <- file.path(dest_dir, paste0(base, "_qmd"))
+  dir.create(bundle_dir, recursive = TRUE, showWarnings = FALSE)
+  bundle_dir <- normalizePath(bundle_dir)
+
+  do.call(prepare_report_assets,
+          c(assets_args, list(assets_dir = bundle_dir)))
+
+  template <- system.file("quarto", "glmnet_report.qmd", package = "glmnetUI")
+  if (template == "")
+    stop("Quarto template not found. Try reinstalling 'glmnetUI'.",
+         call. = FALSE)
+  qmd_path <- file.path(bundle_dir, paste0(base, ".qmd"))
+  file.copy(template, qmd_path, overwrite = TRUE)
+
+  # Point the bundle's qmd at its co-located report_data.rds by default.
+  qmd_text <- readLines(qmd_path, warn = FALSE)
+  qmd_text <- sub('^  data_file: ""$', '  data_file: "report_data.rds"',
+                  qmd_text)
+  writeLines(qmd_text, qmd_path)
+
+  ref_docx <- system.file("quarto", "reference.docx", package = "glmnetUI")
+  if (ref_docx != "")
+    file.copy(ref_docx, file.path(bundle_dir, "reference.docx"),
+              overwrite = TRUE)
+
+  message("glmnetUI: Quarto report bundle ready at ", bundle_dir)
+  invisible(qmd_path)
+}
+
+#' Convert a Quarto source file to one or more output formats
+#'
+#' Renders any `.qmd` file to the requested formats via
+#' `quarto::quarto_render()`. The report data is taken from a
+#' `report_data.rds` co-located with the `.qmd` (as written by
+#' [generate_quarto_report()]).
+#'
+#' @param qmd_path Path to a Quarto source (`.qmd`) file.
+#' @param formats Character vector; any subset of `c("html", "docx", "pdf")`.
+#' @param output_dir Directory for the rendered output(s). Defaults to the
+#'   directory of `qmd_path`.
+#' @param paper_size `"letter"` or `"a4"`. Reserved for templates that
+#'   parametrize paper size; the shipped glmnet template fixes its own
+#'   geometry, so this is accepted but currently unused.
+#' @return Invisibly, a character vector of output file paths.
+#' @export
+convert_quarto_file <- function(qmd_path, formats = c("html"),
+                                output_dir = NULL, paper_size = "letter") {
+  if (!requireNamespace("quarto", quietly = TRUE)) {
+    stop("The 'quarto' package is required. ",
+         "Install it with: install.packages('quarto')", call. = FALSE)
+  }
+  qmd_path <- path.expand(qmd_path)
+  if (!file.exists(qmd_path))
+    stop("Quarto file not found: ", qmd_path, call. = FALSE)
+  formats <- match.arg(formats, c("html", "docx", "pdf"), several.ok = TRUE)
+  paper_size <- match.arg(paper_size, c("letter", "a4"))
+
+  if (is.null(output_dir)) output_dir <- dirname(qmd_path)
+  output_dir <- path.expand(output_dir)
+  if (!dir.exists(output_dir))
+    dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+  # Ensure QUARTO_R points to the running R; restore on exit.
+  old_quarto_r <- Sys.getenv("QUARTO_R", unset = NA)
+  Sys.setenv(QUARTO_R = file.path(R.home("bin"), "R"))
+  on.exit({
+    if (is.na(old_quarto_r)) Sys.unsetenv("QUARTO_R")
+    else Sys.setenv(QUARTO_R = old_quarto_r)
+  }, add = TRUE)
+
+  # On Windows, Quarto CLI may not be on PATH. Search common locations.
+  if (.Platform$OS.type == "windows" && !nzchar(Sys.which("quarto"))) {
+    for (qdir in c(
+      file.path(Sys.getenv("LOCALAPPDATA"), "Programs", "Quarto", "bin"),
+      file.path(Sys.getenv("ProgramFiles"), "Quarto", "bin"),
+      "C:/Program Files/Quarto/bin")) {
+      qexe <- file.path(qdir, "quarto.exe")
+      if (file.exists(qexe)) {
+        old_path <- Sys.getenv("PATH")
+        Sys.setenv(PATH = paste(normalizePath(qdir, winslash = "/"),
+                                old_path, sep = ";"))
+        on.exit(Sys.setenv(PATH = old_path), add = TRUE)
+        break
+      }
+    }
+  }
+
+  data_file <- file.path(dirname(qmd_path), "report_data.rds")
+  base <- tools::file_path_sans_ext(basename(qmd_path))
+  out_paths <- character(0)
+  for (fmt in formats) {
+    out_file <- file.path(output_dir, paste0(base, ".", fmt))
+    message(sprintf("glmnetUI: rendering %s -> %s", fmt, out_file))
+    # quiet = TRUE: avoid the `quarto` package's cli formatter choking on
+    # `{captions}` in the PDF metadata ("object 'captions' not found").
+    quarto::quarto_render(input = qmd_path, output_format = fmt,
+                          output_file = basename(out_file),
+                          execute_params = list(data_file = data_file),
+                          quiet = TRUE)
+    src <- file.path(dirname(qmd_path), basename(out_file))
+    if (normalizePath(src, mustWork = FALSE) !=
+        normalizePath(out_file, mustWork = FALSE)) {
+      if (file.exists(src)) file.rename(src, out_file)
+    }
+    out_paths <- c(out_paths, out_file)
+  }
+  invisible(out_paths)
 }

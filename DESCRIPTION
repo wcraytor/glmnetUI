@@ -26,7 +26,12 @@ Imports:
     officer,
     rmarkdown,
     jsonlite,
-    bslib
+    bslib,
+    shinyFiles,
+    quarto,
+    DBI,
+    RSQLite,
+    tools
 Suggests:
     testthat (>= 3.0.0),
     knitr,
@@ -37,8 +42,6 @@ Suggests:
     showtext,
     writexl,
     openxlsx,
-    shinyFiles,
-    quarto,
     gridExtra,
     callr
 Config/testthat/edition: 3

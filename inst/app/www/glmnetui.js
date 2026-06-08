@@ -1,16 +1,17 @@
 // glmnetUI — Settings, theme, locale, and defaults management
 // This file is loaded by ui.R via tags$script(src = "glmnetui.js")
 
-// Settings dropdown toggle
+// Settings dropdown toggle. Settings stays open until you click the gear
+// again or press "Save and Close" — it does NOT auto-close on outside clicks,
+// so using the Browse/Select file dialog can never dismiss it.
 function glmnetToggleDropdown(id) {
   var el = document.getElementById(id);
   if (el) el.classList.toggle("open");
 }
-document.addEventListener("click", function(e) {
-  var dropdowns = document.querySelectorAll(".glmnet-navbar .dropdown");
-  dropdowns.forEach(function(dd) {
-    if (!dd.contains(e.target)) dd.classList.remove("open");
-  });
+// Allow the server to close the Settings dropdown (e.g. on Save and Close).
+Shiny.addCustomMessageHandler("close_settings_dropdown", function(msg) {
+  var el = document.getElementById("glmnet-settings-dropdown");
+  if (el) el.classList.remove("open");
 });
 
 var glmnetCurrentMode = "light";
@@ -472,6 +473,16 @@ Shiny.addCustomMessageHandler("collect_and_save_defaults", function(msg) {
   try {
     var i = localStorage.getItem("glmnetUI_interactions_" + sfx);
     if (i) localStorage.setItem("glmnetUI_interactions___defaults__", i);
+  } catch(e) {}
+});
+
+// --- Save ONLY the variable configuration as default (Section 4 button) ---
+Shiny.addCustomMessageHandler("collect_and_save_varconfig", function(msg) {
+  var fn = msg.filename || "default";
+  var sfx = fn + "_" + ($("input[name='purpose']:checked").val() || "general");
+  try {
+    var v = localStorage.getItem("glmnetUI_vars_" + sfx);
+    if (v) localStorage.setItem("glmnetUI_vars___defaults__", v);
   } catch(e) {}
 });
 
