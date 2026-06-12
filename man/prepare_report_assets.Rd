@@ -61,6 +61,9 @@ prepare_report_assets(
 
 \item{data_file_name}{Character: original data file name.}
 
+\item{earth_import}{Optional earthUI import object (parsed \code{.rds}
+result), or NULL when no earth model is associated with the report.}
+
 \item{assets_dir}{Character path to write assets. If NULL, a
 temporary directory is created.}
 }

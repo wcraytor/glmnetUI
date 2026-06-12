@@ -137,7 +137,8 @@ function(input, output, session) {
 
   earth_mod <- earthImportServer("earth")
   earth_import_r <- earth_mod$earth_import
-  data_out <- dataImportServer("data", purpose, active_project_r)
+  data_out <- dataImportServer("data", purpose, active_project_r,
+                               earth_import_r)
   model_out <- modelingServer("model", data_out, purpose, effective_date,
                                skip_first_row, earth_import_r)
   coef_out <- coefficientsServer("coefs", model_out, data_out)

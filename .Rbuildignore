@@ -11,3 +11,10 @@
 ^\.github$
 ^docs$
 ^CRAN-SUBMISSION$
+^CLAUDE\.md$
+^CRAN_NOTE\.txt$
+^.*\.Rcheck$
+^\.RData$
+^\.Rhistory$
+^\.Rapp\.history$
+^\.DS_Store$

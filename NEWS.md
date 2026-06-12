@@ -8,6 +8,17 @@
 * **Right-aligned info icons**: Section header help icons (`?`) are now right-aligned via flexbox and use Nord Frost colors (nord8 `#88c0d0` / nord10 `#5e81ac`) instead of Bootstrap defaults (`#5bc0de`).
 * **Dark mode**: Snow Storm (light, nord6 background) and Polar Night (dark, nord0 background) themes documented and enforced. Theme preference persists via localStorage.
 
+## earthUI Import
+
+* **Predictor table reflects the earth model**: When an earthUI result is
+  imported, the model's predictors — not the Include checkboxes — drive the
+  glmnet fit (glmnet fits on earth's basis expansion). The Variable
+  Configuration table now makes this explicit: **Include** and **Type** are
+  locked, rows for predictors the earth model did not use are disabled, and a
+  note explains that the predictor set comes from the earth model.
+  **Force-in** and **Sign** stay editable for earth's predictors, since those
+  still apply to the earth basis at fit time.
+
 ## Purpose-Aware State Management
 
 * **Purpose persistence**: The last-used purpose mode is saved to localStorage (`glmnetUI_last_purpose`) and restored automatically when the app is relaunched. Each sibling app (earthUI, glmnetUI, mgcvUI) persists independently.
@@ -18,6 +29,31 @@
 * **CLAUDE.md**: New project-level instructions file with shared UI conventions for all three sibling apps (Nord palette rules, Frost-only button classes, purpose persistence, sales_grid.R exception).
 * **Vignettes updated**: Getting Started and User Guide vignettes reflect the new Section 2 (earthUI import), renumbered sidebar workflow (1–10), purpose persistence, and purpose-change reset behavior.
 * **User Guide (PDF)**: Updated chapter references, sidebar section numbering, Getting Started steps, and settings persistence documentation.
+
+## Testing & CRAN
+
+* **regProj test coverage**: Added unit/integration tests for the shared
+  regProj layer — geo and projects SQLite databases (schema, seeding,
+  index get/put, legacy-JSON and schema migrations, WAL journaling),
+  path composition, flat-segment encode/parse, per-purpose and per-method
+  project settings, root resolution (env var / prefs / OS default), and
+  the `register_project()` / `is_project_dir()` helpers. All tests run
+  against tempdir roots and never touch `~/regProj`.
+* **Shiny module tests**: Added `testServer()` coverage for the summary,
+  equation, importance, contributions, diagnostics, ANOVA, and correlation
+  modules.
+* **Per-purpose modeling tests**: Added parametrized `testServer()` tests that
+  drive a real model fit in all three purpose modes (general, appraisal,
+  market) and verify the first-row handling fork — appraisal always excludes
+  row 1, while general and market keep all rows unless the skip checkbox is
+  set — plus a summary-stats check across all three modes.
+* **Report formats**: Extended report tests to cover DOCX and PDF
+  rendering (skipped on CRAN / when pandoc or LaTeX is unavailable) and
+  asset generation across all three purpose modes.
+* **CRAN checks**: Cleaned `R CMD check --as-cran` to a single expected
+  "New submission" note — escaped non-ASCII characters in R sources,
+  declared the `scales`, `tinytex`, and `withr` dependencies, documented
+  all function arguments, and excluded non-standard top-level files.
 
 # glmnetUI 0.4.0
 

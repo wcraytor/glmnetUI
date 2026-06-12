@@ -34,6 +34,8 @@ has_latex_ <- function() {
 #' @param relaxed Logical: was relaxed lasso used.
 #' @param lambda_method Character: "cv" or "manual".
 #' @param data_file_name Character: original data file name.
+#' @param earth_import Optional earthUI import object (parsed `.rds`
+#'   result), or NULL when no earth model is associated with the report.
 #' @param assets_dir Character path to write assets. If NULL, a
 #'   temporary directory is created.
 #' @return The path to the assets directory (invisibly).
@@ -122,7 +124,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
   rmse <- sqrt(mean(resids^2))
   mae <- mean(abs(resids))
 
-  # Generalized R² (deviance ratio from cv.glmnet)
+  # Generalized R^2 (deviance ratio from cv.glmnet)
   gen_r_sq <- r_sq
   if (inherits(model, "cv.glmnet") || inherits(model, "cv.relaxed")) {
     fit_obj <- if (inherits(model, "cv.glmnet")) model$glmnet.fit else model
@@ -131,7 +133,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     if (length(idx) == 1L) gen_r_sq <- dev_ratio[idx]
   }
 
-  # CV R²
+  # CV R^2
   cv_r_sq <- NA_real_
   if (inherits(model, "cv.glmnet") || inherits(model, "cv.relaxed")) {
     idx <- which.min(abs(model$lambda - lambda))
@@ -173,7 +175,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     earth_import = earth_import)
 
   # --- Save model for on-the-fly printing in template ---
-  # Strip Call: from model before saving — cv.relaxed stores the full
+  # Strip Call: from model before saving -- cv.relaxed stores the full
   # function body (200K+ chars) which blows up LaTeX bufsize.
   model_clean <- model
   model_clean$call <- quote(cv.glmnet(...))
@@ -271,7 +273,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     save_ggplot_("correlation", p_cor, width = 10, height = 8)
   }
 
-  # Contribution plots — match the rendering in mod_contributions.R:
+  # Contribution plots -- match the rendering in mod_contributions.R:
   #   Numeric: scatter + slope/fit line
   #   Factor:  box plot by level
   #   Interaction: scatter colored by 2nd var + heatmap + static 3D persp
@@ -808,7 +810,7 @@ compute_importance_earth_ <- function(coef_vec, x_mat, earth_import) {
     }
     if (total_imp > 0) {
       lbl <- if (isTRUE(grp$degree > 1L)) {
-        paste(grp$base_vars, collapse = " × ")
+        paste(grp$base_vars, collapse = " \u00d7 ")
       } else grp$label
       rows[[length(rows) + 1L]] <- data.frame(
         Variable = lbl, Importance = total_imp, Relative = 0,

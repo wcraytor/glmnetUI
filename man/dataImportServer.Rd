@@ -7,7 +7,8 @@
 dataImportServer(
   id,
   purpose = shiny::reactiveVal("general"),
-  active_project_r = shiny::reactiveVal(NULL)
+  active_project_r = shiny::reactiveVal(NULL),
+  earth_import_r = shiny::reactive(NULL)
 )
 }
 \arguments{
@@ -20,6 +21,12 @@ dataImportServer(
 one-row data frame with a \code{project_path} column) or \code{NULL} when
 no project is open. Files are listed/loaded from the project's
 \code{<os>_in/} folder.}
+
+\item{earth_import_r}{Reactive returning the imported earth model (a
+\code{glmnetUI_earth_import}) or \code{NULL}. When non-NULL, the predictor
+set is dictated by the earth model, so the variable table locks Include
+and Type, disables rows for predictors earth did not use, and keeps Force
+and Sign editable for earth's predictors.}
 }
 \value{
 A reactive list containing:

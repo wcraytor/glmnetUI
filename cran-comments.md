@@ -1,36 +1,31 @@
 ## R CMD check results
 
-0 errors | 0 warnings | 0 notes
+0 errors | 0 warnings | 1 note
+
+* The note is "New submission" (the package is not currently on CRAN).
 
 ## Test environments
 
-* macOS Sequoia 15.4 (aarch64), R 4.5.2 — 0 errors, 0 warnings, 0 notes
-* Linux (Docker rocker/tidyverse, Debian), R 4.5.3 — 0 errors, 0 warnings, 1 note (new submission)
-* Windows Server 2022 (win-builder release), R 4.5.2 — 0 errors, 0 warnings, 1 note (new submission)
-* Windows Server 2022 (win-builder devel) — 0 errors, 0 warnings, 1 note (new submission)
+* macOS Tahoe 26.5 (aarch64), R 4.5.3 — local R CMD check --as-cran
 
-## Resubmission
+## Submission notes
 
-This is a resubmission addressing reviewer feedback from Benjamin Altmann:
+This version (0.5.0) introduces a shared project system ("regProj") used
+by the maintainer's family of sibling Shiny apps (earthUI, already on
+CRAN; glmnetUI; mgcvUI). Projects, geo reference data, and per-project
+settings are stored in SQLite databases under a configurable root
+directory. The root is resolved in this order: the REGPROJ_ROOT
+environment variable, a `regproj_root` field in the per-user preferences
+file (stored under tools::R_user_dir("glmnetUI", "config")), and finally
+a per-OS default. These files are created only when the user runs the
+interactive application and saves a project — never on package load, in
+examples, in tests, or in vignettes. All examples that launch the app or
+write files are guarded by `if (interactive())`, and all tests write only
+to tempdir().
 
-1. **Single-quoted software names**: Package names ('shiny', 'glmnet',
-   'ggplot2', 'Quarto', 'rmarkdown') are now single-quoted in Title
-   and Description.
-2. **References added**: Friedman, Hastie, and Tibshirani (2010)
-   <doi:10.18637/jss.v033.i01> and Zou and Hastie (2005)
-   <doi:10.1111/j.1467-9868.2005.00503.x> added to Description.
-3. **Missing \\value tags**: Added \\value documentation to
-   anovaServer.Rd, contributionsServer.Rd, correlationServer.Rd,
-   and importanceServer.Rd.
-
-## Additional changes since original submission (version bumped to 0.4.0)
-
-* Fixed report generation (PDF, Word, HTML) for all purpose modes.
-* Report contribution plots now match the interactive Contributions tab.
-* Added General purpose mode support: skip first row, per-purpose settings
-  persistence, hidden RCA/Sales Grid sections, enabled data download.
-* Removed earth import code paths.
-* 29 new unit tests (1,158 total).
+Reviewer feedback from the earlier 0.4.0 submission (single-quoted
+software names in Title/Description, DOI references for the underlying
+methods, and \value tags on all exported functions) remains addressed.
 
 ## Downstream dependencies
 

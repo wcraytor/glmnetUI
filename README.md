@@ -36,6 +36,8 @@ This launches a Shiny application on port 7879 with a point-and-click
 interface for:
 
 - **Data import** from CSV or Excel files
+- **earthUI model import**: load a saved earthUI result (`.rds`) and refit its
+  basis expansion (hinge functions and interactions) with glmnet on your data
 - **Variable selection** with per-variable include, type override, expected
   sign, and special column designations
 - **Model fitting** with cross-validation, alpha grid search, relaxed lasso,
@@ -52,6 +54,16 @@ interface for:
 - **Appraisal**: Real estate appraisal with subject property, CQA scores,
   RCA adjustments, and Sales Grid
 - **Market**: Market area analysis
+
+## Projects
+
+Work is organized into projects under a shared `regProj` root (default
+`~/regProj`, or set `REGPROJ_ROOT`). Each project stores its input data,
+outputs, and saved settings, using the same project tree and SQLite
+databases (`geo.sqlite`, `projects.sqlite`) as the sibling apps
+[earthUI](https://github.com/wcraytor/earthUI) and mgcvUI, so models from
+all three can live side by side. Projects are created and written only
+through the app.
 
 ## Demo
 

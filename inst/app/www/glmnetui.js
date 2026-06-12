@@ -239,12 +239,14 @@ window.glmnetApplyVariables = function(saved) {
     var $type = $(document.getElementById("data-type_" + colName));
     var $special = $(document.getElementById("data-special_" + colName));
 
-    if ($inc.length && sv.inc !== undefined) $inc.prop("checked", sv.inc);
-    if ($fac.length && sv.fac !== undefined) $fac.prop("checked", sv.fac);
-    if ($force.length && sv.force !== undefined) $force.prop("checked", sv.force);
-    if ($sign.length && sv.sign) $sign.val(sv.sign);
-    if ($type.length && sv.type) $type.val(sv.type);
-    if ($special.length && sv.special) $special.val(sv.special);
+    // Skip controls locked (disabled) by an active earth import, so applying
+    // saved settings never overrides the earth lock.
+    if ($inc.length && !$inc.prop("disabled") && sv.inc !== undefined) $inc.prop("checked", sv.inc);
+    if ($fac.length && !$fac.prop("disabled") && sv.fac !== undefined) $fac.prop("checked", sv.fac);
+    if ($force.length && !$force.prop("disabled") && sv.force !== undefined) $force.prop("checked", sv.force);
+    if ($sign.length && !$sign.prop("disabled") && sv.sign) $sign.val(sv.sign);
+    if ($type.length && !$type.prop("disabled") && sv.type) $type.val(sv.type);
+    if ($special.length && !$special.prop("disabled") && sv.special) $special.val(sv.special);
   }
   if ($(".glmnet-var-cb").length) $(".glmnet-var-cb").first().trigger("change");
 };
@@ -310,11 +312,12 @@ Shiny.addCustomMessageHandler("apply_glmnet_defaults", function(msg) {
     "model-gamma": 0
   };
   window.glmnetApplySettings(defaults);
-  // Reset variable table: check all inc, uncheck force, set sign=either
-  $(".glmnet-var-cb").prop("checked", true);
-  $(".glmnet-force-cb").prop("checked", false);
-  $(".glmnet-sign-sel").val("either");
-  $(".glmnet-special-sel").val("no");
+  // Reset variable table: check all inc, uncheck force, set sign=either.
+  // ":not(:disabled)" leaves earth-locked controls untouched.
+  $(".glmnet-var-cb:not(:disabled)").prop("checked", true);
+  $(".glmnet-force-cb:not(:disabled)").prop("checked", false);
+  $(".glmnet-sign-sel:not(:disabled)").val("either");
+  $(".glmnet-special-sel:not(:disabled)").val("no");
   if ($(".glmnet-var-cb").length) $(".glmnet-var-cb").first().trigger("change");
   // Clear all interactions (default is unchecked)
   $(".glmnet-interaction-cb").prop("checked", false);

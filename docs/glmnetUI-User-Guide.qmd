@@ -319,7 +319,7 @@ The application provides a complete workflow: data import, variable configuratio
 
 ## Three Purpose Modes
 
-When you launch glmnetUI, a **Purpose** radio button at the top of the sidebar lets you choose one of three modes:
+Every project has a **purpose**, chosen when you create it (Section 1, *Project*). The active project's purpose determines which tools and interface elements appear; to work in a different mode, create or open a project with that purpose. The three modes are:
 
 - **General** --- Elastic net regression for any type of population or dataset. This is the default mode. It provides the full regularized regression workflow without any domain-specific additions.
 - **For Appraisal** --- Elastic net regression tailored for real estate appraisal. Adds features specific to single-property valuation, including subject property handling, special column designations, and Reconciliation by Comparable Adjustment (RCA).
@@ -346,13 +346,13 @@ To use glmnetUI:
 
 1. **Install the package** in R: `install.packages("glmnetUI")` or install from source.
 2. **Launch the application**: run `glmnetUI::glmnetUI()` in R. The app opens in your web browser on port 7879. You can also access the app directly by navigating to `http://localhost:7879` in your browser. The app remembers your last-used purpose mode and restores it automatically.
-3. **Import your data** using the file upload in Section 1 of the sidebar. glmnetUI accepts CSV and Excel files.
-4. **Import from earthUI (optional)** --- Section 2 lets you import an earthUI result `.rds` file to use earth's hinge basis functions with glmnet's regularization. Skip this step if you do not have an earthUI result.
-5. **Select your Purpose** (General, For Appraisal, or Market Area Analysis). Note that changing the purpose resets both the data import and the earthUI import --- you must re-import after switching.
+3. **Create or open a project** in Section 1 of the sidebar. A project sets the purpose and work location (country, state, county, city) and its input/output folders. Projects are stored under a shared `regProj` root and are shared with the sibling apps earthUI and mgcvUI. Opening a project with a different purpose is how you switch modes.
+4. **Import your data** in Section 2 by selecting a CSV or Excel file from the active project's input folder. Add files to that folder, then click **Refresh** to list them.
+5. **Import from earthUI (optional)** --- Section 3 lets you import an earthUI result `.rds` file to use earth's hinge basis functions with glmnet's regularization. Skip this step if you do not have an earthUI result.
 6. **Configure variables** --- choose your target and predictors, set data types, expected signs, and assign any special column roles.
 7. **Set glmnet parameters** --- alpha, lambda, family, sign constraints, interactions, and other options.
 8. **Fit the model** --- click "Fit Glmnet Model" and review the results in the main panel.
-9. **Export** --- download predictions as Excel, generate reports, or (in appraisal mode) compute RCA adjustments.
+9. **Export** --- download predictions as Excel, generate and convert a Quarto report, or (in appraisal mode) compute RCA adjustments and a Sales Grid.
 
 Settings are automatically persisted in your browser's local storage and restored when you reload the same input file.
 
@@ -486,29 +486,35 @@ Settings (predictor selections, model parameters, interactions) are saved separa
 
 ## The Sidebar Workflow
 
-The sidebar is organized into numbered, collapsible sections that guide you from data import through export:
+The sidebar is organized into numbered, collapsible sections that guide you from project selection through report export. Most sections appear only once an active project is open, and several are specific to the project's purpose. The output folder is derived from the active project --- there is no separate output-folder field.
 
-**1. Import Data** --- File upload accepting CSV and Excel files. For Excel files with multiple sheets, a sheet selector appears. Column names are automatically converted to snake\_case.
+**1. Project** --- Create or open a project. A project sets the purpose and work location (country, state, county, city) and its input (\texttt{<os>\_in/}) and output folders. Projects are stored under a shared `regProj` root (default `~/regProj`, overridable with the `REGPROJ_ROOT` environment variable) and are shared with the sibling apps earthUI and mgcvUI, so models from all three live side by side. Click **Close Project** to switch.
 
-**2. Import from earthUI (optional)** --- Import an earthUI result \texttt{.rds} file to use earth's hinge basis functions with glmnet's elastic net regularization. The browse button is styled to match the Section 1 file upload. This step is optional --- skip it if you do not have an earthUI result to import.
+**2. Import Data** --- Select a CSV or Excel file from the active project's input folder. Add files to the folder via Finder/Explorer, then click **Refresh** to list them. For Excel files with multiple sheets, a sheet selector appears. Column names are automatically converted to snake\_case.
 
-**3. Project Output Folder** --- A text field specifying where downloads are saved (defaults to `~/Downloads`).
+**3. Import from earthUI (optional)** --- Import an earthUI result \texttt{.rds} file to use earth's hinge basis functions with glmnet's elastic net regularization. The browse button is styled to match the Section 2 file picker. This step is optional --- skip it if you do not have an earthUI result to import.
 
 **4. Variable Configuration** --- Target variable selector, predictor table with checkboxes for Include, Force, and Sign. The Special column (for designating contract dates, coordinates, etc.) appears only in Appraisal and Market modes. See Chapter 6 for full details.
 
 **5. glmnet Call Parameters** --- All model configuration: alpha, lambda, family, standardize, sign constraints, relaxed lasso, interaction matrix, and advanced parameters (lambda.min.ratio, nlambda, CV loss metric, convergence threshold, max iterations, intercept). See Chapter 7 for the complete parameter reference.
 
-**6. Fit Glmnet Model** --- The button that runs the model.
+**6. Fit Glmnet Model** --- The button that runs the model. Results appear in the tabs on the right.
 
-**7. Download Output** --- Exports predictions, residuals, CQA scores, and per-variable contributions as an Excel file. Available in all purpose modes.
+**7. Download Output** --- Exports predictions, residuals, CQA scores, and per-variable contributions as an Excel file to the project's output folder. Available in all purpose modes once the model is fit.
 
-**8. Download Report** --- Generates a formatted report (Word, PDF, or HTML) saved to the output folder. See Chapter 13. Steps 8--9 (RCA Adjustments and Sales Grid) appear only in Appraisal mode; in General mode the report step is numbered 8.
+**8. Calculate RCA Adjustments \& Download** --- Computes per-variable RCA adjustments for each comparable and interpolates the subject residual via CQA. Appears only in Appraisal and Market modes, after fitting.
+
+**9. Generate Sales Grid \& Download** --- Generates the Intermediate Sales Comparison Grid, ranking comparables by gross adjustment percentage. Appears only in Appraisal mode, after RCA adjustments are computed.
+
+**10. Generate Quarto Report** --- Writes a self-contained Quarto (\texttt{.qmd}) report bundle --- with all plots and tables --- into the project's output folder. Available once the model is fit.
+
+**11. Convert Quarto Report** --- Renders the generated \texttt{.qmd} bundle to HTML, Word, or PDF. PDF requires a LaTeX installation; if none is detected, the PDF option is hidden. See Chapter 13.
 
 ## Import from earthUI (Optional)
 
-Section 2 of the sidebar --- **Import from earthUI** --- lets you import an earthUI result \texttt{.rds} file. This allows glmnetUI to use earth's hinge basis functions (piecewise linear terms) with glmnet's elastic net regularization, combining earth's automatic nonlinearity detection with glmnet's variable selection and coefficient constraints.
+Section 3 of the sidebar --- **Import from earthUI** --- lets you import an earthUI result \texttt{.rds} file. This allows glmnetUI to use earth's hinge basis functions (piecewise linear terms) with glmnet's elastic net regularization, combining earth's automatic nonlinearity detection with glmnet's variable selection and coefficient constraints.
 
-The browse button is styled to match the Section 1 file upload. This step is entirely optional --- if you do not have an earthUI result file, simply skip Section 2 and proceed to Section 3.
+The browse button is styled to match the Section 2 file picker. This step is entirely optional --- if you do not have an earthUI result file, simply skip Section 3 and proceed to Section 4.
 
 ## Main Panel Tabs
 
@@ -662,7 +668,7 @@ Section 4 of the sidebar --- **Variable Configuration** --- is where you choose 
 
 ## Target Variable
 
-The **Target (response) variable** dropdown at the top of Section 3 lists every column in your dataset. Select one column as the response variable (e.g., sale price). The target column is automatically excluded from the predictor list.
+The **Target (response) variable** dropdown at the top of Section 4 lists every column in your dataset. Select one column as the response variable (e.g., sale price). The target column is automatically excluded from the predictor list.
 
 ## The Predictor Table
 
@@ -1340,8 +1346,8 @@ This is not real data, but is based on a realistic neighborhood in Northern Cali
 ## Suggested Quick Start
 
 1. Launch glmnetUI: `glmnetUI::glmnetUI()`
-2. Import `Appraisal_1.csv` via the file upload
-3. Set Purpose to **For Appraisal**
+2. Create a new project (Section 1) with purpose **For Appraisal**
+3. Place `Appraisal_1.csv` in the project's input folder and select it in Section 2 (click **Refresh** if needed)
 4. Select `sale_price` as the target
 5. Assign special types as shown in the table above
 6. Include predictors: `sale_age`, `living_sqft`, `baths_total`, `lot_size`, `area_id` (as factor), `age`, `latitude`, `longitude`, `garage_spaces`

@@ -39,7 +39,7 @@ dataImportUI <- function(id) {
     shiny::tags$div(
       style = "display:flex; gap:12px; align-items:center; margin-top:4px;",
       shinyFiles::shinyFilesButton(
-        ns("file_browse"), "Browse…",
+        ns("file_browse"), "Browse\u2026",
         title = "Select a CSV or Excel file to import into this project",
         multiple = FALSE,
         class = "btn btn-outline-secondary btn-sm"),
@@ -167,6 +167,11 @@ dataPreviewUI <- function(id) {
 #'   one-row data frame with a \code{project_path} column) or \code{NULL} when
 #'   no project is open. Files are listed/loaded from the project's
 #'   \code{<os>_in/} folder.
+#' @param earth_import_r Reactive returning the imported earth model (a
+#'   \code{glmnetUI_earth_import}) or \code{NULL}. When non-NULL, the predictor
+#'   set is dictated by the earth model, so the variable table locks Include
+#'   and Type, disables rows for predictors earth did not use, and keeps Force
+#'   and Sign editable for earth's predictors.
 #'
 #' @return A reactive list containing:
 #' \describe{
@@ -187,7 +192,8 @@ dataPreviewUI <- function(id) {
 #'   }
 #' }
 dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
-                             active_project_r = shiny::reactiveVal(NULL)) {
+                             active_project_r = shiny::reactiveVal(NULL),
+                             earth_import_r = shiny::reactive(NULL)) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -335,7 +341,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       last <- regproj_last_file_get(p$project_path)
       if (length(files) == 0L) {
         return(shiny::tags$div(class = "small text-muted",
-          "(no files in this project's in/ folder yet — drop CSV/Excel files into ",
+          "(no files in this project's in/ folder yet \u2014 drop CSV/Excel files into ",
           shiny::tags$code(file.path(p$project_path, paste0(os_detect(), "_in"))),
           " and click Refresh)"))
       }
@@ -436,6 +442,17 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       df <- rv$data
       file_key <- rv$file_name
 
+      # When an earthUI model is imported, the predictor set is dictated by the
+      # earth model: glmnet fits on earth's basis expansion (mod_modeling.R),
+      # not the Include checkboxes. We reflect that here by locking Include and
+      # Type/Factor (earth-controlled) and disabling rows for predictors earth
+      # did not use. Force-in and Sign stay editable for earth's predictors,
+      # since those still map onto the earth basis at fit time.
+      ek <- tryCatch(earth_import_r(), error = function(e) NULL)
+      earth_active <- !is.null(ek)
+      earth_preds <- if (earth_active) intersect(ek$predictors, cols)
+                     else character(0)
+
       # CSS for flexbox rows (colors handled via classes for dark mode)
       row_css <- "display:flex; align-items:center; padding:2px 0; border-bottom:1px solid #eee; gap:2px;"
       hdr_css <- "display:flex; align-items:center; padding:4px 0; border-bottom:2px solid #ccc; font-weight:bold; font-size:0.85em; gap:2px;"
@@ -484,6 +501,16 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
         na_count <- sum(is.na(df[[col_name]]))
         na_style <- if (na_count > nrow(df) * 0.3) "color:red;" else ""
 
+        # Earth lock state for this row. `lock_attr` (NA -> the boolean HTML
+        # attribute, NULL -> omitted) disables earth-controlled inputs;
+        # `fs_lock` disables Force/Sign/Special only for predictors earth did
+        # not select; `inc_checked` forces earth's predictors checked.
+        in_earth     <- earth_active && (col_name %in% earth_preds)
+        lock_attr    <- if (earth_active) NA else NULL
+        fs_lock      <- if (earth_active && !in_earth) NA else NULL
+        inc_checked  <- if (in_earth) NA else NULL
+        row_dim      <- if (earth_active && !in_earth) "opacity:0.5;" else ""
+
         type_options <- lapply(all_types, function(tp) {
           if (tp == col_type) {
             shiny::tags$option(value = tp, selected = "selected", tp)
@@ -496,6 +523,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
           class = "form-control glmnet-type-sel",
           style = "width:58px; padding:1px 2px; font-size:0.72em; border:1px solid var(--bs-border-color, #4c566a); border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
           `data-col` = col_name,
+          disabled = lock_attr,
           type_options
         )
 
@@ -504,6 +532,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
           class = "form-control glmnet-sign-sel",
           style = "width:52px; padding:1px 2px; font-size:0.72em; border:1px solid var(--bs-border-color, #4c566a); border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
           `data-col` = col_name,
+          disabled = fs_lock,
           shiny::tags$option(value = "either", "either"),
           shiny::tags$option(value = "positive", "positive"),
           shiny::tags$option(value = "negative", "negative")
@@ -526,6 +555,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
             class = "form-control glmnet-special-sel",
             style = "width:68px; padding:1px 2px; font-size:0.75em; border:1px solid var(--bs-border-color, #4c566a); border-radius:3px; background:var(--bs-body-bg, #fff); color:var(--bs-body-color, #333);",
             `data-col` = col_name,
+            disabled = fs_lock,
             special_opts
           )
         )
@@ -545,7 +575,9 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
               type = "checkbox",
               id = ns(paste0("inc_", col_name)),
               class = "glmnet-var-cb",
-              `data-col` = col_name
+              `data-col` = col_name,
+              checked = inc_checked,
+              disabled = lock_attr
             )
           ),
           shiny::tags$div(
@@ -554,7 +586,8 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
               type = "checkbox",
               id = ns(paste0("fac_", col_name)),
               class = "glmnet-fac-cb",
-              `data-col` = col_name
+              `data-col` = col_name,
+              disabled = lock_attr
             )
           ),
           shiny::tags$div(
@@ -563,7 +596,8 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
               type = "checkbox",
               id = ns(paste0("force_", col_name)),
               class = "glmnet-force-cb",
-              `data-col` = col_name
+              `data-col` = col_name,
+              disabled = fs_lock
             )
           )
         )
@@ -584,7 +618,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
 
         shiny::tags$div(
           class = "glmnet-var-row",
-          style = row_css,
+          style = paste0(row_css, row_dim),
           row_cells
         )
       })
@@ -683,13 +717,15 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
               var fcb = document.getElementById(nsPrefix + "force_" + cols[i]);
               var fac = document.getElementById(nsPrefix + "fac_" + cols[i]);
               if (saved && saved[cols[i]]) {
-                if (cb) cb.checked = saved[cols[i]].inc;
-                if (fac) fac.checked = !!saved[cols[i]].fac;
-                if (sel) sel.value = saved[cols[i]].sign || "either";
-                if (tp && saved[cols[i]].type) tp.value = saved[cols[i]].type;
-                if (fcb && saved[cols[i]].force) fcb.checked = saved[cols[i]].force;
+                // Skip any control the server locked (disabled) for the earth
+                // import, so saved settings never override the earth lock.
+                if (cb && !cb.disabled) cb.checked = saved[cols[i]].inc;
+                if (fac && !fac.disabled) fac.checked = !!saved[cols[i]].fac;
+                if (sel && !sel.disabled) sel.value = saved[cols[i]].sign || "either";
+                if (tp && !tp.disabled && saved[cols[i]].type) tp.value = saved[cols[i]].type;
+                if (fcb && !fcb.disabled && saved[cols[i]].force) fcb.checked = saved[cols[i]].force;
                 var sp = document.getElementById(nsPrefix + "special_" + cols[i]);
-                if (sp && saved[cols[i]].special) sp.value = saved[cols[i]].special;
+                if (sp && !sp.disabled && saved[cols[i]].special) sp.value = saved[cols[i]].special;
               }
               // Sync sign selects to Shiny
               if (sel) {
@@ -796,7 +832,21 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
         })();
       ')
 
+      earth_banner <- if (earth_active) {
+        shiny::tags$div(
+          class = "glmnet-earth-lock-note",
+          style = paste0("font-size:0.78em; padding:4px 6px; margin-bottom:4px;",
+                         " border-left:3px solid var(--bs-info, #88c0d0);",
+                         " background:var(--bs-tertiary-bg, #eceff4);"),
+          shiny::HTML(paste0(
+            "Predictor set is determined by the imported earth model. ",
+            "<b>Include</b> and <b>Type</b> are locked; you can still set ",
+            "<b>Force</b> and <b>Sign</b> for earth's predictors."))
+        )
+      }
+
       shiny::tagList(
+        earth_banner,
         header,
         rows,
         shiny::tags$script(shiny::HTML(js_code))
@@ -1023,7 +1073,7 @@ auto_parse_dates_ <- function(df) {
       c(two_digit, four_digit)
     }
 
-    # Try each format — require non-NA AND dates in 1900-2100
+    # Try each format -- require non-NA AND dates in 1900-2100
     # to avoid %Y parsing 2-digit years as year 0025
     min_date <- as.POSIXct("1900-01-01")
     max_date <- as.POSIXct("2100-12-31")
@@ -1031,7 +1081,7 @@ auto_parse_dates_ <- function(df) {
       parsed <- suppressWarnings(as.POSIXct(sample_vals, format = fmt))
       ok <- !is.na(parsed) & parsed >= min_date & parsed <= max_date
       if (all(ok)) {
-        # Format matches sample — parse the full column
+        # Format matches sample -- parse the full column
         df[[nm]] <- suppressWarnings(as.POSIXct(col, format = fmt))
         break
       }

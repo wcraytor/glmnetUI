@@ -191,3 +191,66 @@ test_that("render_report produces HTML output", {
   expect_true(file.exists(out_html))
   expect_true(file.size(out_html) > 0)
 })
+
+# --- report assets across purpose modes + non-HTML render formats ---
+
+# Shared fixture: build an assets directory for a given purpose and return its
+# path. Caller is responsible for unlink().
+.build_report_assets <- function(purpose = "general", response = "y") {
+  set.seed(42)
+  x <- matrix(stats::rnorm(100 * 3), 100, 3,
+              dimnames = list(NULL, c("x1", "x2", "x3")))
+  y <- x[, 1] * 2 + x[, 2] * (-1) + stats::rnorm(100, sd = 0.5)
+  df <- data.frame(x, y = y)
+  names(df)[ncol(df)] <- response
+  fit <- glmnet::cv.glmnet(x, y)
+  lam <- fit$lambda.1se
+  coefs <- coef(fit, s = lam)
+  coef_df <- data.frame(Variable = rownames(coefs),
+                        Coefficient = as.numeric(coefs),
+                        stringsAsFactors = FALSE)
+  prepare_report_assets(
+    model = fit, lambda = lam, gamma = NULL,
+    x_mat = x, y_vec = y, coef_df = coef_df,
+    predictors = c("x1", "x2", "x3"), response = response,
+    data = df, purpose = purpose, data_file_name = "test.csv"
+  )
+}
+
+test_that("prepare_report_assets records each purpose mode", {
+  for (p in c("general", "appraisal", "market")) {
+    assets_dir <- .build_report_assets(purpose = p)
+    on.exit(unlink(assets_dir, recursive = TRUE), add = TRUE)
+    expect_true(dir.exists(assets_dir))
+    assets <- readRDS(file.path(assets_dir, "report_data.rds"))
+    expect_equal(assets$purpose, p)
+    expect_false(is.null(assets$model))
+  }
+})
+
+test_that("render_report produces DOCX output", {
+  skip_on_cran()
+  skip_if_not(rmarkdown::pandoc_available(), "pandoc not available")
+  assets_dir <- .build_report_assets()
+  on.exit(unlink(assets_dir, recursive = TRUE), add = TRUE)
+
+  out_docx <- tempfile(fileext = ".docx")
+  render_report(output_format = "docx", output_file = out_docx,
+                assets_dir = assets_dir)
+  expect_true(file.exists(out_docx))
+  expect_gt(file.size(out_docx), 0)
+})
+
+test_that("render_report produces PDF output", {
+  skip_on_cran()
+  skip_if_not(glmnetUI:::has_latex_(), "no LaTeX installation")
+  skip_if_not(rmarkdown::pandoc_available(), "pandoc not available")
+  assets_dir <- .build_report_assets()
+  on.exit(unlink(assets_dir, recursive = TRUE), add = TRUE)
+
+  out_pdf <- tempfile(fileext = ".pdf")
+  render_report(output_format = "pdf", output_file = out_pdf,
+                assets_dir = assets_dir)
+  expect_true(file.exists(out_pdf))
+  expect_gt(file.size(out_pdf), 0)
+})
