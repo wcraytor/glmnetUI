@@ -206,7 +206,7 @@ reportServer <- function(id, model_module, coef_module, data_module) {
 
     output$dl_word <- shiny::downloadHandler(
       filename = function() {
-        paste0("glmnet_report_", format(Sys.Date(), "%Y%m%d"), ".docx")
+        paste0("glmnet_report_", fit_stamp_(model_module$fit_ts()), ".docx")
       },
       content = function(file) {
         message("[glmnetUI MOD] dl_word handler: file=", file)
@@ -261,7 +261,7 @@ reportServer <- function(id, model_module, coef_module, data_module) {
 
     output$dl_pdf <- shiny::downloadHandler(
       filename = function() {
-        paste0("glmnet_report_", format(Sys.Date(), "%Y%m%d"), ".pdf")
+        paste0("glmnet_report_", fit_stamp_(model_module$fit_ts()), ".pdf")
       },
       content = function(file) {
         message("[glmnetUI MOD] dl_pdf handler: file=", file)

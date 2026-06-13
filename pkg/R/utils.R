@@ -197,3 +197,19 @@ special_default_for_ <- function(name, tags) {
   }
   "no"
 }
+
+#' Format the canonical fit timestamp for output filenames (internal)
+#'
+#' Every output produced from a single model fit (Excel exports, the sales grid,
+#' and the qmd/docx/html/pdf reports) is named with the *fit* time rather than
+#' each file's creation time, so a fit's outputs group together and a Trilogy
+#' run can gather the three methods' files by fit time. Falls back to the
+#' current time if no fit timestamp is available.
+#'
+#' @param ts A POSIXct fit time (e.g. `model_module$fit_ts()`), or NULL.
+#' @return Character `"%Y%m%d_%H%M%S"`.
+#' @noRd
+fit_stamp_ <- function(ts = NULL) {
+  if (is.null(ts) || length(ts) == 0L || all(is.na(ts))) ts <- Sys.time()
+  format(ts, "%Y%m%d_%H%M%S")
+}

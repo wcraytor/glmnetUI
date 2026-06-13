@@ -1272,6 +1272,11 @@ modelingServer <- function(id, data_module,
         rv$n_excluded <- n_excluded
         rv$fit_count <- rv$fit_count + 1L
         rv$fitted <- TRUE
+        # Canonical fit timestamp: every output for this fit (Excel exports,
+        # sales grid, and the qmd/docx/html/pdf reports) is named with THIS
+        # time, not each file's creation time, so a fit's outputs group together
+        # (and a Trilogy run can pull the three methods' files by fit time).
+        rv$fit_ts <- Sys.time()
 
         shiny::showNotification("Model fitted successfully!",
                                 type = "message")
@@ -1416,6 +1421,7 @@ modelingServer <- function(id, data_module,
       fitted = shiny::reactive(rv$fitted),
       fit_count = shiny::reactive(rv$fit_count),
       seed_used = shiny::reactive(rv$seed_used),
+      fit_ts = shiny::reactive(rv$fit_ts),
       earth_import = earth_import_r,
       reset = function() {
         rv$model <- NULL
@@ -1432,6 +1438,7 @@ modelingServer <- function(id, data_module,
         rv$n_obs <- NULL
         rv$n_excluded <- 0L
         rv$seed_used <- NULL
+        rv$fit_ts <- NULL
       }
     ))
   })

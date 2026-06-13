@@ -1039,7 +1039,7 @@ function(input, output, session) {
 
       base <- tools::file_path_sans_ext(data_out$file_name() %||% "glmnetui")
       out_path <- file.path(folder, paste0(base, "_output_",
-                            format(Sys.time(), "%Y%m%d_%H%M%S"), ".xlsx"))
+                            glmnetUI:::fit_stamp_(model_out$fit_ts()), ".xlsx"))
       writexl::write_xlsx(export_df, out_path)
       shiny::showNotification(paste0("Output saved to: ", out_path),
                               type = "message", duration = 8)
@@ -1347,7 +1347,7 @@ function(input, output, session) {
 
       base <- tools::file_path_sans_ext(data_out$file_name() %||% "glmnetui")
       out_path <- file.path(folder, paste0(base, "_adjusted_",
-                            format(Sys.time(), "%Y%m%d_%H%M%S"), ".xlsx"))
+                            glmnetUI:::fit_stamp_(model_out$fit_ts()), ".xlsx"))
       writexl::write_xlsx(export_df, out_path)
       shiny::showNotification(paste0("RCA output saved to: ", out_path),
                               type = "message", duration = 8)
@@ -1614,7 +1614,7 @@ function(input, output, session) {
     if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
 
     out_path <- file.path(folder, paste0("SalesGrid_",
-                          format(Sys.time(), "%Y%m%d_%H%M%S"), ".xlsx"))
+                          glmnetUI:::fit_stamp_(model_out$fit_ts()), ".xlsx"))
 
     tryCatch({
       if (!requireNamespace("openxlsx", quietly = TRUE)) {
@@ -1702,7 +1702,12 @@ function(input, output, session) {
       return()
     }
     if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
-    base <- tools::file_path_sans_ext(data_out$file_name() %||% "glmnet_report")
+    # Stamp the bundle with the fit time so the .qmd bundle and everything it
+    # renders to (HTML/Word/PDF) carry the same fit timestamp as the other
+    # outputs of this fit (groups a fit's files; lets a Trilogy run gather them).
+    base <- paste0(
+      tools::file_path_sans_ext(data_out$file_name() %||% "glmnet_report"),
+      "_", glmnetUI:::fit_stamp_(model_out$fit_ts()))
 
     session$sendCustomMessage("report_timer", list(action = "start"))
     # Heavy work inside tryCatch returns the qmd path (or the error); all
