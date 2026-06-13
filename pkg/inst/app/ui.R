@@ -288,6 +288,10 @@ bslib::page_fluid(
       "glmnetUI",
       shiny::tags$small(" - Interactive Elastic Net Modeling",
                         style = "font-size: 0.6em; color: var(--bs-secondary-color);"),
+      if (!is.null(getOption("glmnetUI.trilogy")))
+        shiny::tags$span(" (Trilogy Mode)",
+          style = paste0("font-size: 0.55em; font-weight: bold;",
+                         " color: #5e81ac; margin-left: 8px;")),
       style = "margin: 0;"
     ),
     shiny::tags$div(class = "dropdown", id = "glmnet-settings-dropdown",

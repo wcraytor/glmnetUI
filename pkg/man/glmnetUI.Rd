@@ -4,10 +4,16 @@
 \alias{glmnetUI}
 \title{Launch the glmnetUI Shiny Application}
 \usage{
-glmnetUI(port = 7879L, ...)
+glmnetUI(port = 7879L, trilogy = NULL, ...)
 }
 \arguments{
 \item{port}{Integer port number for the Shiny app. Defaults to 7879.}
+
+\item{trilogy}{Trilogy context, or \code{NULL} (the default) for a normal
+standalone run. When non-\code{NULL}, the app runs in "trilogy mode": it shows
+"(Trilogy Mode)" after the title and (in future steps) reads the locked
+earth model + settings for the run. Normally set by the Trilogy UI, not by
+hand. The value is exposed to the app via \code{getOption("glmnetUI.trilogy")}.}
 
 \item{...}{Additional arguments passed to \code{\link[shiny:runApp]{shiny::runApp()}}.}
 }
