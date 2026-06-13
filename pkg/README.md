@@ -20,9 +20,9 @@ Interactive Shiny interface for elastic net regression modeling with
 # From CRAN (when available):
 install.packages("glmnetUI")
 
-# Development version from GitHub:
+# Development version from GitHub (the package lives in the pkg/ subdirectory):
 # install.packages("remotes")
-remotes::install_github("wcraytor/glmnetUI")
+remotes::install_github("wcraytor/glmnetUI", subdir = "pkg")
 ```
 
 ## Usage

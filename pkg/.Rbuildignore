@@ -1,0 +1,11 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.lintr$
+^cran-comments\.md$
+^CRAN-SUBMISSION$
+^LICENSE\.md$
+^.*\.Rcheck$
+^\.RData$
+^\.Rhistory$
+^\.Rapp\.history$
+^\.DS_Store$
