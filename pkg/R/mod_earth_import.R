@@ -99,6 +99,25 @@ earthImportServer <- function(id) {
       ek
     }
 
+    # Trilogy mode: auto-import the locked earth model on startup, so the user
+    # does not browse for it. Reads the canonical .rds from the project's
+    # trilogy.json (set by earthUI's "Lock Model Output"). The existing
+    # earth-import lock on the variable table then applies automatically.
+    local({
+      ctx <- getOption("glmnetUI.trilogy")
+      if (is.null(ctx)) return(invisible())
+      pp <- ctx$project_path %||% NULL
+      lock <- if (!is.null(pp)) trilogy_get_lock(pp) else NULL
+      rds <- lock$rds %||% ""
+      if (isTRUE(lock$locked) && nzchar(rds) && file.exists(rds)) {
+        ek <- tryCatch(import_earth(rds), error = function(e) NULL)
+        if (!is.null(ek)) {
+          earth_import_rv(ek)
+          loaded_file(basename(rds))
+        }
+      }
+    })
+
     # Restore last-used directory for file browser
     last_dir <- path.expand("~")
     last_dir_file <- file.path(cache_dir, ".last_earth_dir")

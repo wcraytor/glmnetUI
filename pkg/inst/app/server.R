@@ -141,6 +141,20 @@ function(input, output, session) {
                                earth_import_r)
   model_out <- modelingServer("model", data_out, purpose, effective_date,
                                skip_first_row, earth_import_r)
+
+  # Trilogy mode: after each fit, register this method's fit-stamp in the
+  # project's trilogy.json so the combined report can group the run's files.
+  shiny::observeEvent(model_out$fit_count(), {
+    ctx <- getOption("glmnetUI.trilogy")
+    if (is.null(ctx) || !isTRUE(model_out$fit_count() > 0L)) return()
+    pp <- ctx$project_path %||% NULL
+    ts <- model_out$fit_ts()
+    if (!is.null(pp) && !is.null(ts)) {
+      try(glmnetUI::trilogy_register_fit(pp, "glmnet",
+            glmnetUI:::fit_stamp_(ts)), silent = TRUE)
+    }
+  }, ignoreInit = TRUE)
+
   coef_out <- coefficientsServer("coefs", model_out, data_out)
   equationServer("eq", model_out, data_out)
   summaryServer("summ", model_out, data_out, purpose)
