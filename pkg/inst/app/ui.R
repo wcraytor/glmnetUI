@@ -281,6 +281,21 @@ bslib::page_fluid(
     shiny::tags$link(rel = "icon", type = "image/png", href = "favicon.png")
   ),
 
+  # --- Appraisal / liability disclaimer (always visible) ---
+  shiny::tags$div(class = "glmnet-disclaimer", role = "note",
+    style = paste0("background: rgba(235,203,139,0.18);",
+                   " border-bottom: 1px solid #ebcb8b;",
+                   " font-size: 0.76em; line-height: 1.35;",
+                   " padding: 5px 14px; text-align: center;"),
+    shiny::HTML(paste0(
+      "&#9888; <b>For analysis only &mdash; not an appraisal.</b> ",
+      "Statistical estimates for analytical and educational use. Any value ",
+      "conclusion must be independently reviewed and signed by a qualified, ",
+      "licensed appraiser per applicable standards (e.g. USPAP). Provided ",
+      "&ldquo;as is&rdquo; without warranty (AGPL-3.0) &mdash; use at your own ",
+      "risk. See the README for full terms."))
+  ),
+
   shiny::tags$nav(class = "glmnet-navbar",
     shiny::tags$h2(
       shiny::tags$img(src = "logo.png", height = "32px",
@@ -326,6 +341,13 @@ bslib::page_fluid(
           shiny::actionButton("settings_close", "Close",
                               class = "btn-outline-secondary btn-sm",
                               style = "flex:1;")
+        ),
+        shiny::tags$div(style = "margin-top: 8px; display:flex; gap:14px;",
+          shiny::actionLink("show_help", shiny::HTML("&#128231; Help"),
+                            class = "small"),
+          shiny::actionLink("show_about",
+                            shiny::HTML("&#9888; About &amp; Disclaimer"),
+                            class = "small")
         )
       )
     ),

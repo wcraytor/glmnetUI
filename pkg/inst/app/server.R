@@ -106,6 +106,26 @@ function(input, output, session) {
     session$sendCustomMessage("close_settings_dropdown", list())
   })
 
+  # Help / technical-support dialog (emails support@valuation-engineer.com)
+  shiny::observeEvent(input$show_help, {
+    session$sendCustomMessage("close_settings_dropdown", list())
+    shiny::showModal(glmnetUI:::support_request_modal_("glmnetUI"))
+  })
+
+  # About / disclaimer dialog
+  shiny::observeEvent(input$show_about, {
+    session$sendCustomMessage("close_settings_dropdown", list())
+    shiny::showModal(shiny::modalDialog(
+      title = shiny::HTML("&#9888; About glmnetUI"),
+      size = "l", easyClose = TRUE,
+      glmnetUI:::appraisal_disclaimer_html_(),
+      shiny::tags$hr(),
+      shiny::tags$p(class = "text-muted small",
+                    sprintf("glmnetUI %s - AGPL-3.0 license.",
+                            as.character(utils::packageVersion("glmnetUI")))),
+      footer = shiny::modalButton("Close")))
+  })
+
   # Wrap global inputs as reactives for module consumption
   purpose <- shiny::reactive(input$purpose)
   effective_date <- shiny::reactive(input$effective_date)
