@@ -372,6 +372,20 @@ function(input, output, session) {
     rv_proj$active_project <- NULL
   })
 
+  # Trilogy mode: auto-open the trilogy project at startup, so the project's
+  # data is available and the fit registers to the right project.
+  shiny::observeEvent(TRUE, {
+    ctx <- getOption("glmnetUI.trilogy")
+    pp <- ctx$project_path %||% NULL
+    if (is.null(pp)) return()
+    df <- tryCatch(regproj_list_projects(sort_by = "recent"),
+                   error = function(e) NULL)
+    if (is.data.frame(df)) {
+      row <- df[df$project_path == pp, , drop = FALSE]
+      if (nrow(row) == 1L) rv_proj$active_project <- row
+    }
+  }, once = TRUE)
+
   shiny::observeEvent(input$regproj_project_new, {
     src <- rv_proj$active_project
     if (is.null(src)) {
@@ -1074,12 +1088,23 @@ function(input, output, session) {
       cqa_choices <- c(cqa_choices, "CQA per SF" = "cqa_sf")
     }
 
+    # Trilogy mode: default the CQA inputs to the values locked in earthUI
+    # (carried over so all three methods reconcile to the same subject CQA).
+    tlock <- if (!is.null(getOption("glmnetUI.trilogy")) &&
+                 !is.null(rv_proj$active_project))
+      trilogy_get_lock(rv_proj$active_project$project_path)$shared else NULL
+    cqa_sel <- tlock$cqa_mode %||% unname(cqa_choices[1])
+    if (!cqa_sel %in% cqa_choices) cqa_sel <- unname(cqa_choices[1])
+    cqa_def <- suppressWarnings(as.numeric(tlock$cqa %||% 5.00))
+    if (length(cqa_def) != 1L || is.na(cqa_def)) cqa_def <- 5.00
+
     shiny::showModal(shiny::modalDialog(
       title = "RCA Raw Output \u2014 Subject CQA Score",
       shiny::radioButtons("rca_cqa_type", "Score type:",
-                          choices = cqa_choices, inline = TRUE),
+                          choices = cqa_choices, selected = cqa_sel,
+                          inline = TRUE),
       shiny::numericInput("rca_cqa_value", "Subject CQA Score:",
-                          value = 5.00, min = 0, max = 9.99, step = 0.01),
+                          value = cqa_def, min = 0, max = 9.99, step = 0.01),
       footer = shiny::tagList(
         shiny::modalButton("Cancel"),
         shiny::actionButton("export_rca", "Generate",
@@ -1363,6 +1388,16 @@ function(input, output, session) {
       out_path <- file.path(folder, paste0(base, "_adjusted_",
                             glmnetUI:::fit_stamp_(model_out$fit_ts()), ".xlsx"))
       writexl::write_xlsx(export_df, out_path)
+      # Trilogy mode: emit this method's value conclusion (the subject's
+      # indicated value, row 1 of adjusted_sale_price) for the combined report.
+      if (!is.null(getOption("glmnetUI.trilogy"))) {
+        m <- glmnetUI:::trilogy_fit_metrics_(export_df[[response]][-1L],
+                                             residuals_val[-1L])
+        try(glmnetUI::trilogy_write_conclusion(
+          folder, "glmnet", glmnetUI:::fit_stamp_(model_out$fit_ts()),
+          subject_value = export_df[["adjusted_sale_price"]][1L],
+          metrics = m), silent = TRUE)
+      }
       shiny::showNotification(paste0("RCA output saved to: ", out_path),
                               type = "message", duration = 8)
       session$sendCustomMessage("btn_done", list(id = "rca_output_btn"))
