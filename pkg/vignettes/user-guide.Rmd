@@ -388,7 +388,9 @@ appreciation rate varies by house size.
 ### Data Preview
 
 Shows the imported data. In appraisal/market modes, split into Subject
-Property (row 1) and Comparable Sales (rows 2+).
+Property (row 1) and Comparable Sales (rows 2+). Cells are truncated to the
+column width to keep rows compact; **double-click any cell** to open a pop-up
+with its full text (handy for long fields such as property remarks).
 
 ### Equation
 

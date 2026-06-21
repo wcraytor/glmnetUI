@@ -909,6 +909,8 @@ A status message below the Fit button shows the number of observations, excluded
 
 Shows the imported data as an interactive DataTable. In appraisal/market modes, the preview is split into two tables: **Subject Property** (row 1) and **Comparable Sales** (rows 2+).
 
+Each cell is kept to a single line and truncated to the column width, so wide free-text fields (such as property remarks) do not stretch a row down the page. **Double-click any cell** to open a pop-up showing its full, untruncated contents.
+
 ## Equation
 
 Displays the fitted model equation rendered in LaTeX via MathJax. Shows all non-zero coefficients with proper mathematical formatting:

@@ -135,68 +135,14 @@ plot_dims_ <- function(session, id) {
 #' @noRd
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
-#' Guess the default Special-column tag from a variable name (internal)
-#'
-#' Returns the appraisal Special tag most similar to \code{name} (by exact /
-#' synonym / whole-token match), or \code{"no"} when no tag is a reasonable
-#' match. Conservative on purpose: generic words (\code{"area"}, \code{"age"})
-#' only match a whole name, never a sub-token, so columns like
-#' \code{area_id} or \code{garage_spaces} stay \code{"no"}. The placeholder
-#' tags \code{"no"} and \code{"display_only"} are never guessed. Kept identical
-#' across the sibling apps (mgcvUI, earthUI).
-#'
-#' @param name Character scalar column name (already snake_cased).
-#' @param tags Character vector of available Special options.
-#' @return A single tag from \code{tags}, or \code{"no"}.
-#' @noRd
-special_default_for_ <- function(name, tags) {
-  cand <- setdiff(tags, c("no", "display_only"))
-  if (length(cand) == 0L || is.null(name) || !nzchar(name)) return("no")
+# The appraisal "Special" column roles and the default-guesser
+# (special_roles_(), special_default_for_()) now live in valengrCore so all
+# three sibling apps share one definition. Called as
+# valengrCore::special_default_for_() / valengrCore::special_roles_().
 
-  norm <- function(x) gsub("[^a-z0-9]+", "", tolower(x))
-  tok <- function(x) {
-    x <- gsub("([a-z0-9])([A-Z])", "\\1 \\2", x)        # camelCase -> space
-    parts <- strsplit(tolower(x), "[^a-z0-9]+")[[1L]]
-    parts[nzchar(parts)]
-  }
-  # Known abbreviations / synonyms -> canonical tag.
-  syn <- list(
-    latitude        = c("lat"),
-    longitude       = c("long", "lon", "lng"),
-    living_area     = c("livingarea", "gla", "sqft", "livingsqft", "livingsf",
-                        "grosslivingarea", "livarea", "livsf", "livingsq"),
-    lot_size        = c("lotsize", "lotsf", "lotsqft", "lotarea"),
-    site_dimensions = c("sitedimensions", "sitedim", "sitedims"),
-    actual_age      = c("age", "actualage"),
-    effective_age   = c("effectiveage", "effage"),
-    sale_age        = c("saleage", "ageofsale", "daystosale"),
-    sale_type       = c("saletype", "typeofsale"),
-    contract_date   = c("contractdate", "kdate"),
-    listing_date    = c("listingdate", "listdate"),
-    dom             = c("daysonmarket", "daysmarket"),
-    concessions     = c("concession", "conc", "sellerconcessions",
-                        "saleconcessions"),
-    weight          = c("wt", "wgt")
-  )
-  generic <- c("area", "age")  # match whole-name only, never a sub-token
-
-  keys_for <- function(tag) {
-    k <- unique(c(norm(tag), norm(syn[[tag]])))
-    k[nzchar(k)]
-  }
-  nn   <- norm(name)
-  toks <- norm(tok(name))
-
-  # 1) whole-name equals a tag or synonym
-  for (tag in cand) if (nn %in% keys_for(tag)) return(tag)
-  # 2) a name token equals a specific (non-generic, >= 3 char) key
-  for (tag in cand) {
-    k <- setdiff(keys_for(tag), generic)
-    k <- k[nchar(k) >= 3L]
-    if (length(k) && any(toks %in% k)) return(tag)
-  }
-  "no"
-}
+# earthUI carry-forward (Effective Date, Response, RCA CQA type+value) now
+# lives in valengrCore::earth_carryforward_() so glmnetUI and mgcvUI share one
+# reader. earthUI persists these in the shared regProj projects DB.
 
 #' Format the canonical fit timestamp for output filenames (internal)
 #'

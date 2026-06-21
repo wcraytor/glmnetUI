@@ -281,21 +281,6 @@ bslib::page_fluid(
     shiny::tags$link(rel = "icon", type = "image/png", href = "favicon.png")
   ),
 
-  # --- Appraisal / liability disclaimer (always visible) ---
-  shiny::tags$div(class = "glmnet-disclaimer", role = "note",
-    style = paste0("background: rgba(235,203,139,0.18);",
-                   " border-bottom: 1px solid #ebcb8b;",
-                   " font-size: 0.76em; line-height: 1.35;",
-                   " padding: 5px 14px; text-align: center;"),
-    shiny::HTML(paste0(
-      "&#9888; <b>For analysis only &mdash; not an appraisal.</b> ",
-      "Statistical estimates for analytical and educational use. Any value ",
-      "conclusion must be independently reviewed and signed by a qualified, ",
-      "licensed appraiser per applicable standards (e.g. USPAP). Provided ",
-      "&ldquo;as is&rdquo; without warranty (AGPL-3.0) &mdash; use at your own ",
-      "risk. See the README for full terms."))
-  ),
-
   shiny::tags$nav(class = "glmnet-navbar",
     shiny::tags$h2(
       shiny::tags$img(src = "logo.png", height = "32px",
@@ -723,6 +708,33 @@ bslib::page_fluid(
           )
         )
       )
+    )
+  ),
+
+  # --- AGPL-3 legal footer ---
+  shiny::tags$hr(style = "margin-top: 30px; margin-bottom: 10px;"),
+  shiny::tags$footer(
+    style = paste("text-align: center; padding: 10px 15px 15px;",
+                  "font-size: 0.8em; color: var(--bs-secondary-color);"),
+    shiny::tags$p(style = "margin: 2px 0; font-weight: 600;",
+      shiny::HTML(paste0(
+        "&#9888; For analysis only &mdash; not an appraisal. Any value ",
+        "conclusion must be independently reviewed and signed by a qualified, ",
+        "licensed appraiser per applicable standards (e.g. USPAP). ")),
+      shiny::tags$a(href = "#",
+             onclick = paste0("event.preventDefault();var e=document.getElementById",
+                              "('show_about');if(e)e.click();return false;"),
+             "Full disclaimer")
+    ),
+    shiny::tags$p(style = "margin: 2px 0;",
+      shiny::HTML(paste0("glmnetUI v", utils::packageVersion("glmnetUI")))
+    ),
+    shiny::tags$p(style = "margin: 2px 0;",
+      "Licensed under the ",
+      shiny::tags$a(href = "https://www.gnu.org/licenses/agpl-3.0.html",
+             target = "_blank",
+             "GNU Affero General Public License v3.0"),
+      " or later (AGPL-3)."
     )
   )
 )

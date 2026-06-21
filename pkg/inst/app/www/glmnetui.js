@@ -221,11 +221,8 @@ window.glmnetApplySettings = function(s) {
     $(document.getElementById("output_folder"))
       .val(s["output_folder"]).trigger("change");
   }
-  // Date inputs
-  if (s["effective_date"] !== undefined && s["effective_date"] !== null) {
-    var $inp = $("#effective_date input");
-    if ($inp.length) $inp.val(s["effective_date"]).trigger("change");
-  }
+  // Effective Date is intentionally NOT restored from localStorage: earthUI
+  // is the source of truth and the server applies it on project open.
 };
 
 // Apply variables from saved state to DOM

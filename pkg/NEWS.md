@@ -1,5 +1,10 @@
 # glmnetUI 0.5.0 — Consistent Theme & Purpose-Aware State Management
 
+## Data Preview & Import
+
+* **Full-text cell pop-up**: Double-click any cell in the Data Preview to open a pop-up with its complete contents. Cells are now truncated to the column width and kept to a single line, so long free-text fields (e.g. property remarks) no longer stretch a row down the page.
+* **Robust date auto-detection**: Importing a spreadsheet that contains long free-text columns no longer fails with "input string is too long" — date detection now skips values too long to be dates.
+
 ## Theme & Visual Consistency
 
 * **Nord palette enforcement**: All interactive buttons now use Frost colors (nord8/nord9/nord10) exclusively. Aurora colors (red/green/yellow) are reserved for warnings and error indicators only — never on buttons. This convention applies consistently across earthUI, glmnetUI, and mgcvUI.

@@ -197,6 +197,16 @@ function(input, output, session) {
              mktarea = "market", "general")
     shiny::updateRadioButtons(session, "purpose", selected = pur)
 
+    # earthUI is the source of truth for the Effective Date: apply earthUI's
+    # saved value on every project open (the JS no longer restores it from
+    # localStorage, so earthUI always wins). Falls back to the input default
+    # (today) when earthUI has none.
+    cf_proj <- valengrCore::earth_carryforward_(
+      if (is.null(p)) NULL else p$project_path, pur)
+    if (!is.null(cf_proj$effective_date))
+      shiny::updateDateInput(session, "effective_date",
+                             value = cf_proj$effective_date)
+
     data_out$rv$data <- NULL
     data_out$rv$file_name <- NULL
     data_out$rv$col_types <- NULL
@@ -946,6 +956,20 @@ function(input, output, session) {
     names(specials)[la_idx[1L]]
   }
 
+  # living_area for the RCA: glmnetUI's own tag first; otherwise the column
+  # earthUI tagged as living_area (carried forward), but only when an earthUI
+  # model is imported and the column exists in the loaded data. Enables the
+  # "CQA per SF" option without re-tagging in glmnetUI.
+  resolve_living_area_ <- function() {
+    la <- find_living_area_()
+    if (!is.null(la)) return(la)
+    if (is.null(tryCatch(earth_import_r(), error = function(e) NULL)) ||
+        is.null(rv_proj$active_project)) return(NULL)
+    la_e <- valengrCore::earth_carryforward_(
+      rv_proj$active_project$project_path, purpose())$living_area
+    if (!is.null(la_e) && la_e %in% names(data_out$data())) la_e else NULL
+  }
+
   # --- 6. Download Output (Excel) ---
   observeEvent(input$export_data, {
     shiny::req(model_out$fitted(), data_out$data())
@@ -1032,7 +1056,7 @@ function(input, output, session) {
       export_df[["residual"]] <- round(resid_col, 1)
 
       # --- CQA scores ---
-      la_col <- find_living_area_()
+      la_col <- resolve_living_area_()
       comp_rows <- if (identical(input$purpose, "appraisal")) -1L else seq_len(n)
       comp_resid <- resid_col[comp_rows]
       comp_resid <- comp_resid[!is.na(comp_resid)]
@@ -1102,24 +1126,34 @@ function(input, output, session) {
   observeEvent(input$rca_output_btn, {
     shiny::req(model_out$fitted(), data_out$data())
 
-    la_col <- find_living_area_()
+    # Carry the subject-CQA (type + value) AND the living_area column forward
+    # from earthUI ONLY when an earthUI model has been imported (Section 2).
+    # earthUI saves them to the shared regProj settings; a Trilogy lock is a
+    # fallback for the CQA value. Without an earth import the field starts blank.
+    cqa_type_pre <- NULL; cqa_value_pre <- NULL
+    if (!is.null(tryCatch(earth_import_r(), error = function(e) NULL)) &&
+        !is.null(rv_proj$active_project)) {
+      cf_cqa <- valengrCore::earth_carryforward_(
+        rv_proj$active_project$project_path, purpose())
+      cqa_type_pre  <- cf_cqa$cqa_type
+      cqa_value_pre <- cf_cqa$cqa_value
+      if (is.null(cqa_type_pre) && !is.null(getOption("glmnetUI.trilogy"))) {
+        tl <- trilogy_get_lock(rv_proj$active_project$project_path)$shared
+        cqa_type_pre  <- tl$cqa_mode
+        tlv <- suppressWarnings(as.numeric(tl$cqa))
+        if (length(tlv) == 1L && !is.na(tlv)) cqa_value_pre <- tlv
+      }
+    }
+
+    la_col <- resolve_living_area_()
     cqa_choices <- c("CQA" = "cqa")
     if (!is.null(la_col)) {
       cqa_choices <- c(cqa_choices, "CQA per SF" = "cqa_sf")
     }
-
-    # Trilogy mode: default the CQA inputs to the values locked in earthUI
-    # (carried over so all three methods reconcile to the same subject CQA).
-    tlock <- if (!is.null(getOption("glmnetUI.trilogy")) &&
-                 !is.null(rv_proj$active_project))
-      trilogy_get_lock(rv_proj$active_project$project_path)$shared else NULL
-    cqa_sel <- tlock$cqa_mode %||% unname(cqa_choices[1])
+    cqa_sel <- cqa_type_pre %||% unname(cqa_choices[1])
     if (!cqa_sel %in% cqa_choices) cqa_sel <- unname(cqa_choices[1])
-    # Trilogy mode prefills the locked CQA; otherwise the field starts blank
-    # (placeholder) so the analyst must enter a value -- no app-chosen default.
-    cqa_locked <- suppressWarnings(as.numeric(tlock$cqa))
-    cqa_val <- if (length(cqa_locked) == 1L && !is.na(cqa_locked))
-      as.character(cqa_locked) else ""
+    cqa_val <- if (!is.null(cqa_value_pre) && !is.na(cqa_value_pre))
+      as.character(cqa_value_pre) else ""
 
     cqa_sf_help <- shiny::tags$span(
       `data-bs-toggle` = "popover", `data-bs-trigger` = "hover focus",
@@ -1240,7 +1274,7 @@ function(input, output, session) {
       export_df[[paste0("est_", response)]] <- round(predicted, 1)
 
       # --- CQA scores on comps (rows 2+) ---
-      la_col <- find_living_area_()
+      la_col <- resolve_living_area_()
       comp_resid <- residuals_val[-1L]
       comp_resid_valid <- comp_resid[!is.na(comp_resid)]
       n_comps <- length(comp_resid_valid)

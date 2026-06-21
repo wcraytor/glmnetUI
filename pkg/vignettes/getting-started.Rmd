@@ -154,7 +154,7 @@ Click **"Fit Model"**. The application:
 
 Results appear in the main panel tabs:
 
-- **Data Preview** --- Raw data table
+- **Data Preview** --- Raw data table (double-click a cell to see its full text)
 - **Equation** --- LaTeX-rendered model equation
 - **Correlation** --- Heatmap of predictor correlations (no model needed)
 - **Summary** --- R², GR², CV R², RMSE, MAE; appraisal metrics (COD, PRD)
