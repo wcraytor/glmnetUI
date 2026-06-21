@@ -139,16 +139,30 @@ variableConfigUI <- function(id) {
 dataPreviewUI <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    shiny::conditionalPanel(
-      condition = "input.purpose === 'appraisal' || input.purpose === 'market'",
-      shiny::h5("Subject Property"),
-      DT::DTOutput(ns("preview_subjects")),
-      shiny::h5("Comparable Sales"),
-      DT::DTOutput(ns("preview_comps"))
-    ),
-    shiny::conditionalPanel(
-      condition = "input.purpose === 'general'",
-      DT::DTOutput(ns("preview_table"))
+    # Keep every preview row a single line tall: no wrapping, cap each
+    # column's width and clip overflow with an ellipsis. Full text stays
+    # available via the hover tooltip and double-click popup.
+    shiny::tags$style(shiny::HTML(paste(
+      ".glmnet-preview table.dataTable td,",
+      ".glmnet-preview table.dataTable th {",
+      "  white-space: nowrap;",
+      "  max-width: 40ch;",
+      "  overflow: hidden;",
+      "  text-overflow: ellipsis;",
+      "}"))),
+    shiny::div(
+      class = "glmnet-preview",
+      shiny::conditionalPanel(
+        condition = "input.purpose === 'appraisal' || input.purpose === 'market'",
+        shiny::h5("Subject Property"),
+        DT::DTOutput(ns("preview_subjects")),
+        shiny::h5("Comparable Sales"),
+        DT::DTOutput(ns("preview_comps"))
+      ),
+      shiny::conditionalPanel(
+        condition = "input.purpose === 'general'",
+        DT::DTOutput(ns("preview_table"))
+      )
     )
   )
 }
@@ -234,6 +248,13 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       all_cols <- names(rv$data)
 
       default_response <- if (length(all_cols) > 0) all_cols[1] else NULL
+      # earthUI is the source of truth for the Response (its §3 target). If it
+      # saved a target that exists in this data, use it instead of column 1.
+      p_cf <- tryCatch(active_project_r(), error = function(e) NULL)
+      cf <- valengrCore::earth_carryforward_(
+        if (is.null(p_cf)) NULL else p_cf$project_path, purpose())
+      if (!is.null(cf$response) && cf$response %in% all_cols)
+        default_response <- cf$response
       shiny::updateSelectInput(session, "response",
                                choices = all_cols,
                                selected = default_response)
@@ -358,14 +379,18 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       files <- project_in_files_()
       if (is.null(p) || is.null(f) || !nzchar(f)) return()
       if (!(f %in% files)) return()       # stale picker value mid-switch
-      key <- paste(p$project_path, f, sep = "||")
-      if (identical(shiny::isolate(loaded_key()), key)) return()
       in_dir <- file.path(p$project_path, paste0(os_detect(), "_in"))
       full <- file.path(in_dir, f)
       if (!file.exists(full)) {
         shiny::showNotification(sprintf("File not found: %s", full),
                                 type = "error", duration = 6); return()
       }
+      # Fold mtime into the key so editing the file IN PLACE (same project,
+      # same name) changes the key and forces a re-import. "Refresh file list"
+      # re-fires this observe (via project_in_files_), which re-reads mtime.
+      mt <- tryCatch(as.numeric(file.mtime(full)), error = function(e) NA_real_)
+      key <- paste(p$project_path, f, mt, sep = "||")
+      if (identical(shiny::isolate(loaded_key()), key)) return()
       loaded_key(key)
       regproj_last_file_set(p$project_path, f)
       file_path(full)
@@ -463,14 +488,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       appraiser <- purpose() %in% c("appraisal", "market")
       # Keep this list identical to mgcvUI / earthUI's special-column options so
       # the three sibling apps share the same designations.
-      special_options <- if (appraiser) {
-        c("actual_age", "area", "concessions", "contract_date",
-          "display_only", "dom", "effective_age", "latitude",
-          "listing_date", "living_area", "longitude", "lot_size",
-          "no", "sale_age", "sale_type", "site_dimensions", "weight")
-      } else {
-        c("no", "weight")
-      }
+      special_options <- valengrCore::special_roles_(appraiser)
 
       angled_hdr <- "text-align:center; font-size:1.0em; writing-mode:vertical-lr; transform:rotate(180deg); height:60px; line-height:1;"
       hdr_cols <- list(
@@ -541,7 +559,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
         # Pre-select the Special tag most similar to the column name (or "no"
         # if none is a reasonable match). Saved values are restored by JS
         # afterwards and take precedence.
-        def_special <- special_default_for_(col_name, special_options)
+        def_special <- valengrCore::special_default_for_(col_name, special_options)
         special_opts <- lapply(special_options, function(sp) {
           if (identical(sp, def_special))
             shiny::tags$option(value = sp, sp, selected = NA)
@@ -861,11 +879,60 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
     shiny::outputOptions(output, "has_sheets", suspendWhenHidden = FALSE)
 
     # --- Data preview (rendered in main panel via dataPreviewUI) ---
+    # Truncate long free-text cells (e.g. remarks) in the display so a single
+    # 1000+ char value can't blow up a whole row. Full text is kept in a
+    # hover title. Numeric cells pass through unchanged.
+    # Attach the full value as a hover title and cap the DOM payload; the
+    # visible single-line clipping + ellipsis is handled by CSS at the
+    # column's max-width (see .glmnet-preview in dataPreviewUI).
+    preview_columndefs_ <- list(list(
+      targets = "_all",
+      render = DT::JS(
+        "function(data, type, row, meta) {",
+        "  if (type !== 'display' || data === null || data === undefined)",
+        "    return data;",
+        "  var s = String(data);",
+        "  if (s.length <= 40) return data;",
+        "  return '<span title=\"' + s.replace(/\"/g,'&quot;') + '\">' +",
+        "         s.substr(0, 200) + '</span>';",
+        "}")
+    ))
+
+    # Double-click any cell to open a modal with its full, untruncated text.
+    # Truncated cells carry the full value in their title attribute; short
+    # cells use their visible text.
+    preview_callback_ <- DT::JS(sprintf(
+      paste0(
+        "table.on('dblclick', 'tbody td', function() {",
+        "  var cell = $(this);",
+        "  var full = cell.find('span[title]').attr('title');",
+        "  if (full === undefined || full === null) full = cell.text();",
+        "  Shiny.setInputValue('%s', {value: full, nonce: Math.random()},",
+        "                      {priority: 'event'});",
+        "});"),
+      session$ns("cell_fulltext")))
+
+    # Show full cell text in a modal on double-click.
+    shiny::observeEvent(input$cell_fulltext, {
+      txt <- input$cell_fulltext$value
+      if (is.null(txt) || !nzchar(txt)) return()
+      shiny::showModal(shiny::modalDialog(
+        title = "Cell contents",
+        shiny::tags$div(
+          style = paste("white-space: pre-wrap; word-break: break-word;",
+                        "max-height: 60vh; overflow-y: auto;"),
+          txt),
+        easyClose = TRUE, size = "l",
+        footer = shiny::modalButton("Close")))
+    })
+
     # General mode: single table
     output$preview_table <- DT::renderDT({
       shiny::req(rv$data, purpose() == "general")
       DT::datatable(rv$data,
-                    options = list(scrollX = TRUE, pageLength = 15),
+                    options = list(scrollX = TRUE, pageLength = 15,
+                                   columnDefs = preview_columndefs_),
+                    callback = preview_callback_,
                     rownames = FALSE, class = "compact stripe")
     })
 
@@ -880,7 +947,9 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       if (!is.null(resp) && resp %in% names(subj)) subj[[resp]] <- NA
 
       DT::datatable(subj,
-                    options = list(scrollX = TRUE, dom = "t"),
+                    options = list(scrollX = TRUE, dom = "t",
+                                   columnDefs = preview_columndefs_),
+                    callback = preview_callback_,
                     rownames = FALSE, class = "compact stripe")
     })
 
@@ -892,7 +961,9 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       comps <- rv$data[2:nrow(rv$data), , drop = FALSE]
 
       DT::datatable(comps,
-                    options = list(scrollX = TRUE, pageLength = 15),
+                    options = list(scrollX = TRUE, pageLength = 15,
+                                   columnDefs = preview_columndefs_),
+                    callback = preview_callback_,
                     rownames = FALSE, class = "compact stripe")
     })
 
@@ -1055,6 +1126,10 @@ auto_parse_dates_ <- function(df) {
     if (!is.character(col)) next
     vals <- stats::na.omit(col)
     if (length(vals) == 0L) next
+    # Date strings are short; skip long free-text columns (e.g. remarks).
+    # as.POSIXct()/strptime() also errors ("input string is too long") on
+    # very long inputs, which would otherwise abort the whole import.
+    if (max(nchar(as.character(vals), type = "bytes")) > 40L) next
     # Sample up to 20 non-NA values for detection
     sample_vals <- if (length(vals) > 20L) vals[1:20] else vals
 
@@ -1078,11 +1153,15 @@ auto_parse_dates_ <- function(df) {
     min_date <- as.POSIXct("1900-01-01")
     max_date <- as.POSIXct("2100-12-31")
     for (fmt in try_fmts) {
-      parsed <- suppressWarnings(as.POSIXct(sample_vals, format = fmt))
+      parsed <- tryCatch(
+        suppressWarnings(as.POSIXct(sample_vals, format = fmt)),
+        error = function(e) rep(as.POSIXct(NA), length(sample_vals)))
       ok <- !is.na(parsed) & parsed >= min_date & parsed <= max_date
       if (all(ok)) {
         # Format matches sample -- parse the full column
-        df[[nm]] <- suppressWarnings(as.POSIXct(col, format = fmt))
+        df[[nm]] <- tryCatch(
+          suppressWarnings(as.POSIXct(col, format = fmt)),
+          error = function(e) col)
         break
       }
     }
