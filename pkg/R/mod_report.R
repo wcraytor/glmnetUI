@@ -211,7 +211,7 @@ reportServer <- function(id, model_module, coef_module, data_module) {
       content = function(file) {
         message("[glmnetUI MOD] dl_word handler: file=", file)
         tryCatch(
-          generate_report_(file, "docx"),
+          generate_report_(file, "docx", "dl_word"),
           error = function(e) {
             message("[glmnetUI MOD] Word export ERROR: ", e$message)
             shiny::showNotification(paste("Word export error:", e$message),
@@ -223,7 +223,7 @@ reportServer <- function(id, model_module, coef_module, data_module) {
 
     # Helper: generate report via prepare_report_assets + render_report
     # render_report() now has built-in Quarto→rmarkdown fallback
-    generate_report_ <- function(file, fmt) {
+    generate_report_ <- function(file, fmt, btn_id = NULL) {
       message("[glmnetUI MOD] generate_report_() called: fmt=", fmt,
               " file=", file)
       model <- model_module$model()
@@ -257,6 +257,10 @@ reportServer <- function(id, model_module, coef_module, data_module) {
                     assets_dir = assets_dir)
       message("[glmnetUI MOD] render_report() done. file exists: ",
               file.exists(file))
+      # Green check mark on the export button (cleared by JS on the next fit).
+      if (!is.null(btn_id)) {
+        session$sendCustomMessage("btn_done", list(id = session$ns(btn_id)))
+      }
     }
 
     output$dl_pdf <- shiny::downloadHandler(
@@ -266,7 +270,7 @@ reportServer <- function(id, model_module, coef_module, data_module) {
       content = function(file) {
         message("[glmnetUI MOD] dl_pdf handler: file=", file)
         tryCatch(
-          generate_report_(file, "pdf"),
+          generate_report_(file, "pdf", "dl_pdf"),
           error = function(e) {
             message("[glmnetUI MOD] PDF export ERROR: ", e$message)
             shiny::showNotification(paste("PDF export error:", e$message),

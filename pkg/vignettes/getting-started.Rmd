@@ -44,9 +44,10 @@ no login, no server, no accounts. You launch it from R, import a dataset
 
 ### Three Purpose Modes
 
-A **Purpose** radio button at the top of the sidebar selects:
+Every project has a **purpose**, chosen when you create it (Section 1,
+*Project*):
 
-- **General** --- Elastic net regression for any dataset. The default mode.
+- **General** --- Elastic net regression for any dataset.
   A **Skip first row** checkbox lets you exclude row 1 from fitting.
 - **For Appraisal** --- Tailored for real estate appraisal with subject
   property handling, special column designations, RCA adjustments, and
@@ -54,13 +55,12 @@ A **Purpose** radio button at the top of the sidebar selects:
 - **Market Area Analysis** --- For analyzing groups of properties with optional
   first row exclusion.
 
-The last-used purpose is automatically saved to browser localStorage and
-restored when the app is relaunched, so the app remembers which mode you
-were in. Settings are saved per file and purpose combination, so switching
-modes preserves each mode's configuration independently. Note that
-changing the Purpose resets both the data import (Section 1) and the
-earthUI import (Section 2) --- you must re-import your data after
-switching purpose.
+The active project's purpose determines which tools and interface elements
+appear; to work in a different mode, create or open a project with that
+purpose. Settings are saved per file and purpose combination, so each
+mode's configuration is preserved independently. Opening, closing, or
+switching a project resets the data import (Section 2), the earthUI import
+(Section 3), and all model results.
 
 ### Launching the Application
 
@@ -92,9 +92,11 @@ e.g. `us_ca_081_burlin_20260604-131500_burl`. Only newly created projects get
 this prefix; existing projects keep their names. See the User Guide for
 details. Once a project is open, continue with the steps below.
 
-### 1. Import Data
+### 2. Import Data
 
-Click **"Upload CSV or Excel File"** in the sidebar. Supported formats:
+In **Section 2 (Import Data)**, pick a file from the active project's
+`<os>_in/` folder (add files via Finder/Explorer or the **Browse...**
+button, then click **Refresh**). Supported formats:
 
 | Format | Extension | Notes |
 |--------|-----------|-------|
@@ -103,21 +105,23 @@ Click **"Upload CSV or Excel File"** in the sidebar. Supported formats:
 
 Column names are automatically converted to `snake_case` on import.
 
-### 2. Import from earthUI (Optional)
+### 3. Import from earthUI (Optional)
 
-Section 2 of the sidebar lets you import an earthUI result `.rds` file.
+Section 3 of the sidebar lets you import an earthUI result `.rds` file.
 This allows glmnetUI to use earth's hinge basis functions (piecewise
-linear terms) with glmnet's elastic net regularization. The browse button
-is styled to match the Section 1 file upload. This step is optional ---
-skip it if you do not have an earthUI result to import.
+linear terms) with glmnet's elastic net regularization. When imported,
+the predictor set is dictated by the earth model: the variable table
+locks the Include and Type columns, while Force and Sign stay editable.
+This step is optional --- skip it if you do not have an earthUI result
+to import.
 
-### 3. Configure Variables
+### 4. Configure Variables
 
 After importing, a predictor table shows each column with:
 
 - **Type** --- data type dropdown (numeric, integer, character, Date, POSIXct)
-- **Fac** --- factor checkbox (treat as categorical)
-- **Inc** --- checkbox to include as predictor
+- **Include** --- checkbox to include as predictor
+- **Factor** --- factor checkbox (treat as categorical)
 - **Force** --- force into model (penalty factor = 0, never dropped by lasso)
 - **Sign** --- expected coefficient sign (positive, negative, or either)
 - **NAs** --- missing value count
@@ -126,22 +130,25 @@ After importing, a predictor table shows each column with:
 Select your **response variable** from the dropdown, then check/uncheck
 predictors as needed.
 
-### 4. Set Model Parameters
+### 5. Set Model Parameters
 
 Under **"5. glmnet Call Parameters"**:
 
-- **Alpha**: 0 = Ridge, 1 = Lasso (default), or use grid search
+- **Alpha**: fixed value (0 = Ridge, 1 = Lasso, the default) or grid search
 - **Lambda**: Cross-validation (recommended) or manual entry
 - **Lambda choice**: `lambda.1se` (simpler model) or `lambda.min` (best fit)
 - **Family**: gaussian (continuous), binomial (binary), or poisson (counts)
 - **Standardize**: Recommended on (default)
 - **Enforce sign constraints**: Force coefficients to match expected signs
 - **Relaxed lasso**: Refit surviving variables with less shrinkage
-- **Interaction matrix**: Check pairs to allow interaction terms
+- **Random seed**: reproducible CV folds; the last 5 seeds are recallable
+- **Interaction matrix**: Check pairs to allow interaction terms; all
+  pairs start unchecked. Right-click a variable name to block its main
+  effect while keeping it available in interactions.
   (Warning: glmnet interactions produce adjustments that can be hard to
   interpret in court or audit settings.)
 
-### 5. Fit the Model
+### 6. Fit the Model
 
 Click **"Fit Model"**. The application:
 
@@ -150,7 +157,7 @@ Click **"Fit Model"**. The application:
 3. Fits the final model
 4. Populates all result tabs
 
-### 6. Review Results
+### 7. Review Results
 
 Results appear in the main panel tabs:
 
@@ -164,21 +171,31 @@ Results appear in the main panel tabs:
   (numeric), box plot (factor), scatter/heatmap/3D surface (interactions)
 - **ANOVA** --- Variance decomposition table
 - **Diagnostics** --- Coefficient path, CV error, actual vs predicted, residuals
-- **Report** --- Configure and export reports
+- **Glmnet Output** --- Raw model output, selected lambda, and the random
+  seed used
+- **Report** --- Configure report fields and export to Word or PDF
+- **RCA Adjustments** --- RCA plots and tables (appraisal/market, after
+  Step 8)
 
-### 7. Export
+### 8. Export
 
 - **Download Output** (all modes): Excel with predictions, residuals, CQA
   scores, and per-variable contributions
-- **Sales Grid** (appraisal mode): Generate a formatted Sales Comparison
-  Grid Excel workbook from RCA output. A modal dialog lets you select
-  comps (recommended comps with gross adjustment < 25% are pre-checked).
-  Up to 30 comps across 10 sheets (3 per sheet) with grouped rows,
-  formulas, and unlocked residual cells for appraiser input.
-- **Download Report**: Word (.docx), PDF, or HTML with all tables and plots.
-  Reports include contribution plots matching the Contributions tab
+- **Calculate RCA Adjustments & Download** (appraisal and market modes):
+  per-comparable adjustments with the subject residual interpolated from
+  your CQA score
+- **Generate Sales Grid & Download** (appraisal mode): Generate a formatted
+  Sales Comparison Grid Excel workbook from RCA output. A modal dialog lets
+  you select comps (recommended comps with gross adjustment < 25% are
+  pre-checked). Up to 30 comps across 10 sheets (3 per sheet) with grouped
+  rows, formulas, and unlocked residual cells for appraiser input.
+- **Quarto reports** (two steps): **Generate Quarto Report** writes a
+  self-contained `.qmd` bundle with all tables and plots to the project's
+  output folder; **Convert Quarto Report** renders it to HTML, Word, or
+  PDF. Reports include contribution plots matching the Contributions tab
   (scatter, heatmap, 3D persp snapshots for interactions). Rendered via
-  Quarto with automatic rmarkdown fallback.
+  Quarto with automatic rmarkdown fallback. The Report tab also offers
+  direct Word/PDF export.
 
 ## Tips
 
@@ -197,7 +214,8 @@ glmnetUI includes the `Appraisal_1.csv` demo dataset:
 demo_file <- system.file("extdata", "Appraisal_1.csv", package = "glmnetUI")
 ```
 
-Or import through the app's file upload.
+To use it in the app, copy it into your project's `<os>_in/` folder (or
+select it via the **Browse...** button in Section 2).
 
 See the **User Guide** vignette for complete documentation of all features,
 special column types, RCA calculations, and the demo dataset.

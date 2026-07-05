@@ -135,14 +135,10 @@ plot_dims_ <- function(session, id) {
 #' @noRd
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
-# The appraisal "Special" column roles and the default-guesser
-# (special_roles_(), special_default_for_()) now live in valengrCore so all
-# three sibling apps share one definition. Called as
-# valengrCore::special_default_for_() / valengrCore::special_roles_().
-
-# earthUI carry-forward (Effective Date, Response, RCA CQA type+value) now
-# lives in valengrCore::earth_carryforward_() so glmnetUI and mgcvUI share one
-# reader. earthUI persists these in the shared regProj projects DB.
+# The appraisal "Special" column roles and default-guesser live in
+# specials.R; the earthUI carry-forward reader (Effective Date, Response,
+# RCA CQA type+value) lives in carryforward.R. Both were absorbed from
+# valengrCore (2026-07-03) and are kept identical across the sibling apps.
 
 #' Format the canonical fit timestamp for output filenames (internal)
 #'

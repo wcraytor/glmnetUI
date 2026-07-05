@@ -1281,6 +1281,11 @@ modelingServer <- function(id, data_module,
         shiny::showNotification("Model fitted successfully!",
                                 type = "message")
 
+        # Green check mark on the Fit button (cleared by JS on the next fit
+        # click). The btn_done handler lives in www/glmnetui.js.
+        session$sendCustomMessage("btn_done",
+                                  list(id = session$ns("fit_btn")))
+
       }, error = function(e) {
         shiny::showNotification(paste("Fitting error:", e$message),
                                 type = "error")

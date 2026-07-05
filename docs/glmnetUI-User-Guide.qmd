@@ -72,7 +72,7 @@ format:
 \hline
 \rowcolor{nordblue}\textbf{Version} & \textbf{Audience} & \textbf{Last Updated} \\
 \hline
-0.1.1 & All Users & 2026 \\
+0.5.0 & All Users & 2026 \\
 \hline
 \end{tabular}
 \end{center}
@@ -157,6 +157,8 @@ format:
     \item Sign Constraints
     \item Relaxed Lasso
     \item Interaction Matrix
+    \item Block from Main Effect
+    \item Random Seed
     \item Settings Defaults
   \end{itemize}
 
@@ -177,6 +179,7 @@ format:
     \item Contributions
     \item ANOVA
     \item Diagnostics
+    \item Glmnet Output
     \item Report
   \end{itemize}
 
@@ -202,6 +205,7 @@ format:
 
 \item \textbf{\textcolor{norddark}{Downloading Reports}}
   \begin{itemize}
+    \item Two-Step Quarto Flow
     \item Report Formats
     \item Report Contents
   \end{itemize}
@@ -322,7 +326,7 @@ The application provides a complete workflow: data import, variable configuratio
 Every project has a **purpose**, chosen when you create it (Section 1, *Project*). The active project's purpose determines which tools and interface elements appear; to work in a different mode, create or open a project with that purpose. The three modes are:
 
 - **General** --- Elastic net regression for any type of population or dataset. This is the default mode. It provides the full regularized regression workflow without any domain-specific additions.
-- **For Appraisal** --- Elastic net regression tailored for real estate appraisal. Adds features specific to single-property valuation, including subject property handling, special column designations, and Reconciliation by Comparable Adjustment (RCA).
+- **For Appraisal** --- Elastic net regression tailored for real estate appraisal. Adds features specific to single-property valuation, including subject property handling, special column designations, and Residual Constraint Approach (RCA).
 - **Market Area Analysis** --- Elastic net regression tailored for market area studies. Adds features for analyzing groups of properties in a defined market, with optional subject row exclusion.
 
 In all three modes, the core modeling engine is identical --- you are always fitting an elastic net (glmnet) model. The purpose setting controls which additional tools and interface elements are available.
@@ -334,7 +338,7 @@ When either **For Appraisal** or **Market Area Analysis** is selected, glmnetUI 
 - **Special column designations** --- Each predictor can be tagged with a special role such as `contract_date`, `dom`, `concessions`, `latitude`, `longitude`, `living_area`, `lot_size`, `actual_age`, `effective_age`, `area`, `site_dimensions`, or `display_only`. These designations control how the column is handled during fitting and output.
 - **Rounding of latitude and longitude** --- Columns designated as latitude or longitude are automatically rounded to 3 decimal places to prevent overfitting.
 - **Sale Age column** --- When a column is designated as `contract_date` and an Effective Date is provided, glmnetUI computes a `sale_age` column (days between sale date and effective date) and substitutes it as a predictor.
-- **RCA computations (appraisal only)** --- In appraisal mode, after fitting the model glmnetUI can compute Reconciliation by Comparable Adjustment (RCA) output, which produces per-comparable adjustments, net/gross adjustment summaries, and an adjusted sale price for the subject property.
+- **RCA computations (appraisal and market modes)** --- After fitting the model, glmnetUI can compute Residual Constraint Approach (RCA) output, which produces per-comparable adjustments, net/gross adjustment summaries, and an adjusted sale price for the subject property.
 
 \begin{tcolorbox}[colback=nordblue!5, colframe=nordblue!40, title=]
 \small\textit{\textbf{Tip:} The General purpose mode works for any dataset --- financial, scientific, engineering, or real estate. The appraisal and market modes simply add convenience features for real estate professionals.}
@@ -345,7 +349,7 @@ When either **For Appraisal** or **Market Area Analysis** is selected, glmnetUI 
 To use glmnetUI:
 
 1. **Install the package** in R: `install.packages("glmnetUI")` or install from source.
-2. **Launch the application**: run `glmnetUI::glmnetUI()` in R. The app opens in your web browser on port 7879. You can also access the app directly by navigating to `http://localhost:7879` in your browser. The app remembers your last-used purpose mode and restores it automatically.
+2. **Launch the application**: run `glmnetUI::glmnetUI()` in R. The app opens in your web browser on port 7879. You can also access the app directly by navigating to `http://localhost:7879` in your browser.
 3. **Create or open a project** in Section 1 of the sidebar. A project sets the purpose and work location (country, state, county, city) and its input/output folders. Projects are stored under a shared `regProj` root and are shared with the sibling apps earthUI and mgcvUI. Opening a project with a different purpose is how you switch modes.
 4. **Import your data** in Section 2 by selecting a CSV or Excel file from the active project's input folder. Add files to that folder, then click **Refresh** to list them.
 5. **Import from earthUI (optional)** --- Section 3 lets you import an earthUI result `.rds` file to use earth's hinge basis functions with glmnet's regularization. Skip this step if you do not have an earthUI result.
@@ -444,7 +448,7 @@ For example, your MLS might export living area as "GLA", "Living SqFt", "liv\_ar
 - **Missing values (NA)**: Rows with NA values in any predictor or target column are automatically removed before fitting.
 - **Date columns**: Character columns matching common date formats are auto-parsed on import. 2-digit year formats are prioritized when no 4-digit year is detected.
 - **Numeric columns**: Sale price, living area, lot size, concessions, and similar fields must be numeric. If your MLS exports prices with currency symbols or thousands separators (e.g., "\$350,000" or "350.000,00"), you may need to clean these before import.
-- **Factor columns**: Categorical variables like area ID, style, or condition should contain a manageable number of unique values. glmnetUI auto-detects factors but you can override the detection.
+- **Factor columns**: Text, TRUE/FALSE, and R-factor columns are treated as categorical automatically — a regression can only handle them as factors. A **numeric** column (e.g. a numeric area or style code) becomes a factor only when you tick its **Factor** checkbox; glmnetUI never infers categorical from a numeric's value range, so discrete numeric predictors like `bath_count` stay continuous. The Special role is independent of the factor decision.
 
 \begin{tcolorbox}[colback=nordblue!5, colframe=nordblue!40, title=]
 \small\textit{\textbf{Tip:} Review the NA column in the predictor table after import. Columns with many missing values may cause rows to be dropped. Consider excluding high-NA columns or cleaning the data before import.}
@@ -478,11 +482,11 @@ In General mode, the interface omits the real estate--specific features (special
 
 ### Skip First Row
 
-A **Skip first row** checkbox appears below the Purpose selector (in General and Market modes). When checked, row 1 is excluded from model fitting. This is useful when row 1 contains a target or reference observation that should not influence the model. In Appraisal mode, row 1 (the subject property) is always excluded automatically.
+A **Skip first row** checkbox appears at the top of the sidebar when a General or Market project is open. When checked, row 1 is excluded from model fitting. This is useful when row 1 contains a target or reference observation that should not influence the model. In Appraisal mode, row 1 (the subject property) is always excluded automatically.
 
 ### Settings Per Purpose
 
-Settings (predictor selections, model parameters, interactions) are saved separately for each combination of input file and purpose mode. Switching between General, Appraisal, and Market modes preserves each mode's settings independently.
+Settings (predictor selections, model parameters, interactions) are saved separately for each combination of input file and purpose mode. Switching between projects of different purposes preserves each mode's settings independently.
 
 ## The Sidebar Workflow
 
@@ -538,22 +542,24 @@ Coefficients & Non-zero coefficients table with sign violation warnings. \\
 \hline
 Variable Importance & Bar chart and ranked table of predictor importance ($|\beta| \times \text{sd}(x)$). Interactive plotly hover when available. \\
 \hline
-Contributions & Per-variable partial effect plots with slope labels. Scatter + line for numeric predictors, histogram for factors. \\
+Contributions & Per-variable partial effect plots with slope labels. Scatter + line for numeric predictors, box plots for factors, scatter/heatmap/3D surface for interactions. \\
 \hline
 ANOVA & Variance decomposition table: per-variable SS, \% of model SS, coefficient. \\
 \hline
 Diagnostics & Four plots: Coefficient Path, CV Error, Actual vs Predicted, Residuals vs Fitted. \\
 \hline
+Glmnet Output & Raw model output: random seed used, model print, selected lambda, gamma, and coefficient vector. \\
+\hline
 Report & Report configuration and export fields. \\
 \hline
-RCA Adjustments & RCA analysis results (appraisal mode, after computation). \\
+RCA Adjustments & RCA analysis results (appraisal/market modes, after computation). \\
 \hline
 \end{tabularx}
 \end{center}
 
 ## Settings Persistence
 
-glmnetUI automatically saves your configuration to the browser's local storage, keyed by the input filename. When you reload the same file, all settings are restored: target selection, predictor checkboxes, data types, expected signs, glmnet parameters, and interaction matrix. The last-used purpose mode is also persisted globally and restored when the app is relaunched. Three options are available:
+glmnetUI automatically saves your configuration to the browser's local storage, keyed by the input filename and purpose. When you reload the same file, all settings are restored: target selection, predictor checkboxes, data types, expected signs, glmnet parameters, and interaction matrix. (The purpose mode itself is set by the active project.) Three options are available:
 
 - **Use last settings for input file** --- restore saved settings for this specific file
 - **Use default settings** --- apply your saved global defaults
@@ -594,7 +600,7 @@ Click **Save as my default** to store your locale preferences globally. These de
 
 \bigskip
 
-When you select **For Appraisal** as the Purpose, glmnetUI configures itself for single-property valuation. All features described in Chapter 3 remain available; this chapter covers only the appraisal-specific additions.
+When the active project's purpose is **For Appraisal**, glmnetUI configures itself for single-property valuation. All features described in Chapter 3 remain available; this chapter covers only the appraisal-specific additions.
 
 ## Subject Row Handling
 
@@ -614,7 +620,7 @@ In appraisal and market modes, a **Special** dropdown appears for each predictor
 
 ## RCA Adjustments Overview
 
-The **Calculate RCA Adjustments \& Download** button (sidebar section 8, visible only in appraisal mode after fitting) computes market-derived adjustments for each comparable relative to the subject. The full RCA workflow is described in Chapter 11.
+The **Calculate RCA Adjustments \& Download** button (sidebar section 8, visible in appraisal and market modes after fitting) computes market-derived adjustments for each comparable relative to the subject. The full RCA workflow is described in Chapter 11.
 
 \begin{tcolorbox}[colback=nordblue!5, colframe=nordblue!40, title=]
 \small\textit{\textbf{Tip:} The CQA score you assign to the subject controls how much of the residual distribution is attributed to the subject. A score of 5.00 places the subject at the median of the comparables.}
@@ -632,12 +638,12 @@ The **Calculate RCA Adjustments \& Download** button (sidebar section 8, visible
 
 \bigskip
 
-When you select **Market Area Analysis** as the Purpose, glmnetUI provides the same real estate--specific features as appraisal mode (special columns, sale age, coordinate rounding) but is oriented toward analyzing a group of properties rather than valuing a single subject.
+When the active project's purpose is **Market Area Analysis**, glmnetUI provides the same real estate--specific features as appraisal mode (special columns, sale age, coordinate rounding) but is oriented toward analyzing a group of properties rather than valuing a single subject.
 
 ## Differences from Appraisal Mode
 
 - **Subject row handling is flexible** --- in market mode, row 1 is not automatically treated as a subject property.
-- **No RCA section** --- the "Calculate RCA Adjustments \& Download" step is not available. Market mode focuses on model fitting and output, not per-comparable adjustments.
+- **No Sales Grid section** --- the RCA adjustment step (section 8) is available in market mode, but the "Generate Sales Grid \& Download" step is appraisal-only.
 
 ## When to Use Market Mode
 
@@ -646,10 +652,10 @@ Market Area Analysis mode is appropriate when you are:
 - Building a regression model for a neighborhood or market area to understand value drivers
 - Analyzing how variables like square footage, age, lot size, and location affect sale prices across a group of properties
 - Preparing support for a market conditions analysis or neighborhood delineation
-- Working with a dataset where you want special column features (sale age, coordinate rounding) but do not need the RCA adjustment workflow
+- Working with a dataset where you want special column features (sale age, coordinate rounding) but do not need the Sales Comparison Grid
 
 \begin{tcolorbox}[colback=nordblue!5, colframe=nordblue!40, title=]
-\small\textit{\textbf{Tip:} Market mode is also useful for general real estate regression where you want special column features but do not need the RCA adjustment workflow.}
+\small\textit{\textbf{Tip:} Market mode is also useful for general real estate regression where you want special column features but do not need the appraisal Sales Comparison Grid.}
 \end{tcolorbox}
 
 \newpage
@@ -677,8 +683,9 @@ Below the target selector, a table lists every remaining column with the followi
 | Column | Description |
 |:-------|:------------|
 | **Variable** | Column name |
-| **Type** | Data type dropdown: `numeric`, `integer`, `character`, `logical`, `factor`, `Date`, `POSIXct` |
-| **Inc** | Checkbox --- include this column as a predictor in the model |
+| **Type** | Data type dropdown: `numeric`, `integer`, `character`, `Date`, `POSIXct` |
+| **Include** | Checkbox --- include this column as a predictor in the model |
+| **Factor** | Checkbox --- treat the column as a categorical factor (creates dummy columns in the model matrix) |
 | **Force** | Checkbox --- force into model (penalty factor = 0, never dropped by lasso) |
 | **Special** | Dropdown (appraisal/market only) --- see Special Column Types Reference below |
 | **Sign** | Expected coefficient sign: positive, negative, or either |
@@ -710,8 +717,13 @@ In appraisal and market modes, the **Special** dropdown provides the following o
 **Date \& Time Types:**
 
 - `contract_date` --- Triggers automatic `sale_age` computation from the Effective Date
+- `sale_age` --- Marks an existing sale-age column (days from contract date to effective date); when designated, the automatic `sale_age` computation is skipped and your column is used as-is
 - `listing_date` --- Used as a fallback for computing Days on Market
 - `dom` --- Identifies the Days on Market column
+
+**Transaction Types:**
+
+- `sale_type` --- Identifies the sale/transaction type column (designation shared with earthUI and mgcvUI)
 
 **Monetary Types:**
 
@@ -763,7 +775,7 @@ The alpha parameter controls the type of regularization:
 | 1 | Lasso | Can set coefficients exactly to zero (variable selection) |
 | 0 to 1 | Elastic Net | Blend of ridge and lasso |
 
-Three alpha selection methods are available:
+Two alpha selection methods are available:
 
 - **Fixed** --- Set a single alpha value via the slider (default: 1.0)
 - **Grid Search** --- Test multiple alpha values and select the one with the lowest CV error. Configure the range and number of values.
@@ -827,9 +839,9 @@ With cross-validation, gamma is chosen automatically for optimal performance.
 
 ## Interaction Matrix
 
-An interactive upper-triangular matrix lets you control which variable pairs are allowed to interact. Each cell contains a checkbox --- checked means the interaction term `x1:x2` is included in the model matrix.
+An interactive upper-triangular matrix lets you control which variable pairs are allowed to interact. Each cell contains a checkbox --- checked means the interaction term `x1:x2` is included in the model matrix. All pairs start **unchecked**; when an earthUI model is imported, the pairs used by the earth model are pre-checked.
 
-- **Allow All** --- Check all interaction pairs (default)
+- **Allow All** --- Check all interaction pairs
 - **Clear All** --- Uncheck all pairs
 - **Click a variable name** --- Toggle all interactions for that variable
 
@@ -842,6 +854,20 @@ Interaction selections are saved to browser localStorage per input file and rest
 \begin{tcolorbox}[colback=yellow!10, colframe=nordblue, title=Warning]
 Enabling glmnet interactions will produce adjustments that can be difficult to interpret and explain in court or audit settings. Use interactions cautiously and verify that the resulting adjustments are reasonable.
 \end{tcolorbox}
+
+## Block from Main Effect
+
+**Right-click** a variable name in the Interaction Matrix to block it from entering the model as a main effect. A bold **" 1"** indicator appears after the variable name. When blocked:
+
+- The variable is **removed** from the main formula terms
+- The variable **can still** appear in interaction terms (`x1:x2`)
+- Right-click again to unblock; the state persists via localStorage per input file
+
+For example, when modeling time adjustments that should scale with property size, block `sale_age` from the main effect and allow it only in an interaction with `living_area`. The resulting `sale_age:living_area` term lets the time appreciation rate vary by house size.
+
+## Random Seed
+
+A **Random seed** text input (pre-filled with a random integer) makes the cross-validation fold assignments reproducible. After each fit, a new seed is auto-generated (using system time, not R's RNG). The last 5 seeds used with the current file are shown as clickable links for easy recall; the seed history resets when a new file is loaded. The seed actually used is reported at the top of the Glmnet Output tab.
 
 ## Advanced Parameters
 
@@ -878,7 +904,7 @@ Click **Save current as default** to store all current settings as the global de
 
 ## The Fit Button
 
-Section 6 of the sidebar contains the **Fit Glmnet Model** button. Clicking it runs the model with your current configuration.
+Section 6 of the sidebar (**Fit Glmnet Model**) contains the **Fit Model** button. Clicking it runs the model with your current configuration.
 
 ## What Happens During Fitting
 
@@ -974,7 +1000,9 @@ Per-variable partial effect plots showing the contribution of each predictor to 
 
 **For numeric predictors:** A scatter plot of the variable's x-values vs. its contribution ($\beta \times x$), with a red line segment and a slope label. The slope label shows the marginal effect per unit (e.g., ``+1,234.56/unit'') with adaptive units for small-range variables like latitude/longitude (e.g., ``+0.12/0.001''). The subtitle shows the intercept (basis) value.
 
-**For factor/interaction predictors:** A histogram showing the distribution of contribution values across observations.
+**For factor predictors:** A box plot of contribution values per factor level, sorted by median contribution.
+
+**For two-variable interactions:** A scatter plot colored by the second variable, a heatmap of mean contribution, and a 3D surface plot (interactive plotly when available, otherwise a static `persp()` snapshot).
 
 ## ANOVA
 
@@ -1000,9 +1028,13 @@ Four diagnostic plots with large fonts (base size 16pt), 15 axis tick marks, and
 
 Each plot has a **Download PNG** button for saving at 150 DPI.
 
+## Glmnet Output
+
+Raw model output for documentation and audit: the random seed used for cross-validation, the printed model object, the selected lambda (with lambda.min/lambda.1se), gamma (if relaxed lasso was used), and the full coefficient vector.
+
 ## Report
 
-Configure report fields (appraiser name, property address, report date, file number) and export to Word (.docx), PDF, or HTML. See Chapter 13.
+Configure report fields (appraiser name, property address, report date, file number) and export directly to Word (.docx) or PDF. For HTML output --- or to keep an editable Quarto source --- use the two-step Quarto report flow in sidebar sections 10 and 11. See Chapter 13.
 
 \newpage
 
@@ -1016,7 +1048,7 @@ Configure report fields (appraiser name, property address, report date, file num
 
 \bigskip
 
-After fitting, the **Download Output** button (sidebar section 7, appraisal/market modes) exports an Excel file with predictions and diagnostics.
+After fitting, the **Download Output** button (sidebar section 7, available in all purpose modes) exports an Excel file with predictions and diagnostics to the project's output folder. The section heading reads "Download Estimated Sale Prices \& Residuals" in appraisal/market modes and "Download Estimated Target Variable(s) \& Residuals" in general mode.
 
 ## Output Columns
 
@@ -1030,7 +1062,7 @@ After fitting, the **Download Output** button (sidebar section 7, appraisal/mark
 \hline
 \texttt{residual} & Actual $-$ predicted \\
 \hline
-\texttt{cqa} & Comparative Quality Analysis score (0--10 scale) \\
+\texttt{cqa} & Condition-Quality-Appeal score (0--10 scale) \\
 \hline
 \texttt{residual\_sf} & Residual / living area (if \texttt{living\_area} designated) \\
 \hline
@@ -1067,14 +1099,16 @@ In appraisal/market modes, rows are sorted by `residual_sf` descending when a `l
 
 \bigskip
 
-The RCA (Reconciliation by Comparable Adjustment) workflow is available in **Appraisal** mode only, after fitting the model and downloading the output (Step 7).
+The RCA (Residual Constraint Approach) workflow is available in **Appraisal** and **Market Area Analysis** modes, after fitting the model.
 
 ## Opening the RCA Dialog
 
 Click the **Calculate RCA Adjustments \& Download** button in sidebar section 8. Choose:
 
-- **CQA** or **CQA per SF** score type. If "CQA per SF" is selected, the subject's residual is scaled by living area.
-- Enter the subject's CQA score (0.00--9.99, default 5.00)
+- **CQA** or **CQA per SF** score type. The "CQA per SF" option appears only when a `living_area` column is designated; it ranks residuals per square foot to reduce the impact of home size.
+- Enter the subject's CQA score (0.00--10.00). When an earthUI model has been imported, the score type and value are carried forward from earthUI; otherwise the field starts blank.
+
+Click **Generate** to compute the adjustments and write the Excel output to the project's output folder.
 
 ## CQA Score Interpolation
 
@@ -1123,7 +1157,7 @@ The Sales Comparison Grid is available in **Appraisal** mode only, after computi
 
 ## Comp Selection Dialog
 
-Clicking the **Sales Grid** button in sidebar section 9 opens a modal dialog listing all comparable sales from the RCA output. Comps are split into two groups:
+Clicking the **Generate Sales Grid \& Download** button in sidebar section 9 opens a modal dialog listing all comparable sales from the RCA output. Comps are split into two groups:
 
 - **Recommended comps** (pre-checked): Gross adjustment < 25\% of sale price, sorted by sale age (most recent first).
 - **Other comps** (unchecked by default): Remaining comps, sorted by sale age.
@@ -1156,15 +1190,24 @@ Each sheet is protected with a password to prevent accidental edits, but the res
 
 \bigskip
 
+## Two-Step Quarto Flow
+
+Report generation is a two-step process in the sidebar:
+
+1. **Generate Quarto Report** (section 10, available once the model is fit) --- writes a self-contained Quarto bundle (\texttt{.qmd} source, plots, \texttt{report\_data.rds}, and \texttt{reference.docx}) to the project's glmnet output folder. Because the bundle is plain Quarto source, you can edit it before rendering.
+2. **Convert Quarto Report** (section 11) --- renders a \texttt{.qmd} file to the selected output formats. It defaults to the most recently generated bundle, but you can browse to any \texttt{.qmd}.
+
+The Report tab in the main panel also offers direct **Export to Word (.docx)** and **Export to PDF** downloads using the same report content.
+
 ## Report Formats
 
-Three formats are available:
+Three formats are available in the Convert step:
 
-- **HTML** --- Self-contained HTML document. Works on all platforms with no extra software. Recommended default.
+- **HTML** --- Self-contained HTML document. Requires pandoc (bundled with RStudio). Recommended default.
 - **Word (.docx)** --- Formatted document. Suitable for editing and distribution. Works on all platforms.
-- **PDF** --- Generated via Quarto with LaTeX. Paper size follows the locale setting (Letter or A4). **Requires a LaTeX installation** (see System Requirements appendix). If no LaTeX is detected, the PDF option is automatically hidden from the format dropdown.
+- **PDF** --- Generated via Quarto with LaTeX. Paper size follows the locale setting (Letter or A4). **Requires a LaTeX installation** (see System Requirements appendix). If no LaTeX is detected, the PDF option is automatically hidden.
 
-Reports are generated using Quarto when available, with a fallback to rmarkdown.
+Reports are rendered using Quarto when available, with a fallback to rmarkdown.
 
 ## Report Contents
 
@@ -1192,7 +1235,7 @@ Reports include all tab content:
 
 All axis labels and color legends use comma-formatted numbers (no scientific notation).
 
-A white checkmark appears on the Download Report button after successful generation.
+A white checkmark appears on the Generate and Convert buttons after successful completion.
 
 \newpage
 
@@ -1234,7 +1277,7 @@ Sales Comparison Grid & Available (Step 9) & Available (Step 8) \\
 \hline
 g-Function plots & Not applicable & Grouped term visualization \\
 \hline
-Report formats & Word, PDF & HTML, Word, PDF \\
+Report formats & HTML, Word, PDF & HTML, Word, PDF \\
 \hline
 \end{tabularx}
 \end{center}
@@ -1276,10 +1319,10 @@ Both tools provide:
 
 ## Description
 
-The demo dataset is shared with earthUI. If earthUI is installed, load it with:
+glmnetUI bundles the same demo dataset used by earthUI in its own `extdata` folder. Locate it with:
 
 ```r
-demo_file <- system.file("extdata", "Appraisal_1.csv", package = "earthUI")
+demo_file <- system.file("extdata", "Appraisal_1.csv", package = "glmnetUI")
 ```
 
 The file contains 1,502 residential sales (plus 1 subject property in row 1) from a simulated MLS export. The data represents single-family home sales in a multi-area market with a range of property sizes, ages, and locations.

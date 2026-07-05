@@ -24,8 +24,10 @@ interactively.
 
 ### Three Purpose Modes
 
-When you launch glmnetUI, a **Purpose** radio button at the top of the sidebar
-lets you choose one of three modes:
+Every project has a **purpose**, chosen when you create it (Section 1,
+*Project*). The active project's purpose determines which tools and
+interface elements appear; to work in a different mode, create or open a
+project with that purpose. The three modes are:
 
 - **General** --- Elastic net regression for any dataset. The default mode.
 - **For Appraisal** --- Tailored for real estate appraisal with subject
@@ -202,32 +204,40 @@ fully accessible.
 
 ## The Sidebar Workflow
 
-The sidebar is organized into numbered sections:
+The sidebar is organized into numbered sections (numbering shown for
+appraisal mode; sections hidden in other modes renumber accordingly):
 
-1. **Import Data** --- CSV or Excel file upload
-2. **Import from earthUI (optional)** --- Import an earthUI result `.rds`
+1. **Project** --- create or open a project; sets the purpose, location,
+   and the input/output folders. Click **Close Project** to switch.
+2. **Import Data** --- pick a CSV or Excel file from the project's
+   `<os>_in/` folder (use **Browse...** to copy a file in, and
+   **Refresh** to re-list)
+3. **Import from earthUI (optional)** --- Import an earthUI result `.rds`
    file to use earth's hinge basis functions with glmnet's regularization.
-   The browse button is styled to match the Section 1 file upload.
-3. **Project Output Folder** --- where downloads are saved
+   When imported, the predictor set is dictated by the earth model: the
+   variable table locks Include/Type, while Force and Sign stay editable.
 4. **Variable Configuration** --- target, predictors, data types, expected
    signs. Special column designations appear in appraisal/market only.
    Effective date input appears in appraisal/market only.
 5. **glmnet Call Parameters** --- alpha, lambda, family, standardize, sign
-   constraints, relaxed lasso, interaction matrix, advanced parameters
+   constraints, relaxed lasso, random seed, interaction matrix, advanced
+   parameters
 6. **Fit Glmnet Model** --- button to run the model
 7. **Download Output** --- Excel file with predictions, residuals, CQA
    scores, and per-variable contributions (all purpose modes)
-8. **Calculate RCA Adjustments & Download** (appraisal only)
-9. **Sales Comparison Grid** (appraisal only) --- generate formatted Excel
-   workbook with comp selection modal
-10. **Download Report** --- Word (.docx), PDF, or HTML
+8. **Calculate RCA Adjustments & Download** (appraisal and market modes)
+9. **Generate Sales Grid & Download** (appraisal only) --- generate
+   formatted Excel workbook with comp selection modal
+10. **Generate Quarto Report** --- write a self-contained `.qmd` report
+    bundle to the project's output folder
+11. **Convert Quarto Report** --- render the generated `.qmd` (or any
+    other) to HTML, Word, or PDF
 
-A **Skip first row** checkbox appears below the Purpose selector in
-General and Market modes. Settings are saved per file and purpose
-combination, so switching modes preserves each mode's configuration.
-Changing the Purpose resets both the data import (Section 1) and the
-earthUI import (Section 2) --- you must re-import your data after
-switching purpose.
+A **Skip first row** checkbox appears at the top of the sidebar when a
+General or Market project is open. Settings are saved per file and purpose
+combination, so each mode's configuration is preserved independently.
+Opening, closing, or switching a project resets the data import, the
+earthUI import, and all model results.
 
 ## Variable Selection
 
@@ -236,9 +246,9 @@ switching purpose.
 Each column is listed with:
 
 - **Type** --- data type dropdown (numeric, integer, character, Date, POSIXct)
-- **Fac** --- factor checkbox. Check to treat the variable as a categorical
+- **Include** --- include as predictor checkbox
+- **Factor** --- factor checkbox. Check to treat the variable as a categorical
   factor (creates dummy columns in the model matrix)
-- **Inc** --- include as predictor checkbox
 - **Force** --- force into model (penalty factor = 0, never dropped by lasso)
 - **Special** --- special column designation (appraisal/market only)
 - **Sign** --- expected coefficient sign (positive, negative, or either)
@@ -251,8 +261,15 @@ In appraisal and market modes, each predictor can be assigned a special type:
 **Date & Time:**
 
 - `contract_date` --- triggers `sale_age` computation
+- `sale_age` --- marks an existing sale-age column; automatic computation
+  is skipped and your column is used as-is
 - `listing_date` --- fallback for DOM calculation
 - `dom` --- Days on Market column
+
+**Transaction:**
+
+- `sale_type` --- sale/transaction type column (designation shared with
+  earthUI and mgcvUI)
 
 **Monetary:**
 
@@ -349,7 +366,8 @@ Seed history resets when a new file is loaded.
 
 An interactive upper-triangular matrix lets you control which variable pairs
 are allowed to interact. Check a cell to allow the interaction term
-`x1:x2` in the model matrix.
+`x1:x2` in the model matrix. All pairs start unchecked; when an earthUI
+model is imported, the pairs used by the earth model are pre-checked.
 
 - **Allow All**: Check all interaction pairs
 - **Clear All**: Uncheck all pairs
@@ -358,6 +376,12 @@ are allowed to interact. Check a cell to allow the interaction term
 
 With many predictors, lasso will zero out unneeded interaction terms
 automatically, so "Allow All" is a reasonable starting point.
+
+When any interaction is enabled, the exported report includes an **Enabled
+Interactions** matrix (predictors on both axes, a check mark where the
+`x1:x2` product term was included) — rendered in landscape, mirroring earthUI's
+Allowed Interactions matrix. The lasso may still have shrunk an enabled term's
+coefficient to zero.
 
 > **Warning:** Enabling glmnet interactions will produce adjustments that
 > can be difficult to interpret and explain in court or audit settings.
@@ -481,8 +505,15 @@ lambda.min/1se, gamma (if relaxed), and full coefficient vector.
 ### Report
 
 Configure report fields (appraiser name, property address, report date,
-file number) and export to Word (.docx), PDF, or HTML. Reports are
+file number) and export directly to Word (.docx) or PDF. Reports are
 rendered via Quarto when available, with an automatic rmarkdown fallback.
+
+For HTML output, or to keep an editable Quarto source, use the two-step
+sidebar flow instead: **Generate Quarto Report** (section 10) writes a
+self-contained `.qmd` bundle (source, plots, `report_data.rds`,
+`reference.docx`) to the project's output folder, and **Convert Quarto
+Report** (section 11) renders it to HTML, Word, or PDF. PDF requires a
+LaTeX installation; the option is hidden when none is detected.
 
 Report contribution plots match the Contributions tab: scatter with fit
 line for numeric predictors, box plots for factors, and scatter/heatmap/3D
@@ -498,7 +529,7 @@ In appraisal/market modes, the output includes:
 |:-------|:------------|
 | `est_<target>` | Model prediction (e.g., `est_sale_price`) |
 | `residual` | Actual - predicted |
-| `cqa` | Comparative Quality Analysis score (0-10 scale) |
+| `cqa` | Condition-Quality-Appeal score (0-10 scale) |
 | `residual_sf` | Residual / living area (if designated) |
 | `cqa_sf` | CQA calculated from ranking via residual_sf |
 | `<var>_contribution` | Per-variable contribution |
@@ -514,13 +545,16 @@ CQA ranks each row's residual against all others on a 0--10 scale:
 
 In appraisal/market modes, rows are sorted by `residual_sf` descending.
 
-## RCA Calculations (Step 8, Appraisal Only)
+## RCA Calculations (Step 8, Appraisal & Market)
 
 ### The RCA Dialog
 
-- Choose **CQA** or **CQA per SF** score type
-- Enter the subject's CQA score (0.00--9.99, default 5.00)
-- Click **Calculate** to compute adjustments
+- Choose **CQA** or **CQA per SF** score type (the per-SF option appears
+  only when a `living_area` column is designated)
+- Enter the subject's CQA score (0.00--10.00). With an earthUI import, the
+  score type and value are carried forward from earthUI; otherwise the
+  field starts blank.
+- Click **Generate** to compute adjustments and download the Excel output
 
 ### How It Works
 
@@ -541,8 +575,9 @@ In appraisal/market modes, rows are sorted by `residual_sf` descending.
 
 ## Sales Comparison Grid (Step 9, Appraisal Only)
 
-After computing RCA adjustments, a **Sales Grid** button appears. Clicking it
-opens a modal dialog for comp selection.
+After computing RCA adjustments in an appraisal project, a **Generate Sales
+Grid & Download** button appears. Clicking it opens a modal dialog for comp
+selection.
 
 ### Comp Selection
 
@@ -580,8 +615,9 @@ glmnetUI saves settings to the browser's localStorage:
 - **Global defaults**: Saved via "Save current as default" button
 - **Locale**: Country and paper size preferences
 - **Theme**: Light/dark mode toggle
-- **Purpose mode**: The last-used purpose (General, For Appraisal, or
-  Market Area Analysis) is remembered and restored on relaunch
+
+The purpose mode itself is not a saved preference --- it is set by the
+active project.
 
 When you re-import a previously used file, all settings are restored
 automatically.
@@ -616,14 +652,16 @@ and demo datasets.
 
 ## Demo Dataset: Appraisal_1.csv
 
-The demo dataset is shared with earthUI. If earthUI is installed, load it
-with:
+glmnetUI bundles the same demo dataset used by earthUI in its own
+`extdata` folder. Locate it with:
 
 ```{r eval=FALSE}
 demo_file <- system.file("extdata", "Appraisal_1.csv", package = "glmnetUI")
 ```
 
-Or import it directly through the Shiny app file upload.
+To use it in the app, copy it into your project's `<os>_in/` folder (or
+select it via the **Browse...** button in Section 2, which imports it into
+the project).
 
 ### Description
 
@@ -653,8 +691,9 @@ in a multi-area market with a range of property sizes, ages, and locations.
 ### Suggested Quick Start
 
 1. Launch glmnetUI: `glmnetUI::glmnetUI()`
-2. Import `Appraisal_1.csv` via the file upload
-3. Set Purpose to **For Appraisal**
+2. Create a new project (Section 1) with purpose **For Appraisal**
+3. Place `Appraisal_1.csv` in the project's input folder and select it in
+   Section 2 (click **Refresh** if needed)
 4. Select `sale_price` as the target
 5. Assign special types as shown in the table above
 6. Include predictors: `sale_age`, `living_sqft`, `baths_total`, `lot_size`,

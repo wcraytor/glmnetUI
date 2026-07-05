@@ -98,6 +98,16 @@ cat(sprintf("| MAE | %.2f |\n", .assets$mae))
 ```{r equation, results='asis', eval=!is.null(.assets)}
 heading("Model Equation")
 cat("$$\n", .assets$equation_latex, "\n$$\n")
+.eq_notation <- .assets$equation_notation
+if (is.null(.eq_notation)) .eq_notation <- "linear"
+if (identical(.eq_notation, "g")) {
+  cat("\nSee the *Notation: Value Contributions* section at the end of this",
+      "report for an explanation of the ${}^{f}g^{j}_{k}$ notation and its",
+      "indexes.\n\n")
+} else {
+  cat("\nSee the *Notation: Value Contributions* section at the end of this",
+      "report for an explanation of the value-contribution terms.\n\n")
+}
 ```
 
 ## Coefficients
@@ -187,6 +197,13 @@ include_plot("qq")
 ```{r model-output, comment="", eval=!is.null(.assets)}
 cat("== glmnet Model ==\n\n")
 print(.assets$model)
+```
+
+```{r g-legend, results='asis', eval=!is.null(.assets)}
+heading("Notation: Value Contributions")
+.notation <- .assets$equation_notation
+if (is.null(.notation)) .notation <- "linear"
+cat(glmnetUI::g_function_legend("markdown", .notation))
 ```
 
 ---

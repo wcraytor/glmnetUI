@@ -76,7 +76,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
         error = function(e) NULL)
     }
     showtext::showtext_auto()
-    ggplot2::theme_set(ggplot2::theme_minimal(base_family = font_fam))
+    ggplot2::theme_set(ggplot2::theme_minimal(base_size = 15, base_family = font_fam) + ggplot2::theme(axis.text = ggplot2::element_text(size = 15), axis.title = ggplot2::element_text(size = 16)))
   } else {
     ggplot2::theme_set(ggplot2::theme_minimal(base_family = "sans"))
   }
@@ -205,9 +205,11 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     rmse           = rmse,
     mae            = mae,
     equation_latex = eq$latex_pdf %||% eq$latex,
+    equation_notation = eq$notation %||% "linear",
     coef_df        = coef_df,
     importance_df  = imp_df,
     anova_df       = anova_df,
+    interaction_matrix = build_interaction_matrix_(coef_df, predictors),
     contrib_names  = names(contrib_info$contribs)
   ), file.path(assets_dir, "report_data.rds"))
   message("[glmnetUI ASSETS] report_data.rds saved to: ",
@@ -246,7 +248,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
       ggplot2::coord_flip() +
       ggplot2::labs(x = NULL, y = "Importance (|coef| \u00d7 sd(x))",
                     title = "Variable Importance") +
-      ggplot2::theme_minimal(base_family = font_fam)
+      ggplot2::theme_minimal(base_size = 15, base_family = font_fam) + ggplot2::theme(axis.text = ggplot2::element_text(size = 15), axis.title = ggplot2::element_text(size = 16))
     save_ggplot_("importance", p_imp, width = 10, height = imp_height)
   }
 
@@ -268,7 +270,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
       ggplot2::scale_fill_gradient2(low = "#2166AC", mid = "white",
                                      high = "#B2182B", midpoint = 0) +
       ggplot2::labs(x = NULL, y = NULL, title = "Correlation Matrix") +
-      ggplot2::theme_minimal(base_family = font_fam) +
+      ggplot2::theme_minimal(base_size = 15, base_family = font_fam) + ggplot2::theme(axis.text = ggplot2::element_text(size = 15), axis.title = ggplot2::element_text(size = 16)) +
       ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
     save_ggplot_("correlation", p_cor, width = 10, height = 8)
   }
@@ -477,7 +479,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
     ggplot2::geom_line(show.legend = FALSE) +
     ggplot2::labs(x = "Log(Lambda)", y = "Coefficient",
                   title = "Coefficient Path") +
-    ggplot2::theme_minimal(base_family = font_fam)
+    ggplot2::theme_minimal(base_size = 15, base_family = font_fam) + ggplot2::theme(axis.text = ggplot2::element_text(size = 15), axis.title = ggplot2::element_text(size = 16))
   save_ggplot_("coef_path", p_coef)
 
   # CV error plot
@@ -497,7 +499,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
                            linetype = "dashed", color = "#a3be8c") +
       ggplot2::labs(x = "Log(Lambda)", y = "CV Error",
                     title = "Cross-Validation Error") +
-      ggplot2::theme_minimal(base_family = font_fam)
+      ggplot2::theme_minimal(base_size = 15, base_family = font_fam) + ggplot2::theme(axis.text = ggplot2::element_text(size = 15), axis.title = ggplot2::element_text(size = 16))
     save_ggplot_("cv_error", p_cv)
   }
 
@@ -510,7 +512,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
                           color = "#bf616a", linetype = "dashed") +
     ggplot2::labs(x = "Actual", y = "Predicted",
                   title = "Actual vs Predicted") +
-    ggplot2::theme_minimal(base_family = font_fam)
+    ggplot2::theme_minimal(base_size = 15, base_family = font_fam) + ggplot2::theme(axis.text = ggplot2::element_text(size = 15), axis.title = ggplot2::element_text(size = 16))
   save_ggplot_("actual_vs_predicted", p_avp)
 
   # Residuals vs Fitted
@@ -522,7 +524,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
                          linetype = "dashed") +
     ggplot2::labs(x = "Fitted Values", y = "Residuals",
                   title = "Residuals vs Fitted") +
-    ggplot2::theme_minimal(base_family = font_fam)
+    ggplot2::theme_minimal(base_size = 15, base_family = font_fam) + ggplot2::theme(axis.text = ggplot2::element_text(size = 15), axis.title = ggplot2::element_text(size = 16))
   save_ggplot_("residuals_vs_fitted", p_resid)
 
   # Q-Q plot
@@ -536,7 +538,7 @@ prepare_report_assets <- function(model, lambda, gamma, x_mat, y_vec,
                           color = "#bf616a", linetype = "dashed") +
     ggplot2::labs(x = "Theoretical Quantiles", y = "Sample Quantiles",
                   title = "Normal Q-Q Plot") +
-    ggplot2::theme_minimal(base_family = font_fam)
+    ggplot2::theme_minimal(base_size = 15, base_family = font_fam) + ggplot2::theme(axis.text = ggplot2::element_text(size = 15), axis.title = ggplot2::element_text(size = 16))
   save_ggplot_("qq", p_qq)
 
   all_plots <- list.files(plots_dir, full.names = FALSE)
@@ -1116,4 +1118,32 @@ convert_quarto_file <- function(qmd_path, formats = c("html"),
     out_paths <- c(out_paths, out_file)
   }
   invisible(out_paths)
+}
+
+# Build the enabled-interaction matrix for the report: an n x n logical matrix
+# (predictors on both axes) with TRUE where a pairwise interaction term was
+# included in the model. Derived from the coefficient table: interaction
+# columns contain ":" (e.g. "x1:x2" or "x1:x2Level"); each part is mapped back
+# to its parent predictor. Mirrors earthUI's allowed-interaction matrix.
+#' @noRd
+build_interaction_matrix_ <- function(coef_df, predictors) {
+  n <- length(predictors)
+  mat <- matrix(FALSE, n, n, dimnames = list(predictors, predictors))
+  if (n < 2L || is.null(coef_df) || !"Variable" %in% names(coef_df)) {
+    return(mat)
+  }
+  preds_sorted <- predictors[order(-nchar(predictors))]
+  int_cols <- coef_df$Variable[grepl(":", coef_df$Variable, fixed = TRUE)]
+  for (cn in int_cols) {
+    parts <- strsplit(cn, ":", fixed = TRUE)[[1L]]
+    parents <- unique(vapply(parts, function(comp) {
+      for (p in preds_sorted) if (comp == p || startsWith(comp, p)) return(p)
+      comp
+    }, character(1)))
+    if (length(parents) == 2L && all(parents %in% predictors)) {
+      mat[parents[1L], parents[2L]] <- TRUE
+      mat[parents[2L], parents[1L]] <- TRUE
+    }
+  }
+  mat
 }

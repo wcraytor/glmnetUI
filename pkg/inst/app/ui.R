@@ -107,6 +107,12 @@ bslib::page_fluid(
       border-color: var(--bs-success);
     }
 
+    /* Sidebar width matched to earthUI (one-third column, 500px floor). */
+    .col-sm-4 { min-width: 500px; }
+    /* Minimum app width so the results tabs are always visible (they need
+       ~1520px; a horizontal scrollbar appears on narrower screens). */
+    body { min-width: 1600px; }
+
     /* Wrap long file paths in notifications */
     .shiny-notification { word-wrap: break-word; overflow-wrap: anywhere; }
 
@@ -341,7 +347,7 @@ bslib::page_fluid(
   ),
   shiny::sidebarLayout(
     shiny::sidebarPanel(
-      width = 3,
+      width = 4,
 
       # --- Purpose Mode (derived from the active project; hidden in the DOM
       #     so existing input$purpose-based logic continues to work) ---
@@ -574,7 +580,7 @@ bslib::page_fluid(
       )
     ),
     shiny::mainPanel(
-      width = 9,
+      width = 8,
       shiny::conditionalPanel(
         condition = "!output['data-data_loaded']",
         shiny::tags$div(

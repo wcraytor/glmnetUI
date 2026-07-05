@@ -18,7 +18,6 @@ BugReports: https://github.com/wcraytor/glmnetUI/issues
 Depends:
     R (>= 4.1.0)
 Imports:
-    valengrCore,
     shiny,
     glmnet,
     readxl,

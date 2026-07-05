@@ -43,11 +43,130 @@ equationServer <- function(id, model_module, data_module) {
     output$model_equation <- shiny::renderUI({
       shiny::req(equation())
       eq <- equation()
-      shiny::withMathJax(shiny::HTML(eq$latex_inline))
+      legend <- shiny::HTML(g_function_legend("html", eq$notation %||% "linear"))
+      shiny::withMathJax(shiny::tagList(shiny::HTML(eq$latex_inline), legend))
     })
 
     return(list(equation = equation))
   })
+}
+
+#' Legend explaining the model-equation notation
+#'
+#' Returns a short, self-contained explanation of the notation used in the
+#' Model Equation, matched to how the model was fit, together with a citation to
+#' the RCA protocol. Used both by the Shiny app's Equation tab and at the bottom
+#' of the Quarto report.
+#'
+#' Two notations occur:
+#' * `"g"` — an elastic-net model fit on `earth` basis functions, displayed in
+#'   the RCA value-contribution notation \eqn{{}^{f}g^{j}_{k}}.
+#' * `"linear"` — a plain elastic-net (glmnet) fit, displayed as ordinary linear
+#'   \eqn{\beta x} terms.
+#'
+#' @param format Either `"html"` (MathJax markup, for the Shiny app and the
+#'   HTML report) or `"markdown"` (Pandoc markdown with `$`-delimited math, for
+#'   the Quarto report rendering to HTML, PDF and Word).
+#' @param notation Either `"g"` or `"linear"` (see above).
+#'
+#' @return A length-one character string.
+#'
+#' @export
+#' @examples
+#' cat(g_function_legend("markdown", "linear"))
+g_function_legend <- function(format = c("html", "markdown"),
+                              notation = c("g", "linear")) {
+  format   <- match.arg(format)
+  notation <- match.arg(notation)
+  doi_url  <- "https://doi.org/10.5281/zenodo.14787917"
+
+  if (format == "markdown") {
+    ref <- paste0(
+      "Craytor, W. B. (2025). *Residual Constraint Approach (RCA): ",
+      "Framework & Protocol*, §10. Zenodo. ",
+      "[doi:10.5281/zenodo.14787917](", doi_url, ").")
+    if (notation == "g") {
+      paste0(
+        "Each line of the equation above is a **value-contribution function** ",
+        "written ${}^{f}g^{\\,j}_{k}$:\n\n",
+        "- $j$ — the **group**, i.e. the number of variables the term ",
+        "involves: $j=0$ base constant, $j=1$ one variable, $j=2$ ",
+        "two-variable interaction, $j=3$ three-variable interaction.\n",
+        "- $k$ — the **position** of the function within group $j$ (its ",
+        "$k$-th term).\n",
+        "- $f$ (the leading superscript) — the number of **categorical ",
+        "(factor)** variables in the term.\n\n",
+        "A term needs $d = j - f$ axes to graph, because each factor variable ",
+        "removes one dimension. The estimate is the base constant plus every ",
+        "$g$ function:\n\n",
+        "$$\\hat{y}={}^{f_{0,1}}g_1^{0}",
+        "+\\sum_{q=1}^{n_1}{}^{f_{1,q}}g_q^{1}(x)",
+        "+\\sum_{r=1}^{n_2}{}^{f_{2,r}}g_r^{2}(x,y)",
+        "+\\sum_{s=1}^{n_3}{}^{f_{3,s}}g_s^{3}(x,y,z)$$\n\n",
+        "Notation and protocol follow ", ref, "\n")
+    } else {
+      paste0(
+        "Each line of the equation above is a **value contribution**. A plain ",
+        "elastic-net (glmnet) fit is linear, so the estimate is the intercept ",
+        "$\\beta_0$ plus a coefficient $\\beta_p$ times each retained ",
+        "predictor $x_p$:\n\n",
+        "$$\\hat{y}=\\beta_0+\\sum_{p}\\beta_p\\,x_p$$\n\n",
+        "Each product $\\beta_p\\,x_p$ is the value contribution of predictor ",
+        "$p$. Predictors whose coefficients were shrunk to zero are omitted, ",
+        "and interactions appear as products ($x_1\\times x_2$).\n\n",
+        "The value-contribution framework follows ", ref, "\n")
+    }
+  } else {
+    ref <- paste0(
+      "Craytor, W. B. (2025). <em>Residual Constraint Approach (RCA): ",
+      "Framework &amp; Protocol</em>, §10. Zenodo. ",
+      "<a href=\"", doi_url, "\">doi:10.5281/zenodo.14787917</a>.")
+    head_ <- paste0(
+      "<div class=\"gui-gfn-legend\" style=\"margin-top:14px;padding:10px ",
+      "14px;border-left:3px solid var(--bs-border-color,#ccc);",
+      "font-size:0.92em;\">")
+    if (notation == "g") {
+      paste0(
+        head_,
+        "<p style=\"margin:0 0 6px;\">Each line above is a ",
+        "<strong>value-contribution function</strong> written ",
+        "\\({}^{f}g^{\\,j}_{k}\\):</p>",
+        "<ul style=\"margin:0 0 6px;padding-left:1.2em;\">",
+        "<li>\\(j\\) — the <strong>group</strong>, i.e. the number of ",
+        "variables the term involves (\\(j=0\\) base constant, \\(j=1\\) one ",
+        "variable, \\(j=2\\) two-variable interaction, \\(j=3\\) ",
+        "three-variable interaction).</li>",
+        "<li>\\(k\\) — the <strong>position</strong> of the function ",
+        "within group \\(j\\).</li>",
+        "<li>\\(f\\) (the leading superscript) — the number of ",
+        "<strong>categorical (factor)</strong> variables in the term.</li>",
+        "</ul>",
+        "<p style=\"margin:0 0 6px;\">A term needs \\(d = j - f\\) axes to ",
+        "graph, because each factor variable removes one dimension. The ",
+        "estimate is the base constant plus every \\(g\\) function:</p>",
+        "\\[\\hat{y}={}^{f_{0,1}}g_1^{0}",
+        "+\\sum_{q=1}^{n_1}{}^{f_{1,q}}g_q^{1}(x)",
+        "+\\sum_{r=1}^{n_2}{}^{f_{2,r}}g_r^{2}(x,y)",
+        "+\\sum_{s=1}^{n_3}{}^{f_{3,s}}g_s^{3}(x,y,z)\\]",
+        "<p style=\"margin:6px 0 0;font-style:italic;\">Notation and protocol ",
+        "follow ", ref, "</p></div>")
+    } else {
+      paste0(
+        head_,
+        "<p style=\"margin:0 0 6px;\">Each line above is a ",
+        "<strong>value contribution</strong>. A plain elastic-net (glmnet) ",
+        "fit is linear, so the estimate is the intercept \\(\\beta_0\\) plus a ",
+        "coefficient \\(\\beta_p\\) times each retained predictor ",
+        "\\(x_p\\):</p>",
+        "\\[\\hat{y}=\\beta_0+\\sum_{p}\\beta_p\\,x_p\\]",
+        "<p style=\"margin:0 0 6px;\">Each product \\(\\beta_p\\,x_p\\) is the ",
+        "value contribution of predictor \\(p\\). Predictors whose ",
+        "coefficients were shrunk to zero are omitted, and interactions appear ",
+        "as products (\\(x_1\\times x_2\\)).</p>",
+        "<p style=\"margin:6px 0 0;font-style:italic;\">The ",
+        "value-contribution framework follows ", ref, "</p></div>")
+    }
+  }
 }
 
 #' Format glmnet Model as LaTeX Equation
@@ -128,7 +247,8 @@ format_glmnet_equation_ <- function(model, lambda, gamma, response) {
   list(
     latex = latex,
     latex_inline = latex_inline,
-    latex_pdf = latex_pdf
+    latex_pdf = latex_pdf,
+    notation = "linear"
   )
 }
 
@@ -374,6 +494,7 @@ format_glmnet_earth_equation_ <- function(model, lambda, gamma,
   list(
     latex = latex,
     latex_inline = latex_inline,
-    latex_pdf = latex_pdf
+    latex_pdf = latex_pdf,
+    notation = "g"
   )
 }

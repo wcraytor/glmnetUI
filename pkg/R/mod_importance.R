@@ -229,8 +229,8 @@ importanceServer <- function(id, model_module, data_module) {
         ggplot2::theme(
           plot.title = ggplot2::element_text(face = "bold", size = 18),
           plot.subtitle = ggplot2::element_text(size = 13),
-          axis.text = ggplot2::element_text(size = 13),
-          axis.title = ggplot2::element_text(size = 14)
+          axis.text = ggplot2::element_text(size = 15),
+          axis.title = ggplot2::element_text(size = 16)
         )
     }, width = d_$width, height = d_$height, res = 96)
 

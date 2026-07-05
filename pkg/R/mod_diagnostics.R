@@ -60,8 +60,8 @@ glmnet_diag_theme_ <- function(font_fam) {
   ggplot2::theme_minimal(base_size = 16, base_family = font_fam) +
     ggplot2::theme(
       plot.title = ggplot2::element_text(face = "bold", size = 18),
-      axis.text = ggplot2::element_text(size = 13),
-      axis.title = ggplot2::element_text(size = 14),
+      axis.text = ggplot2::element_text(size = 15),
+      axis.title = ggplot2::element_text(size = 16),
       legend.text = ggplot2::element_text(size = 12)
     )
 }

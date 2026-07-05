@@ -201,7 +201,7 @@ function(input, output, session) {
     # saved value on every project open (the JS no longer restores it from
     # localStorage, so earthUI always wins). Falls back to the input default
     # (today) when earthUI has none.
-    cf_proj <- valengrCore::earth_carryforward_(
+    cf_proj <- glmnetUI::earth_carryforward_(
       if (is.null(p)) NULL else p$project_path, pur)
     if (!is.null(cf_proj$effective_date))
       shiny::updateDateInput(session, "effective_date",
@@ -965,7 +965,7 @@ function(input, output, session) {
     if (!is.null(la)) return(la)
     if (is.null(tryCatch(earth_import_r(), error = function(e) NULL)) ||
         is.null(rv_proj$active_project)) return(NULL)
-    la_e <- valengrCore::earth_carryforward_(
+    la_e <- glmnetUI::earth_carryforward_(
       rv_proj$active_project$project_path, purpose())$living_area
     if (!is.null(la_e) && la_e %in% names(data_out$data())) la_e else NULL
   }
@@ -1133,7 +1133,7 @@ function(input, output, session) {
     cqa_type_pre <- NULL; cqa_value_pre <- NULL
     if (!is.null(tryCatch(earth_import_r(), error = function(e) NULL)) &&
         !is.null(rv_proj$active_project)) {
-      cf_cqa <- valengrCore::earth_carryforward_(
+      cf_cqa <- glmnetUI::earth_carryforward_(
         rv_proj$active_project$project_path, purpose())
       cqa_type_pre  <- cf_cqa$cqa_type
       cqa_value_pre <- cf_cqa$cqa_value

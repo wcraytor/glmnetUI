@@ -251,7 +251,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       # earthUI is the source of truth for the Response (its §3 target). If it
       # saved a target that exists in this data, use it instead of column 1.
       p_cf <- tryCatch(active_project_r(), error = function(e) NULL)
-      cf <- valengrCore::earth_carryforward_(
+      cf <- earth_carryforward_(
         if (is.null(p_cf)) NULL else p_cf$project_path, purpose())
       if (!is.null(cf$response) && cf$response %in% all_cols)
         default_response <- cf$response
@@ -467,6 +467,12 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       df <- rv$data
       file_key <- rv$file_name
 
+      # Pre-check the Factor box only for unambiguous (non-numeric) categoricals
+      # (text/factor/logical). Numeric factors are the appraiser's call. The
+      # user can still uncheck; saved per-file state takes precedence (restored
+      # by JS after render).
+      fac_auto <- detect_categoricals_(df)
+
       # When an earthUI model is imported, the predictor set is dictated by the
       # earth model: glmnet fits on earth's basis expansion (mod_modeling.R),
       # not the Include checkboxes. We reflect that here by locking Include and
@@ -488,7 +494,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
       appraiser <- purpose() %in% c("appraisal", "market")
       # Keep this list identical to mgcvUI / earthUI's special-column options so
       # the three sibling apps share the same designations.
-      special_options <- valengrCore::special_roles_(appraiser)
+      special_options <- special_roles_(appraiser)
 
       angled_hdr <- "text-align:center; font-size:1.0em; writing-mode:vertical-lr; transform:rotate(180deg); height:60px; line-height:1;"
       hdr_cols <- list(
@@ -559,7 +565,7 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
         # Pre-select the Special tag most similar to the column name (or "no"
         # if none is a reasonable match). Saved values are restored by JS
         # afterwards and take precedence.
-        def_special <- valengrCore::special_default_for_(col_name, special_options)
+        def_special <- special_default_for_(col_name, special_options)
         special_opts <- lapply(special_options, function(sp) {
           if (identical(sp, def_special))
             shiny::tags$option(value = sp, sp, selected = NA)
@@ -600,13 +606,19 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
           ),
           shiny::tags$div(
             style = "width:20px; text-align:center;",
-            shiny::tags$input(
-              type = "checkbox",
-              id = ns(paste0("fac_", col_name)),
-              class = "glmnet-fac-cb",
-              `data-col` = col_name,
-              disabled = lock_attr
-            )
+            do.call(shiny::tags$input, c(
+              list(
+                type = "checkbox",
+                id = ns(paste0("fac_", col_name)),
+                class = "glmnet-fac-cb",
+                `data-col` = col_name,
+                disabled = lock_attr
+              ),
+              # Pre-check only unambiguous (non-numeric) categoricals. Numeric
+              # columns are factors only if the appraiser ticks this box.
+              if (isTRUE(fac_auto[[col_name]]))
+                list(checked = NA)
+            ))
           ),
           shiny::tags$div(
             style = "width:20px; text-align:center;",
@@ -786,17 +798,8 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
 
           $(document).off("change.glmnetspecial").on("change.glmnetspecial",
             ".glmnet-special-sel", function() {
-              // Auto-set type when special implies it
-              var colName = $(this).attr("data-col");
-              var specialVal = $(this).val();
-              if ((specialVal === "area" || specialVal === "factor") && colName) {
-                var typeEl = document.getElementById(nsPrefix + "type_" + colName);
-                if (typeEl && typeEl.value !== "character") {
-                  // factor type is now in Special, not Type dropdown
-                  // but we still need the data to be treated as factor
-                  // in the modeling code
-                }
-              }
+              // Special is a column role only (area, contract_date, ...). It
+              // does NOT imply factor — factor designation is the Factor box.
               gatherState();
               saveState();
             });
@@ -978,6 +981,14 @@ dataImportServer <- function(id, purpose = shiny::reactiveVal("general"),
           }
         }
       }
+      # Factor designation lives in the Factor checkbox (NOT the Type dropdown,
+      # which has no "factor" option, and NOT the Special role). Fold the
+      # checked columns into the effective type so they reach glmnet (and the
+      # sign/correlation logic) as factors rather than numeric predictors.
+      facs <- input$fac_vars
+      if (length(facs)) {
+        base[intersect(facs, names(base))] <- "factor"
+      }
       base
     })
 
@@ -1114,6 +1125,22 @@ detect_column_types <- function(df) {
       }
     }
   }, FUN.VALUE = character(1))
+}
+
+# Flag columns that are UNAMBIGUOUSLY categorical by type: character, factor,
+# and logical. Numeric columns are NOT auto-flagged — a numeric variable is a
+# factor only if the appraiser ticks the Factor box (the sole factor control;
+# Special is unrelated — it is a downstream role, e.g. for the Sales Grid).
+# Counting unique values can't distinguish a discrete continuous predictor
+# (e.g. bath_count 0-5) from a numeric category code, so it must not drive the
+# default. Used to pre-check the Factor box in Predictor Settings.
+#' @noRd
+detect_categoricals_ <- function(df) {
+  res <- vapply(df, function(col) {
+    is.character(col) || is.factor(col) || is.logical(col)
+  }, logical(1))
+  names(res) <- names(df)
+  res
 }
 
 # Try to parse character columns as POSIXct dates.
